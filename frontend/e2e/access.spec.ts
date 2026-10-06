@@ -20,7 +20,8 @@ test('login: wrong password message, then own wards only, then logout', async ({
   await loginUi(page, world().users.roOther);
   await expect(page.getByRole('heading', { name: 'मेरे वार्ड' })).toBeVisible();
   await expect(page.locator('table.list tbody tr')).toHaveCount(1);
-  await expect(page.locator('table.list tbody tr')).toContainText('राजगढ़');
+  await expect(page.locator('table.list tbody tr')).toContainText('वार्ड 1');
+  await expect(page.locator('header')).toContainText('राजगढ़'); // the PS is in the header, not each row
   await page.getByRole('button', { name: 'लॉगआउट' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/wards');

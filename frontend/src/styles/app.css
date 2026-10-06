@@ -79,7 +79,7 @@ a {
   font-weight: 700;
 }
 .page {
-  padding: 0.8rem 1.2rem 3rem;
+  padding: 0.6rem 1.2rem 1rem;
   max-width: 1500px;
 }
 .loading {
@@ -154,13 +154,17 @@ a {
 
 /* Status badges (text always shown) */
 .badge {
-  display: inline-block;
-  padding: 0.1rem 0.6rem;
+  /* Devanagari's tall line box sat the text low: centre it with flex and a tight line height. */
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+  padding: 0.2rem 0.65rem;
   border: 2px solid;
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 700;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .badge-not-started,
 .badge-no-candidates {
@@ -362,4 +366,145 @@ textarea {
   margin-top: 1.2rem;
   width: 100%;
   font-size: 1.2rem;
+}
+
+/* One-screen forms: sheet on the left, sticky panel (total, sum line, error, button) on the right */
+.backlink {
+  margin: 0 0 0.3rem;
+}
+.small {
+  font-size: 0.9rem;
+}
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(22rem, 30rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+.side-panel {
+  position: sticky;
+  top: 0.5rem;
+  max-height: calc(100vh - 1rem);
+  overflow-y: auto;
+  border: 3px solid var(--brand);
+  padding: 0.4rem 0.9rem;
+}
+.side-panel .field-row {
+  margin: 0.3rem 0;
+  padding: 0.2rem 0.5rem;
+}
+.side-panel .field-row:focus-within {
+  background: #fff8d6;
+  box-shadow: inset 6px 0 0 var(--brand);
+}
+.side-panel .sumline {
+  margin: 0.4rem 0;
+  font-size: 1.15rem;
+}
+.side-panel textarea {
+  max-width: none;
+}
+.side-panel .actions {
+  margin: 0.5rem 0 0.2rem;
+}
+.btn-big {
+  font-size: 1.2rem;
+  padding: 0.5rem 1.6rem;
+}
+.panel-error:focus {
+  outline: 3px solid var(--bad);
+  outline-offset: 2px;
+}
+@media (max-width: 1000px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* Compact candidate rows; inputs stay 22px */
+.sheet-header {
+  padding: 0.3rem 0.9rem;
+  margin: 0 0 0.5rem;
+}
+.sheet-header .big {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+.sheet-table {
+  margin: 0;
+}
+.sheet-table th {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.9rem;
+}
+.sheet-table td {
+  padding: 0.12rem 0.5rem;
+}
+input.num {
+  line-height: 1.2;
+  padding: 0.15rem 0.5rem;
+}
+/* The row being typed: light background + a left bar, so the eye finds it from the paper */
+.sheet-table tbody tr:focus-within td {
+  background: #fff8d6;
+}
+.sheet-table tbody tr:focus-within td:first-child {
+  box-shadow: inset 6px 0 0 var(--brand);
+}
+.confirm {
+  margin: 0;
+  padding: 0.3rem 1rem 0.6rem;
+}
+.confirm h2 {
+  margin: 0.3rem 0;
+}
+.confirm-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2rem;
+  align-items: flex-start;
+}
+.confirm-body h3 {
+  margin: 0.4rem 0 0.2rem;
+}
+.confirm-table {
+  margin: 0.2rem 0 0.4rem;
+}
+.confirm-table td {
+  padding: 0.15rem 0.6rem;
+}
+
+/* Declare panel: the tie case (lottery + password + button) must fit at 1366x768 */
+.side-panel .summary-box {
+  padding: 0.2rem 0.8rem;
+  margin: 0.3rem 0;
+}
+.side-panel .summary-box p {
+  margin: 0.2rem 0;
+}
+.side-panel .lottery {
+  padding: 0.2rem 0.8rem 0.5rem;
+  margin: 0.3rem 0;
+}
+.side-panel .lottery p {
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+}
+.side-panel .decision label {
+  margin-top: 0.3rem;
+}
+.side-panel .decision .radio {
+  display: inline-block;
+  margin-right: 1.2rem;
+}
+.side-panel .decision .msg p {
+  margin: 0.2rem 0;
+}
+h1.compact {
+  font-size: 1.3rem;
+  margin: 0 0 0.4rem;
 }

@@ -4,12 +4,13 @@ import { ApiError, api } from '../api/api';
 import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
 import type { EntryPreview } from '../api/types';
 import { getLastRound, setLastRound } from '../auth/lastRound';
-import { ConfirmPanel } from '../components/ConfirmPanel';
+import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox, WarningBox } from '../components/ErrorBox';
+import { SplitLayout } from '../components/SplitLayout';
 import { LeaveGuard } from '../components/LeaveGuard';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
-import { wardTitle } from '../components/format';
+import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import type { WardFlash } from './WardDetailPage';
 
@@ -90,6 +91,7 @@ export function BoothEntryPage() {
       void navigate(`/wards/${wardId}`, { state });
     } catch (err) {
       setError(err);
+      setStage('form'); // the error is shown next to "आगे", with every typed number kept
       setBusy(false);
     }
   };
@@ -98,27 +100,18 @@ export function BoothEntryPage() {
   return (
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
-      <p>
-        <Link to={`/wards/${wardId}`}>← {wardTitle(ward)}</Link>
+      <p className="backlink">
+        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
       <div className="sheet-header">
-        <div>{wardTitle(ward)}</div>
         <div className="big">
           बूथ संख्या {booth.boothNo} — {booth.nameHindi}
         </div>
-        <div className="muted">
+        <div className="muted small">
           पंजीकृत मतदाता: {booth.registeredVotersTotal ?? 'दर्ज नहीं'} · मतपत्र:{' '}
           {ward.kind === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}
         </div>
       </div>
-      {alreadyEntered ? (
-        <div className="msg msg-error" role="alert">
-          ✗ यह बूथ पहले ही दर्ज हो चुका है — दोबारा एंट्री नहीं हो सकती।{' '}
-          <Link to={`/wards/${wardId}`}>वार्ड पर वापस जाएँ</Link>
-        </div>
-      ) : (
-        <ErrorBox error={error} />
-      )}
 
       {stage === 'form' && (
         <form
@@ -128,63 +121,83 @@ export function BoothEntryPage() {
           }}
         >
           <VoteSheet
+            layout="split"
             idPrefix="entry"
             ballot={ballot}
             values={sheet}
-            onChange={setValues}
+            onChange={(v) => {
+              setValues(v);
+              if (typeof error === 'string') setError(null); // a local check message is stale now
+            }}
             onSubmit={() => void onNext()}
             round={{ value: round, onChange: setRound }}
             autoFocusFirstCandidate
+            error={error}
+            errorView={
+              alreadyEntered ? (
+                <>
+                  यह बूथ पहले ही दर्ज हो चुका है — दोबारा एंट्री नहीं हो सकती।{' '}
+                  <Link to={`/wards/${wardId}`}>वार्ड पर वापस जाएँ</Link>
+                </>
+              ) : undefined
+            }
+            actions={
+              <div className="actions">
+                <button type="submit" className="btn btn-primary btn-big" disabled={busy}>
+                  {busy ? 'जाँच हो रही है…' : 'आगे'}
+                </button>
+              </div>
+            }
           />
-          <div className="actions">
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              आगे
-            </button>
-          </div>
         </form>
       )}
 
       {stage === 'confirm' && preview && (
-        <ConfirmPanel
-          title={`पुष्टि करें — बूथ ${booth.boothNo}, राउंड ${preview.summary.roundNo ?? round}`}
-          rows={preview.summary.votes.map((v) => ({
-            key: v.candidateId,
-            label: v.isNota ? 'नोटा' : `${v.ballotPosition}. ${v.nameHindi}`,
-            value: v.votes,
-            isNota: v.isNota,
-          }))}
-          total={preview.summary.sheetTotal}
-        >
-          {preview.warnings.includes('VOTER_COUNT_MISSING') && (
-            <WarningBox text="इस बूथ की पंजीकृत मतदाता संख्या दर्ज नहीं है, इसलिए वह जाँच नहीं हुई" />
-          )}
-          <h3>सेव के बाद वार्ड का कुल योग</h3>
-          <table className="confirm-table">
-            <tbody>
-              {preview.wardAfter.candidates.map((c) => (
-                <tr key={c.id} className={c.isNota ? 'nota-row' : undefined}>
-                  <td>{c.isNota ? 'नोटा' : c.nameHindi}</td>
-                  <td className="numcell">{c.totalVotes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="actions">
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onSave()}>
-              {busy ? 'सेव हो रहा है…' : 'पुष्टि करें और सेव करें'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                setStage('form');
-              }}
+        <SplitLayout
+          panelLabel="पुष्टि"
+          main={
+            <ConfirmPanel
+              title={`पुष्टि करें — बूथ ${booth.boothNo}, राउंड ${preview.summary.roundNo ?? round}`}
+              rows={preview.summary.votes.map((v) => ({
+                key: v.candidateId,
+                label: v.isNota ? 'नोटा' : `${v.ballotPosition}. ${v.nameHindi}`,
+                value: v.votes,
+                isNota: v.isNota,
+              }))}
+              total={preview.summary.sheetTotal}
             >
-              वापस जाकर सुधारें
-            </button>
-          </div>
-        </ConfirmPanel>
+              <WardAfter preview={preview} />
+            </ConfirmPanel>
+          }
+          panel={
+            <>
+              <p className="big">क्या ये संख्याएँ पर्ची से मेल खाती हैं?</p>
+              {preview.warnings.includes('VOTER_COUNT_MISSING') && (
+                <WarningBox text="इस बूथ की पंजीकृत मतदाता संख्या दर्ज नहीं है, इसलिए वह जाँच नहीं हुई" />
+              )}
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-big"
+                  disabled={busy}
+                  onClick={() => void onSave()}
+                >
+                  {busy ? 'सेव हो रहा है…' : 'पुष्टि करें और सेव करें'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setStage('form');
+                  }}
+                >
+                  वापस जाकर सुधारें
+                </button>
+              </div>
+            </>
+          }
+        />
       )}
     </>
   );

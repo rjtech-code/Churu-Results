@@ -21,8 +21,13 @@ test('declare a ready ward (a wrong password is refused first)', async ({ page }
 
 test('a tied ward needs the lottery result', async ({ page }) => {
   const w = world().wards.tie;
+  await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto(`/wards/${w.id}/declare`);
   await expect(page.getByText('शीर्ष पर बराबरी — लॉटरी आवश्यक')).toBeVisible();
+  // the tallest declare form (lottery + password) still fits on one screen
+  await expect(page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: 'घोषणा की पुष्टि करें' })).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByRole('alert')).toContainText('लॉटरी');

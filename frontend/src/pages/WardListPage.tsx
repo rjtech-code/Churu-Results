@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { loadWards } from '../api/loaders';
 import { ErrorBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
-import { formatTime, wardTitle } from '../components/format';
+import { formatTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
 const REFRESH_MS = 15_000;
@@ -54,7 +54,7 @@ export function WardListPage() {
           <tbody>
             {shown.map((w) => (
               <tr key={w.id}>
-                <td>{wardTitle(w)}</td>
+                <td className="ward-name">{wardShort(w)}</td>
                 <td>
                   <StatusBadge status={w.status} />
                 </td>

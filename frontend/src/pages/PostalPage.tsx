@@ -3,14 +3,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
 import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
 import type { EntryPreview, PostalEntryView } from '../api/types';
-import { ConfirmPanel } from '../components/ConfirmPanel';
+import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { LeaveGuard } from '../components/LeaveGuard';
 import { NumberField } from '../components/NumberField';
 import { ReasonField, reasonProblem } from '../components/ReasonField';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
-import { wardTitle } from '../components/format';
+import { wardShort, wardTitle } from '../components/format';
+import { SplitLayout } from '../components/SplitLayout';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 import type { WardFlash } from './WardDetailPage';
@@ -106,26 +107,23 @@ export function PostalPage() {
       void navigate(`/wards/${wardId}`, { state });
     } catch (err) {
       setError(err);
+      setStage('form'); // the error is shown next to "आगे", with every typed number kept
       setBusy(false);
     }
   };
 
   const check = checkSheet(ballot, sheet);
+  const stale = error instanceof ApiError && error.code === 'STALE_VERSION';
   return (
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
-      <p>
-        <Link to={`/wards/${wardId}`}>← {wardTitle(ward)}</Link>
+      <p className="backlink">
+        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
-      <h1>{editing ? 'डाक मत — सुधार' : 'डाक मत'}</h1>
       <div className="sheet-header">
-        <div className="big">{wardTitle(ward)} — डाक मत पत्र</div>
+        <div className="big">{editing ? 'डाक मत पत्र — सुधार' : 'डाक मत पत्र'}</div>
+        <div className="muted small">{wardTitle(ward)}</div>
       </div>
-      {error instanceof ApiError && error.code === 'STALE_VERSION' ? (
-        <ErrorBox error={STALE_TEXT} />
-      ) : (
-        <ErrorBox error={error} />
-      )}
       {stage === 'form' && (
         <form
           onSubmit={(e) => {
@@ -134,85 +132,102 @@ export function PostalPage() {
           }}
         >
           <VoteSheet
+            layout="split"
             idPrefix="postal"
             ballot={ballot}
             values={sheet}
-            onChange={setValues}
+            onChange={(v) => {
+              setValues(v);
+              if (typeof error === 'string') setError(null); // a local check message is stale now
+            }}
             onSubmit={() => void onNext()}
             autoFocusFirstCandidate
+            error={error}
+            errorView={stale ? STALE_TEXT : undefined}
+            extra={
+              <>
+                <div className="field-row">
+                  <label htmlFor="postal-rejected">अस्वीकृत डाक मत (वैकल्पिक — योग में नहीं जुड़ते)</label>
+                  <NumberField
+                    id="postal-rejected"
+                    label="अस्वीकृत डाक मत"
+                    className="num-small"
+                    value={rejectedValue}
+                    onChange={setRejected}
+                  />
+                </div>
+                {editing && (
+                  <ReasonField
+                    id="postal-reason"
+                    value={reason}
+                    onChange={setReason}
+                    label="सुधार का कारण (अनिवार्य, 10–500 अक्षर)"
+                  />
+                )}
+              </>
+            }
+            actions={
+              <div className="actions">
+                <button type="submit" className="btn btn-primary btn-big" disabled={busy}>
+                  {busy ? 'जाँच हो रही है…' : 'आगे'}
+                </button>
+              </div>
+            }
           />
-          <div className="field-row separate">
-            <label htmlFor="postal-rejected">अस्वीकृत डाक मत (वैकल्पिक — योग में नहीं जुड़ते)</label>
-            <NumberField
-              id="postal-rejected"
-              label="अस्वीकृत डाक मत"
-              className="num-small"
-              value={rejectedValue}
-              onChange={setRejected}
-            />
-          </div>
-          {editing && (
-            <ReasonField
-              id="postal-reason"
-              value={reason}
-              onChange={setReason}
-              label="सुधार का कारण (अनिवार्य, 10–500 अक्षर)"
-            />
-          )}
-          <div className="actions">
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              आगे
-            </button>
-          </div>
         </form>
       )}
       {stage === 'confirm' && (
-        <ConfirmPanel
-          title="पुष्टि करें — डाक मत"
-          rows={ballot.map((c) => ({
-            key: c.candidateId,
-            label: c.isNota ? 'नोटा' : `${c.ballotPosition}. ${c.nameHindi}`,
-            value: Number(sheet.votes[c.candidateId]),
-            before: editing ? entry.votes.find((v) => v.candidateId === c.candidateId)?.votes : undefined,
-            isNota: c.isNota,
-          }))}
-          total={check.sheetTotal}
-          totalBefore={entry?.sheetTotal}
-        >
-          <p data-testid="confirm-rejected">
-            अस्वीकृत डाक मत (योग से अलग): {rejectedValue === '' ? '—' : rejectedValue}
-          </p>
-          {preview && (
-            <>
-              <h3>सेव के बाद वार्ड का कुल योग</h3>
-              <table className="confirm-table">
-                <tbody>
-                  {preview.wardAfter.candidates.map((c) => (
-                    <tr key={c.id}>
-                      <td>{c.isNota ? 'नोटा' : c.nameHindi}</td>
-                      <td className="numcell">{c.totalVotes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
-          <div className="actions">
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onSave()}>
-              {busy ? 'सेव हो रहा है…' : 'पुष्टि करें और सेव करें'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                setStage('form');
-              }}
+        <SplitLayout
+          panelLabel="पुष्टि"
+          main={
+            <ConfirmPanel
+              title="पुष्टि करें — डाक मत"
+              rows={ballot.map((c) => ({
+                key: c.candidateId,
+                label: c.isNota ? 'नोटा' : `${c.ballotPosition}. ${c.nameHindi}`,
+                value: Number(sheet.votes[c.candidateId]),
+                before: editing ? entry.votes.find((v) => v.candidateId === c.candidateId)?.votes : undefined,
+                isNota: c.isNota,
+              }))}
+              total={check.sheetTotal}
+              totalBefore={entry?.sheetTotal}
             >
-              वापस जाकर सुधारें
-            </button>
-          </div>
-        </ConfirmPanel>
+              {preview && <WardAfter preview={preview} />}
+            </ConfirmPanel>
+          }
+          panel={
+            <>
+              <p className="big" data-testid="confirm-rejected">
+                अस्वीकृत डाक मत (योग से अलग): {rejectedValue === '' ? '—' : rejectedValue}
+              </p>
+              {editing && (
+                <p>
+                  कारण: <q>{reason.trim()}</q>
+                </p>
+              )}
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-big"
+                  disabled={busy}
+                  onClick={() => void onSave()}
+                >
+                  {busy ? 'सेव हो रहा है…' : 'पुष्टि करें और सेव करें'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setStage('form');
+                  }}
+                >
+                  वापस जाकर सुधारें
+                </button>
+              </div>
+            </>
+          }
+        />
       )}
     </>
   );

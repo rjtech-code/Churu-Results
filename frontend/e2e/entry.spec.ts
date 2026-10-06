@@ -11,7 +11,7 @@ test('ward list, then a booth: a mismatch blocks, the correct sheet saves and th
   await expect(page).toHaveURL(/\/wards$/);
   await expect(page.getByRole('heading', { name: 'मेरे वार्ड' })).toBeVisible();
   await page.getByLabel('वार्ड संख्या से खोजें').fill('1');
-  const row = page.getByRole('row', { name: /पंचायत समिति वार्ड 1 –/ });
+  const row = page.getByRole('row', { name: /^वार्ड 1 / });
   await expect(row).toContainText('शुरू नहीं');
   await expect(row).toContainText('0/2');
   await row.getByRole('link', { name: 'खोलें' }).click();
@@ -43,7 +43,7 @@ test('ward list, then a booth: a mismatch blocks, the correct sheet saves and th
   await expect(page.getByRole('heading', { level: 1 })).toContainText('मतगणना जारी');
 
   await page.getByRole('link', { name: '← मेरे वार्ड' }).click();
-  await expect(page.getByRole('row', { name: /पंचायत समिति वार्ड 1 –/ })).toContainText('1/2');
+  await expect(page.getByRole('row', { name: /^वार्ड 1 / })).toContainText('1/2');
 });
 
 test('the same booth a second time is refused with ALREADY_ENTERED', async ({ page }) => {
@@ -58,7 +58,7 @@ test('leaving with typed numbers asks first', async ({ page }) => {
   const w = world().wards.entry;
   await page.goto(`/wards/${w.id}/booths/${w.booths['2'] ?? 0}/entry`);
   await page.getByLabel('अमर सिंह के मत').fill('12');
-  await page.getByRole('link', { name: /← पंचायत समिति वार्ड 1/ }).click();
+  await page.getByRole('link', { name: '← वार्ड 1' }).click();
   const dialog = page.getByRole('alertdialog', { name: 'बिना सेव किए छोड़ें?' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'रुकें, पेज पर रहें' }).click();

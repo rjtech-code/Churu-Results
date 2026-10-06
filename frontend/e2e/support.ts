@@ -15,13 +15,14 @@ export interface E2eWard {
   wardNo: number;
   booths: Record<string, number>;
   candidates: { A: number; B: number; NOTA: number };
+  extraCandidates: number[];
   entries: Record<string, number>;
   postalEntry: number | null;
 }
 export interface E2eWorld {
   password: string;
   users: { ro: string; roOther: string; zp: string; dm: string };
-  wards: Record<'entry' | 'edit' | 'postal' | 'ready' | 'tie' | 'nota' | 'correction', E2eWard>;
+  wards: Record<'entry' | 'edit' | 'postal' | 'ready' | 'tie' | 'nota' | 'correction' | 'wide', E2eWard>;
   otherPsWard: number;
 }
 

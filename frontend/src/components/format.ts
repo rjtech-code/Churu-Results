@@ -47,3 +47,8 @@ export function wardTitle(w: Pick<WardItem, 'kind' | 'wardNo' | 'panchayatSamiti
     ? `जिला परिषद वार्ड ${w.wardNo}`
     : `पंचायत समिति वार्ड ${w.wardNo}${w.panchayatSamiti ? ` – ${w.panchayatSamiti.name}` : ''}`;
 }
+
+/** Short ward name for lists and back links (the PS is already in the page header). */
+export function wardShort(w: Pick<WardItem, 'wardNo'>): string {
+  return `वार्ड ${w.wardNo}`;
+}

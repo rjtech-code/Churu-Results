@@ -11,8 +11,9 @@ import {
   emptyDecision,
 } from '../components/DecisionFields';
 import type { Decision } from '../components/DecisionFields';
-import { ErrorBox, SuccessBox, WarningBox } from '../components/ErrorBox';
-import { wardTitle } from '../components/format';
+import { ErrorBox, PanelError, SuccessBox, WarningBox } from '../components/ErrorBox';
+import { SplitLayout } from '../components/SplitLayout';
+import { wardShort, wardTitle } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
 export function DeclarePage() {
@@ -78,10 +79,10 @@ export function DeclarePage() {
 
   return (
     <>
-      <p>
-        <Link to={`/wards/${wardId}`}>← {wardTitle(ward)}</Link>
+      <p className="backlink">
+        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
-      <h1>घोषणा — {wardTitle(ward)}</h1>
+      <h1 className="compact">घोषणा — {wardTitle(ward)}</h1>
       {done ? (
         <>
           <SuccessBox
@@ -95,37 +96,42 @@ export function DeclarePage() {
       ) : preview === null ? (
         <ErrorBox error={previewError} />
       ) : (
-        <>
-          {changedNotice && <WarningBox text="परिणाम बदल गया है, कृपया नया परिणाम दोबारा जाँचें" />}
-          <ResultTable result={preview.result} />
-          <div className="summary-box">
-            {preview.wouldStore.needsLottery ? (
-              <p className="big">शीर्ष पर बराबरी — लॉटरी आवश्यक</p>
-            ) : (
-              <p className="big" data-testid="declare-winner">
-                विजेता: {preview.result.leader?.nameHindi} · अंतर: {preview.wouldStore.margin}
-              </p>
-            )}
-            <p>कुल वैध मत: {preview.result.totalValidVotes}</p>
-          </div>
-          <ErrorBox error={error} />
-          <DecisionFields
-            result={preview.result}
-            store={preview.wouldStore}
-            value={decision}
-            onChange={setDecision}
-          />
-          <div className="actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => void onDeclare()}
-            >
-              {busy ? 'घोषणा हो रही है…' : 'घोषणा की पुष्टि करें'}
-            </button>
-          </div>
-        </>
+        <SplitLayout
+          panelLabel="घोषणा की पुष्टि"
+          main={<ResultTable result={preview.result} />}
+          panel={
+            <>
+              {changedNotice && <WarningBox text="परिणाम बदल गया है, कृपया नया परिणाम दोबारा जाँचें" />}
+              <div className="summary-box">
+                {preview.wouldStore.needsLottery ? (
+                  <p className="big">शीर्ष पर बराबरी — लॉटरी आवश्यक</p>
+                ) : (
+                  <p className="big" data-testid="declare-winner">
+                    विजेता: {preview.result.leader?.nameHindi} · अंतर: {preview.wouldStore.margin}
+                  </p>
+                )}
+                <p>कुल वैध मत: {preview.result.totalValidVotes}</p>
+              </div>
+              <DecisionFields
+                result={preview.result}
+                store={preview.wouldStore}
+                value={decision}
+                onChange={setDecision}
+              />
+              <PanelError error={error} />
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-big"
+                  disabled={busy}
+                  onClick={() => void onDeclare()}
+                >
+                  {busy ? 'घोषणा हो रही है…' : 'घोषणा की पुष्टि करें'}
+                </button>
+              </div>
+            </>
+          }
+        />
       )}
     </>
   );

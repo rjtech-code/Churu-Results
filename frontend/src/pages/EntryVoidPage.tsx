@@ -6,7 +6,7 @@ import type { BallotCandidate, BoothEntryView, PostalEntryView } from '../api/ty
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { ReasonField, reasonProblem } from '../components/ReasonField';
-import { wardTitle } from '../components/format';
+import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 import type { WardFlash } from './WardDetailPage';
@@ -52,8 +52,8 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
 
   return (
     <>
-      <p>
-        <Link to={`/wards/${ward.id}`}>← {wardTitle(ward)}</Link>
+      <p className="backlink">
+        <Link to={`/wards/${ward.id}`}>← {wardShort(ward)}</Link>
       </p>
       <h1>{kind === 'BOOTH' ? 'एंट्री रद्द करें' : 'डाक मत रद्द करें'}</h1>
       {error instanceof ApiError && error.code === 'STALE_VERSION' ? (

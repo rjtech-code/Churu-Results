@@ -28,7 +28,12 @@ interface Scenario {
   booths: { no: number; votes: Votes | null }[];
   postal: Votes | null;
   declare?: boolean;
+  /** Candidates beyond A and B (ballot positions 3..), before NOTA. */
+  extraCandidates?: number;
 }
+
+/** Names for the extra candidates of a wide ballot. */
+const EXTRA_NAMES = ['चंदन लाल', 'दिनेश शर्मा', 'ईश्वर प्रसाद', 'फतेह सिंह', 'गणेश राम', 'हरि ओम'];
 
 /** PS Churu wards, one per scenario. Booth numbers are unique within the PS. */
 const SCENARIOS: Scenario[] = [
@@ -61,6 +66,8 @@ const SCENARIOS: Scenario[] = [
     postal: [4, 1, 0],
     declare: true,
   },
+  // The largest ballot the one-screen form must fit: 8 candidates + NOTA, nothing entered.
+  { key: 'wide', wardNo: 8, booths: [{ no: 10, votes: null }], postal: null, extraCandidates: 6 },
 ];
 
 export interface E2eWard {
@@ -68,6 +75,8 @@ export interface E2eWard {
   wardNo: number;
   booths: Record<number, number>; // booth no -> booth id
   candidates: { A: number; B: number; NOTA: number };
+  /** Ballot positions 3.. (wide ballots only), in order. */
+  extraCandidates: number[];
   entries: Record<number, number>; // booth no -> entry id
   postalEntry: number | null;
 }
@@ -115,18 +124,19 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
        VALUES (?, ?, ?, ?, ?, 1000)`,
       [ps, no, `राजकीय विद्यालय ${no}`, psWard, zpWard],
     );
-  const candidates = async (w: number) => {
+  const candidates = async (w: number, extra = 0) => {
     const c = (pos: number, name: string, nota: boolean) =>
       insert(
         app,
         'INSERT INTO candidate (ward_id, ballot_position, name_hindi, gender, is_nota) VALUES (?, ?, ?, ?, ?)',
         [w, pos, name, nota ? null : 'M', nota ? 1 : 0],
       );
-    return {
-      A: await c(1, 'अमर सिंह', false),
-      B: await c(2, 'भरत कुमार', false),
-      NOTA: await c(3, 'नोटा', true),
-    };
+    const A = await c(1, 'अमर सिंह', false);
+    const B = await c(2, 'भरत कुमार', false);
+    const more: number[] = [];
+    for (let i = 0; i < extra; i++)
+      more.push(await c(3 + i, EXTRA_NAMES[i] ?? `उम्मीदवार ${3 + i}`, false));
+    return { A, B, NOTA: await c(3 + extra, 'नोटा', true), more };
   };
   const lock = (w: number) =>
     app.execute(
@@ -143,7 +153,10 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
       id,
       wardNo: s.wardNo,
       booths,
-      candidates: await candidates(id),
+      ...(await candidates(id, s.extraCandidates ?? 0).then(({ more, ...abn }) => ({
+        candidates: abn,
+        extraCandidates: more,
+      }))),
       entries: {},
       postalEntry: null,
     };

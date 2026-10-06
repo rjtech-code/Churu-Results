@@ -15,7 +15,7 @@ import { ErrorBox, SuccessBox, WarningBox } from '../components/ErrorBox';
 import { ReasonField, reasonProblem } from '../components/ReasonField';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
-import { formatDateTime, wardTitle } from '../components/format';
+import { formatDateTime, wardShort, wardTitle } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 
@@ -155,8 +155,8 @@ export function CorrectionPage() {
 
   return (
     <>
-      <p>
-        <Link to={`/wards/${wardId}`}>← {wardTitle(ward)}</Link>
+      <p className="backlink">
+        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
       <h1>संशोधन — {wardTitle(ward)}</h1>
       <SuccessBox text={notice} />

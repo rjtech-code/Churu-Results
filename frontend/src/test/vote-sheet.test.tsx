@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BallotCandidate } from '../api/types';
+import { ApiError } from '../api/api';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
@@ -88,6 +89,47 @@ describe('VoteSheet', () => {
       { candidateId: 19, votes: 0 },
       { candidateId: 11, votes: 5 },
     ]);
+  });
+});
+
+describe('VoteSheet split layout and errors', () => {
+  const full: SheetValues = { votes: { 11: '30', 12: '20', 19: '0' }, total: '50' };
+  const renderSplit = (error: unknown) =>
+    render(
+      <VoteSheet
+        layout="split"
+        idPrefix="s"
+        ballot={BALLOT}
+        values={full}
+        onChange={() => undefined}
+        onSubmit={() => undefined}
+        error={error}
+        actions={<button type="submit">आगे</button>}
+      />,
+    );
+
+  it('puts the total, sum line, error and "आगे" in the side panel', () => {
+    renderSplit('कोई संदेश');
+    const panel = screen.getByRole('complementary', { name: 'योग और आगे' });
+    expect(panel.contains(screen.getByLabelText('कुल योग (पर्ची के अनुसार)'))).toBe(true);
+    expect(panel.contains(screen.getByTestId('s-sumline'))).toBe(true);
+    expect(panel.contains(screen.getByRole('alert'))).toBe(true);
+    expect(panel.contains(screen.getByRole('button', { name: 'आगे' }))).toBe(true);
+    expect(screen.getByRole('alert')).toBe(document.activeElement); // focus moves to the error
+  });
+
+  it('a server error keeps the sum line red even when the numbers are equal', () => {
+    renderSplit(new ApiError(400, 'EXCEEDS_REGISTERED_VOTERS', { sheetTotal: 50, registeredVoters: 40 }));
+    const line = screen.getByTestId('s-sumline');
+    expect(line.className).toContain('sum-bad');
+    expect(line.className).not.toContain('sum-ok');
+    expect(line.textContent).toContain('✗ रुकावट');
+    expect(screen.getByRole('alert').textContent).toContain('पंजीकृत मतदाताओं (40) से अधिक');
+  });
+
+  it('a local message does not override the live line', () => {
+    renderSplit('कारण लिखें');
+    expect(screen.getByTestId('s-sumline').textContent).toContain('✓ बराबर');
   });
 });
 
