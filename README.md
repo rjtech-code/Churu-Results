@@ -246,6 +246,17 @@ All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS 
 - Unknown usernames always get 401, never 423.
 - A malformed body gets 400 `VALIDATION_FAILED`.
 
+**Decision (recorded after Part 3): locked accounts get HTTP 423, on purpose**
+- **Why:** officers must see a clear "account locked, try again in N minutes" message on counting day,
+  instead of a confusing "wrong password".
+- **Accepted risk:** a 423 can only come from a real account, so it shows that a username exists.
+- **Mitigations:**
+  - **Usernames can't be guessed.** Every account gets a random suffix when it is created, e.g.
+    `ro_rjg_k7m2`, never just `ro_rajgarh`.
+  - **LAN only.** The counting-day system runs only on the local LAN, not the internet.
+  - **Quick unlock.** `npm run users:unlock -- --username <u> --by "<name>" --commit` clears a lock in
+    seconds (audited), without changing the password.
+
 **Rate limits** (per client IP)
 - Login: 20 attempts per 15 minutes.
 - All `/api` routes: 600 per minute. `/api/health` is never limited.
@@ -289,7 +300,10 @@ database, no clock and no randomness, so the same saved data always gives the sa
 - Valid votes = all candidates + NOTA. Rejected postal ballots are shown separately and are **not**
   valid votes. That rule lives in one function, `expectedPostalVoteSum`, so it is easy to change.
 - **Ranks** are shared on equal votes (1, 1, 3) and run over real candidates only.
-- **Leader, runner-up and top-3** are real candidates only. NOTA is never among them, even when it has the
+- **Leader, runner-up and top-3** are real candidates only. Equal votes are listed in ballot order, except
+  in a declared ward: there the declared winner (for a tie, the lottery winner) is always the leader and
+  the first row. Both tied candidates still have rank 1.
+- NOTA is never among them, even when it has the
   most votes; then the `notaHighest` flag is shown, but nothing else changes.
 - **Margin** = leader's votes − runner-up's votes.
 
@@ -306,8 +320,9 @@ database, no clock and no randomness, so the same saved data always gives the sa
 
 During counting, an equal top is shown as `topTied` only.
 
-**Alarm:** if a declared ward's current votes ever differ from the votes saved at declaration time,
-`declarationMismatch` is true.
+**Alarm:** `declarationMismatch` is true if a declared ward's current votes ever differ from the votes
+saved at declaration time, or if the declared winner no longer has the most votes. The engine never
+reorders candidates against the votes.
 
 **The engine refuses impossible data** (`ResultInputError`). The database already prevents these;
 the engine checks again:

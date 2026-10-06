@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { computeWardResult } from '../../src/services/result.js';
+import { buildDeclarationSnapshot, computeWardResult } from '../../src/services/result.js';
 import type {
   BoothEntryInput,
   ResultCandidateInput,
@@ -193,6 +193,66 @@ describe('result engine — properties', () => {
         else if (!complete) expect(r.status).toBe('COUNTING');
         else expect(r.status).toBe(r.topTied ? 'TIE_NEEDS_LOTTERY' : 'READY_TO_DECLARE');
         expect(r.winnerCandidateId === null).toBe(r.status !== 'UNOPPOSED');
+      }),
+      RUNS,
+    );
+  });
+
+  it('declared wards: leader and top3[0] are always the declared winner; ranks stay competition ranks', () => {
+    const contested = wardArb.filter((input) => !input.ward.isUnopposed);
+    fc.assert(
+      fc.property(contested, fc.nat(), (input, pick) => {
+        const counted = computeWardResult(input);
+        // A valid declaration: the leader, or (for a tie) any of the top-tied candidates by lottery.
+        const topVotes = counted.leader?.totalVotes;
+        const tied = counted.candidates.filter((c) => !c.isNota && c.totalVotes === topVotes);
+        const winner = tied[pick % tied.length];
+        if (winner === undefined) throw new Error('no top candidate');
+        const status = counted.topTied ? 'TIE_RESOLVED' : 'DECLARED';
+        const r = computeWardResult({
+          ...input,
+          latestDeclaration: {
+            version: 1,
+            status,
+            winnerCandidateId: winner.id,
+            margin: counted.margin ?? 0,
+            snapshot: buildDeclarationSnapshot(counted),
+          },
+        });
+        expect(r.status).toBe(status);
+        expect(r.declarationMismatch).toBe(false);
+        expect(r.leader?.candidateId).toBe(r.winnerCandidateId);
+        expect(r.top3[0]?.candidateId).toBe(winner.id);
+        // Only the order of equal-vote rows changes: same ranks and the same vote sequence.
+        expect(r.candidates.map((c) => c.rank)).toEqual(counted.candidates.map((c) => c.rank));
+        expect(r.top3.map((t) => t.totalVotes)).toEqual(counted.top3.map((t) => t.totalVotes));
+        expect(r.runnerUp?.candidateId).toBe(r.top3[1]?.candidateId);
+      }),
+      RUNS,
+    );
+  });
+
+  it('a declared winner who is not top-voted always raises declarationMismatch', () => {
+    const contested = wardArb.filter((input) => !input.ward.isUnopposed);
+    fc.assert(
+      fc.property(contested, fc.nat(), (input, pick) => {
+        const counted = computeWardResult(input);
+        const real = counted.candidates.filter((c) => !c.isNota);
+        const winner = real[pick % real.length];
+        if (winner === undefined) throw new Error('no candidate');
+        const r = computeWardResult({
+          ...input,
+          latestDeclaration: {
+            version: 1,
+            status: 'DECLARED',
+            winnerCandidateId: winner.id,
+            margin: 1,
+            snapshot: buildDeclarationSnapshot(counted),
+          },
+        });
+        const isTop = winner.totalVotes === counted.leader?.totalVotes;
+        expect(r.declarationMismatch).toBe(!isTop);
+        expect(r.leader?.candidateId === winner.id).toBe(isTop);
       }),
       RUNS,
     );

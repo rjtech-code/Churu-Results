@@ -120,9 +120,10 @@ export interface WardResult {
   boothsEntered: number;
   postalEntered: boolean;
   roundsSeen: number[];
-  /** Up to 3 REAL candidates: votes descending, equal votes by ballot position. */
+  /** Up to 3 REAL candidates: votes descending; equal votes: declared winner first, then ballot position. */
   top3: RankedRow[];
-  /** Real candidates only. On a tie the leader is picked by ballot position for DISPLAY only. */
+  /** Real candidates only. Declared wards: always the declared winner (unless declarationMismatch).
+   *  Undeclared tie: the first by ballot position, for DISPLAY only. */
   leader: RankedRow | null;
   runnerUp: RankedRow | null;
   /** leader - runnerUp (null with fewer than 2 real candidates). Declared wards: the declared margin. */
@@ -139,7 +140,8 @@ export interface WardResult {
     winnerCandidateId: number;
     margin: number;
   } | null;
-  /** Declared, but the current votes differ from the declaration snapshot. An alarm. */
+  /** Declared, but the current votes differ from the declaration snapshot, or the declared winner
+   *  no longer has the most votes. An alarm. */
   declarationMismatch: boolean;
 }
 
@@ -319,11 +321,18 @@ export function computeWardResult(input: WardResultInput): WardResult {
     totalValidVotes = add(totalValidVotes, c.totalVotes, `${label}: total valid votes`);
   }
 
-  // Ranking of real candidates: votes descending, then ballot position (results are in ballot
-  // order and Array.prototype.sort is stable). Competition ranking: 1 + number with MORE votes.
+  // Ranking of real candidates: votes descending; among EQUAL votes the declared winner (lottery
+  // result) comes first, the rest stay in ballot order (results are in ballot order and
+  // Array.prototype.sort is stable). Competition ranking: 1 + number with MORE votes, so tied
+  // rows keep the same rank whatever their order.
+  const declaredWinnerId = declaration?.winnerCandidateId ?? null;
   const ranked: RankedRow[] = results
     .filter((c) => !c.isNota)
-    .sort((a, b) => b.totalVotes - a.totalVotes)
+    .sort(
+      (a, b) =>
+        b.totalVotes - a.totalVotes ||
+        Number(b.id === declaredWinnerId) - Number(a.id === declaredWinnerId),
+    )
     .map((c, i, list) => {
       c.rank = 1 + list.filter((o) => o.totalVotes > c.totalVotes).length;
       return {
@@ -375,7 +384,10 @@ export function computeWardResult(input: WardResultInput): WardResult {
       winnerCandidateId: declaration.winnerCandidateId,
       margin: declaration.margin,
     };
-    declarationMismatch = snapshotDiffers(declaration.snapshot, results);
+    // The declared winner is always first among the top-voted rows. If it is not the leader, it no
+    // longer has the most votes: the declaration does not match the counted votes (alarm).
+    declarationMismatch =
+      snapshotDiffers(declaration.snapshot, results) || leader.candidateId !== declaration.winnerCandidateId;
   } else if (ward.isUnopposed) {
     status = 'UNOPPOSED';
     winnerCandidateId = leader.candidateId;

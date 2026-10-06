@@ -341,7 +341,136 @@ describe('result engine — cases', () => {
       topTied: true,
       declarationMismatch: false,
     });
-    expect(r.leader?.candidateId).toBe(A); // display order is unchanged; the WINNER is the lottery result
+    // The lottery winner is the leader and first row, even with the highest ballot position.
+    expect(r.leader?.candidateId).toBe(C);
+    expect(ids(r.top3)).toEqual([C, A, B]);
+  });
+
+  describe('16b. the declared winner is always the leader and first row', () => {
+    const tiedAB = () => ({
+      boothEntries: [
+        booth(1, { [A]: 10, [B]: 10, [C]: 3, [N]: 1 }),
+        booth(2, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }),
+        booth(3, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }),
+      ],
+      postalEntry: postal({ [A]: 0, [B]: 0, [C]: 0, [N]: 0 }),
+    });
+
+    it('lottery won by the candidate with the HIGHER ballot position', () => {
+      const before = result(tiedAB());
+      expect(before.leader?.candidateId).toBe(A); // undeclared tie: ballot order, display only
+      const r = result({
+        ...tiedAB(),
+        latestDeclaration: declaration({
+          status: 'TIE_RESOLVED',
+          winnerCandidateId: B,
+          margin: 0,
+          snapshot: buildDeclarationSnapshot(before),
+        }),
+      });
+      expect(r.leader?.candidateId).toBe(B);
+      expect(r.winnerCandidateId).toBe(B);
+      expect(r.runnerUp?.candidateId).toBe(A);
+      expect(r.top3.map((t) => [t.candidateId, t.rank, t.tiedWithPrevious])).toEqual([
+        [B, 1, false],
+        [A, 1, true],
+        [C, 3, false],
+      ]);
+      expect(ranks(r)).toEqual({ [A]: 1, [B]: 1, [C]: 3, [N]: null });
+      expect(r).toMatchObject({
+        status: 'TIE_RESOLVED',
+        topTied: true,
+        margin: 0,
+        declarationMismatch: false,
+      });
+    });
+
+    it('a 3-way tie at the top resolved by lottery: winner first, the other two keep ballot order', () => {
+      const input = {
+        candidates: [cand(A, 1), cand(B, 2), cand(C, 3), cand(14, 4), nota(N, 5)],
+        boothEntries: [
+          booth(1, { [A]: 7, [B]: 7, [C]: 7, 14: 2, [N]: 0 }),
+          booth(2, { [A]: 0, [B]: 0, [C]: 0, 14: 0, [N]: 0 }),
+          booth(3, { [A]: 0, [B]: 0, [C]: 0, 14: 0, [N]: 0 }),
+        ],
+        postalEntry: postal({ [A]: 0, [B]: 0, [C]: 0, 14: 0, [N]: 0 }),
+      };
+      const before = result(input);
+      expect(before.status).toBe('TIE_NEEDS_LOTTERY');
+      const r = result({
+        ...input,
+        latestDeclaration: declaration({
+          status: 'TIE_RESOLVED',
+          winnerCandidateId: B,
+          margin: 0,
+          snapshot: buildDeclarationSnapshot(before),
+        }),
+      });
+      expect(r.top3.map((t) => [t.candidateId, t.rank, t.tiedWithPrevious])).toEqual([
+        [B, 1, false],
+        [A, 1, true],
+        [C, 1, true],
+      ]);
+      expect(r.leader?.candidateId).toBe(B);
+      expect(r.runnerUp?.candidateId).toBe(A);
+      expect(ranks(r)).toEqual({ [A]: 1, [B]: 1, [C]: 1, 14: 4, [N]: null });
+      expect(r.declarationMismatch).toBe(false);
+    });
+
+    it('a DECLARED ward: leader equals winnerCandidateId', () => {
+      const snapshot = buildDeclarationSnapshot(result(fullEntries()));
+      const r = result({
+        ...fullEntries(),
+        latestDeclaration: declaration({ winnerCandidateId: A, margin: 20, snapshot }),
+      });
+      expect(r.status).toBe('DECLARED');
+      expect(r.leader?.candidateId).toBe(r.winnerCandidateId);
+      expect(r.top3[0]?.candidateId).toBe(A);
+    });
+
+    it('a declared winner who does NOT have the most votes raises declarationMismatch (vote order is kept)', () => {
+      // Snapshot equals the current votes, but it names B (40) while A has 60.
+      const snapshot = buildDeclarationSnapshot(result(fullEntries()));
+      const r = result({
+        ...fullEntries(),
+        latestDeclaration: declaration({ winnerCandidateId: B, margin: 20, snapshot }),
+      });
+      expect(r).toMatchObject({
+        status: 'DECLARED',
+        winnerCandidateId: B,
+        declarationMismatch: true,
+      });
+      expect(r.leader?.candidateId).toBe(A); // never re-ordered against the votes
+      expect(ids(r.top3)).toEqual([A, B, C]);
+      // Same for a TIE_RESOLVED naming the third-placed candidate.
+      const tie = result({
+        ...tiedAB(),
+        latestDeclaration: declaration({
+          status: 'TIE_RESOLVED',
+          winnerCandidateId: C,
+          margin: 0,
+          snapshot: buildDeclarationSnapshot(result(tiedAB())),
+        }),
+      });
+      expect(tie).toMatchObject({ declarationMismatch: true, winnerCandidateId: C });
+      expect(tie.leader?.candidateId).toBe(A);
+    });
+
+    it('a declared winner that is NOTA or from another ward is still an input error', () => {
+      expect(() =>
+        result({
+          ...tiedAB(),
+          latestDeclaration: declaration({
+            status: 'TIE_RESOLVED',
+            winnerCandidateId: N,
+            margin: 0,
+          }),
+        }),
+      ).toThrow(ResultInputError);
+      expect(() =>
+        result({ ...tiedAB(), latestDeclaration: declaration({ winnerCandidateId: 4242 }) }),
+      ).toThrow(/is not a real candidate/);
+    });
   });
 
   describe('17. input validation (ResultInputError)', () => {
