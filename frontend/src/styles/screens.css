@@ -1,11 +1,53 @@
 /* Media-room TV screens (/screen/1..3). Designed for 1920x1080 and scaled to any window with one
-   transform; the scale is a CSS variable set by JS (CSSOM), nothing inline. No scrollbars ever. */
+   transform; the scale is a CSS variable set by JS (CSSOM), nothing inline. No scrollbars ever.
+   Every colour is a variable below; colour is always paired with text. */
+:root {
+  --tv-bg: #e8eef5;
+  --tv-header: #0b3d91;
+  --tv-card: #ffffff;
+  --tv-card-border: #c5d0de;
+  --tv-quiet: #f1f3f6;
+  --tv-text: #1a1a1a;
+  --tv-muted: #4d5766;
+
+  /* status tones: stripe / badge background / badge text */
+  --st-grey: #6b7280;
+  --st-grey-bg: #e5e7eb;
+  --st-grey-ink: #374151;
+  --st-blue: #1d5fd0;
+  --st-blue-bg: #dbe7fb;
+  --st-blue-ink: #123f8c;
+  --st-amber: #d97706;
+  --st-amber-bg: #fef3c7;
+  --st-amber-ink: #7a4a00;
+  --st-green: #15803d;
+  --st-green-bg: #dcfce7;
+  --st-green-ink: #14532d;
+  --st-purple: #7e22ce;
+  --st-purple-bg: #f3e8ff;
+  --st-purple-ink: #581c87;
+  --st-teal: #0f766e;
+  --st-teal-bg: #ccfbf1;
+  --st-teal-ink: #134e4a;
+  --st-red: #b91c1c;
+  --st-red-bg: #fee2e2;
+  --st-red-ink: #7f1d1d;
+
+  --tv-ticker-bg: #fff4d6;
+  --tv-ticker-ink: #6b4400;
+  --tv-ticker-label: #b45309;
+  --tv-winner-bg: #e3f6e8;
+  --tv-winner-ink: #0f3d1f;
+  --tv-change: #f59e0b;
+  --tv-independent: #8c8c8c;
+}
+
 html.screen-mode,
 html.screen-mode body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #fff;
+  background: var(--tv-bg);
 }
 html.hide-cursor,
 html.hide-cursor * {
@@ -16,7 +58,7 @@ html.hide-cursor * {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: #fff;
+  background: var(--tv-bg);
 }
 .tv-stage {
   position: absolute;
@@ -29,10 +71,47 @@ html.hide-cursor * {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
-  color: #111;
+  background: var(--tv-bg);
+  color: var(--tv-text);
   font-size: 24px;
   line-height: 1.3;
+}
+
+/* Tones (stripe colour --tone, badge colours --tone-bg / --tone-ink) */
+.tone-grey {
+  --tone: var(--st-grey);
+  --tone-bg: var(--st-grey-bg);
+  --tone-ink: var(--st-grey-ink);
+}
+.tone-blue {
+  --tone: var(--st-blue);
+  --tone-bg: var(--st-blue-bg);
+  --tone-ink: var(--st-blue-ink);
+}
+.tone-amber {
+  --tone: var(--st-amber);
+  --tone-bg: var(--st-amber-bg);
+  --tone-ink: var(--st-amber-ink);
+}
+.tone-green {
+  --tone: var(--st-green);
+  --tone-bg: var(--st-green-bg);
+  --tone-ink: var(--st-green-ink);
+}
+.tone-purple {
+  --tone: var(--st-purple);
+  --tone-bg: var(--st-purple-bg);
+  --tone-ink: var(--st-purple-ink);
+}
+.tone-teal {
+  --tone: var(--st-teal);
+  --tone-bg: var(--st-teal-bg);
+  --tone-ink: var(--st-teal-ink);
+}
+.tone-red {
+  --tone: var(--st-red);
+  --tone-bg: var(--st-red-bg);
+  --tone-ink: var(--st-red-ink);
 }
 
 /* Header */
@@ -41,27 +120,36 @@ html.hide-cursor * {
   height: 84px;
   display: flex;
   align-items: center;
-  gap: 36px;
+  gap: 30px;
   padding: 0 28px;
-  background: #0b3d91;
+  background: var(--tv-header);
   color: #fff;
 }
 .tv-title {
   margin: 0;
-  font-size: 38px;
+  font-size: 36px;
   font-weight: 700;
   flex: 1;
   white-space: nowrap;
 }
 .tv-screen-name {
-  font-size: 36px;
+  font-size: 34px;
   font-weight: 700;
-  padding: 2px 18px;
+  padding: 2px 16px;
   border: 3px solid #fff;
   border-radius: 8px;
+  white-space: nowrap;
+}
+.tv-progress {
+  font-size: 28px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 2px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
 }
 .tv-live {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -69,10 +157,10 @@ html.hide-cursor * {
   color: #3ddc5f;
 }
 .tv-live-off .tv-dot {
-  color: #ff6b6b;
+  color: #ff8a8a;
 }
 .tv-updated {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -84,22 +172,23 @@ html.hide-cursor * {
   display: flex;
   align-items: center;
   padding: 0 28px;
-  background: #b00000;
+  background: var(--st-red);
   color: #fff;
   font-size: 34px;
   font-weight: 700;
 }
 
-/* Ticker: one static row */
+/* "अभी बदला": one static row */
 .tv-ticker {
   flex: none;
   height: 54px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 22px;
   padding: 0 28px;
-  background: #f1f4f9;
-  border-bottom: 2px solid #c9d2e3;
+  background: var(--tv-ticker-bg);
+  color: var(--tv-ticker-ink);
+  border-bottom: 2px solid #f0d58a;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -108,86 +197,103 @@ html.hide-cursor * {
   font-size: 24px;
   font-weight: 700;
   color: #fff;
-  background: #0b3d91;
+  background: var(--tv-ticker-label);
   padding: 2px 14px;
   border-radius: 6px;
 }
 .tv-ticker-item {
-  font-size: 24px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  flex: 0 1 auto;
+  flex: none;
+  font-size: 25px;
+  font-weight: 700;
 }
 .tv-ticker-item + .tv-ticker-item {
-  border-left: 3px solid #9aa7bf;
-  padding-left: 24px;
+  border-left: 3px solid #e2b85c;
+  padding-left: 22px;
 }
 
 /* Page header + summary chips */
 .tv-page-head {
   flex: none;
-  height: 66px;
+  height: 62px;
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 24px;
 }
 .tv-page-title {
   margin: 0;
-  font-size: 42px;
+  font-size: 40px;
   font-weight: 700;
   white-space: nowrap;
+  color: var(--tv-header);
 }
 .tv-chips {
   display: flex;
-  gap: 14px;
+  gap: 12px;
 }
 .tv-chip {
-  font-size: 26px;
+  font-size: 25px;
   font-weight: 700;
   padding: 2px 16px;
-  border: 2px solid #555;
+  border: 2px solid var(--tone);
   border-radius: 999px;
+  background: var(--tone-bg);
+  color: var(--tone-ink);
   white-space: nowrap;
 }
 
-/* Screens 1 and 2 */
+/* Screens 1 and 2: the grid fills the height between the page header and the footer */
 .tv-ps {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 24px 8px;
+  padding: 0 24px 10px;
 }
 .tv-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  gap: 14px;
+  gap: 12px;
+  --tv-fs: 1;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+.tv-grid[data-rows='1'] {
+  grid-template-rows: minmax(0, 1fr);
+  --tv-fs: 1.25;
+}
+.tv-grid[data-rows='2'] {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  --tv-fs: 1.12;
+}
+.tv-grid[data-rows='3'] {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  --tv-fs: 1;
 }
 .tv-grid-ps {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 .tv-grid-zp {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 
-/* Ward card */
+/* Ward card: white, rounded, thin border, 6px stripe on top in the status tone */
 .tv-card {
   min-height: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border: 3px solid #444;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  border: 1px solid var(--tv-card-border);
+  border-top: 6px solid var(--tone);
   border-radius: 10px;
-  padding: 8px 14px;
-  background: #fff;
+  padding: 6px 14px 8px;
+  background: var(--tv-card);
+}
+.tv-card-quiet {
+  background: var(--tv-quiet);
 }
 .tv-card-changed {
-  outline: 8px solid #ffb300;
-  outline-offset: -2px;
+  outline: 8px solid var(--tv-change);
+  outline-offset: -1px;
 }
 .tv-card-head {
   display: flex;
@@ -197,9 +303,13 @@ html.hide-cursor * {
   margin-bottom: 4px;
 }
 .tv-card-title {
-  font-size: 30px;
+  font-size: calc(30px * var(--tv-fs));
   font-weight: 700;
   white-space: nowrap;
+}
+.tv-card-quiet .tv-card-title {
+  font-size: calc(26px * var(--tv-fs));
+  color: var(--tv-muted);
 }
 .tv-badges {
   display: flex;
@@ -210,38 +320,28 @@ html.hide-cursor * {
   display: inline-flex;
   align-items: center;
   line-height: 1.2;
-  font-size: 21px;
+  font-size: calc(21px * var(--tv-fs));
   font-weight: 700;
   padding: 3px 12px;
-  border: 2px solid #555;
+  border: 2px solid var(--tone);
   border-radius: 999px;
-  background: #eee;
+  background: var(--tone-bg);
+  color: var(--tone-ink);
   white-space: nowrap;
 }
 .tv-badge-corrected {
-  background: #fff3cd;
-  border-color: #6b4e00;
-  color: #6b4e00;
+  border-color: var(--st-amber);
+  background: var(--st-amber-bg);
+  color: var(--st-amber-ink);
 }
-.tv-status-counting .tv-badge:last-child,
-.tv-status-ready-to-declare .tv-badge:last-child {
-  background: #e5edfb;
-  border-color: #0b3d91;
-  color: #0b3d91;
+.tv-card-body {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
-.tv-status-tie-needs-lottery .tv-badge:last-child,
-.tv-status-unavailable .tv-badge:last-child {
-  background: #fde4e4;
-  border-color: #9b0000;
-  color: #9b0000;
-}
-.tv-status-declared .tv-badge:last-child,
-.tv-status-tie-resolved .tv-badge:last-child,
-.tv-status-unopposed .tv-badge:last-child {
-  background: #0a5a1a;
-  border-color: #0a5a1a;
-  color: #fff;
-}
+
+/* Candidate rows: [party bar] [name + party] [votes] */
 .tv-top3 {
   list-style: none;
   margin: 0;
@@ -250,55 +350,68 @@ html.hide-cursor * {
 .tv-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 8px;
-  border: 3px solid transparent;
+  gap: 10px;
+  padding: 3px 8px 3px 0;
   border-radius: 6px;
+}
+.tv-party-bar {
+  flex: none;
+  align-self: stretch;
+  width: 5px;
+  min-height: 34px;
+  border-radius: 2px;
 }
 .tv-name {
   flex: 1;
   min-width: 0;
-  font-size: 27px;
-  white-space: nowrap;
+  font-size: calc(26px * var(--tv-fs));
+  line-height: 1.22;
+  /* wrap to two lines, only then end with "…" (never cut in the middle of a line) */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .tv-party {
-  font-size: 20px;
-  color: #444;
+  font-size: calc(21px * var(--tv-fs));
+  font-weight: 700;
+  color: var(--tv-muted);
+  white-space: nowrap;
 }
 .tv-votes {
-  font-size: 34px;
+  flex: none;
+  font-size: calc(33px * var(--tv-fs));
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .tv-row-winner {
-  border-color: #0a5a1a;
-  background: #e3f4e5;
-  font-weight: 700;
+  background: var(--tv-winner-bg);
+  color: var(--tv-winner-ink);
 }
 .tv-row-winner .tv-name {
   font-weight: 700;
+  /* the winner's name is never clamped */
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
 }
-.tv-winner-mark {
-  flex: none;
-  font-size: 20px;
+.tv-row-winner .tv-party {
+  color: var(--tv-winner-ink);
+}
+.tv-check {
   font-weight: 700;
-  color: #fff;
-  background: #0a5a1a;
-  padding: 1px 10px;
-  border-radius: 6px;
 }
 .tv-lead {
   margin: 4px 0 0;
-  font-size: 28px;
+  font-size: calc(27px * var(--tv-fs));
   font-weight: 700;
 }
 .tv-small {
-  margin: auto 0 0;
-  font-size: 20px;
-  color: #444;
+  margin: 2px 0 0;
+  font-size: calc(20px * var(--tv-fs));
+  color: var(--tv-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -306,22 +419,23 @@ html.hide-cursor * {
 .tv-note {
   margin: auto 0;
   text-align: center;
-  font-size: 30px;
-  color: #444;
+  font-size: calc(24px * var(--tv-fs));
+  color: var(--tv-muted);
+}
+.tv-card-quiet .tv-note {
+  font-size: calc(22px * var(--tv-fs));
 }
 .tv-unopposed {
   margin: auto 0;
-  text-align: center;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
 }
 .tv-unopposed-name {
-  margin: 0 0 10px;
-  font-size: 32px;
-  font-weight: 700;
-}
-.tv-unopposed .tv-winner-mark {
-  display: inline-block;
   margin: 0;
-  font-size: 24px;
+  font-size: calc(30px * var(--tv-fs));
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 /* Screen 3 */
@@ -335,18 +449,27 @@ html.hide-cursor * {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 20px 8px 24px;
+  padding: 0 16px 10px 24px;
 }
 .tv-zp-side {
   min-height: 0;
   overflow: hidden;
-  border-left: 3px solid #c9d2e3;
-  padding: 6px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 24px 10px 8px;
   font-size: 22px;
 }
-.tv-zp-side h3 {
-  margin: 8px 0 4px;
+.tv-panel {
+  background: var(--tv-card);
+  border: 1px solid var(--tv-card-border);
+  border-radius: 10px;
+  padding: 6px 16px 8px;
+}
+.tv-panel h3 {
+  margin: 2px 0 6px;
   font-size: 26px;
+  color: var(--tv-header);
 }
 .tv-pie-box {
   display: flex;
@@ -355,8 +478,8 @@ html.hide-cursor * {
 }
 .tv-pie {
   flex: none;
-  width: 200px;
-  height: 200px;
+  width: 190px;
+  height: 190px;
 }
 .tv-legend {
   list-style: none;
@@ -377,25 +500,25 @@ html.hide-cursor * {
   vertical-align: middle;
 }
 .tv-empty {
-  margin: 20px 0;
-  font-size: 28px;
+  margin: 14px 0;
+  font-size: 27px;
   font-weight: 700;
-  color: #444;
+  color: var(--tv-muted);
 }
 .tv-seats {
   width: 100%;
   border-collapse: collapse;
-  margin: 6px 0;
+  margin: 6px 0 2px;
   font-size: 22px;
 }
 .tv-seats th,
 .tv-seats td {
-  border: 1px solid #9a9a9a;
+  border: 1px solid var(--tv-card-border);
   padding: 2px 8px;
   text-align: left;
 }
 .tv-seats th {
-  background: #f0f0f0;
+  background: var(--tv-bg);
 }
 .tv-num {
   text-align: right !important;
@@ -422,19 +545,21 @@ html.hide-cursor * {
   align-items: center;
   justify-content: space-between;
   padding: 0 28px;
-  border-top: 2px solid #c9d2e3;
+  background: var(--tv-card);
+  border-top: 1px solid var(--tv-card-border);
 }
 .tv-page-dot {
   font-size: 18px;
-  color: #c3c3c3;
+  color: #b8c2d0;
   margin-right: 6px;
 }
 .tv-page-dot-on {
-  color: #0b3d91;
+  color: var(--tv-header);
 }
 .tv-next {
   font-size: 26px;
   font-weight: 700;
+  color: var(--tv-header);
 }
 
 /* Messages (loading, waiting, unknown screen) */

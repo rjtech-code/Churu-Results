@@ -10,7 +10,7 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 6** (declare, tie lottery, post-declare correction, demo data) and
 **Part 7** (public screen API, live updates, screen layout, demo simulation) and
 **Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend) and
-**Part 9** (the three media-room TV screens).
+**Part 9** (the three media-room TV screens; 9.2: redesign and Hindi PS names).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -836,30 +836,73 @@ shows a Hindi message.
 **Layout**
 - **Size:** designed for 1920×1080 and scaled to any window with one CSS transform; there are never any
   scrollbars. The mouse cursor hides after 3 s without movement.
-- **Header:** title, screen name, a "लाइव" dot, and "अंतिम अपडेट HH:MM:SS". The time comes from the
-  server's snapshot (`generatedAt`, IST), not from the laptop's clock.
-- **"अभी बदला":** one static row with the newest changes; nothing scrolls.
-- **Pages:** one PS per page in layout order, 12 cards per page; ZP has 9 per page. A PS with more
-  wards is split evenly into sub-pages ("रतनगढ़ 1/3"). Pages change every **15 s**; `?interval=SECONDS`
-  sets another value between 5 and 120 (e.g. `/screen/1?interval=30`). The footer shows page dots
-  and "अगला: …".
-- **Cards:** a card whose data changed is outlined for 3 s.
+- **Header:** title, screen name, "इस स्क्रीन पर घोषित X / Y" (X = declared + lottery + unopposed
+  wards, Y = all wards on the screen; on screen 3 the ZP wards), a "लाइव" dot, and "अंतिम अपडेट
+  HH:MM:SS". The time comes from the server's snapshot (`generatedAt`, IST), not from the laptop's clock.
+- **"अभी बदला":** one static row with the 3 newest changes, each a short sentence with the short Hindi
+  PS name (or ज़िला परिषद), e.g. "राजगढ़ · वार्ड 9 · विजयी: <name> (<party>)" or
+  "चूरू · वार्ड 8 · मतगणना जारी — आगे: <name> (<party>)". Text is cut only between words; if the row
+  is too narrow, the 3rd item is dropped. Nothing scrolls.
+- **Pages:** one PS per page in layout order, titled "<Hindi name> पंचायत समिति" with the summary
+  chips (घोषित, निर्विरोध, मतगणना जारी, शुरू नहीं). There are up to 12 cards per page; ZP has 9 per page.
+  A PS with more wards is split evenly into sub-pages ("रतनगढ़ पंचायत समिति 1/3").
+- **Timing:** pages change every **15 s**; `?interval=SECONDS` sets another value between 5 and 120
+  (e.g. `/screen/1?interval=30`). A page where **every** ward is शुरू नहीं / उम्मीदवार सूची बाकी stays
+  only 5 s. The footer shows page dots and "अगला: …".
+- **Grid:** the rows stretch to fill the height down to the footer; with fewer rows the text is a
+  little larger.
+- **Cards:** ward order is unchanged. A card whose data changed has an amber outline for 3 s.
 
 | Card status | Shows |
 |---|---|
-| शुरू नहीं | only "मतगणना शुरू नहीं" (no names, no numbers) |
-| मतगणना जारी / घोषणा बाकी | top 3 (name, party or निर्दलीय, votes), "आगे X मत" or "बराबर", and "बूथ a/b · राउंड r · नोटा n" |
-| बराबर — लॉटरी बाकी | top 3 and "बराबर"; nobody is marked as winner |
-| विजयी / विजयी (लॉटरी) | top 3; the winner row is bold, bordered and labelled "विजयी". With a lottery, the lottery winner is marked (by candidate id). Also "अंतर X मत" |
-| निर्विरोध निर्वाचित | the winner and party; no vote numbers |
-| उम्मीदवार सूची बाकी / उपलब्ध नहीं | text only |
-| + संशोधित | the declaration was corrected |
+| Card status (badge) | Colour (top stripe + badge) | Shows |
+|---|---|---|
+| शुरू नहीं / उम्मीदवार सूची बाकी | grey; light-grey "quiet" card | only "मतगणना शुरू नहीं" / "उम्मीदवार सूची बाकी" (no names, no numbers) |
+| मतगणना जारी / घोषणा बाकी | blue | top 3 rows, then "आगे X मत" or "बराबर", and "बूथ a/b · राउंड r · नोटा n · डाक ✓" |
+| बराबर — लॉटरी बाकी | amber | top 3 and "बराबर"; nobody is marked as winner |
+| विजयी | green | top 3; the winner row is light green, bold, and starts with "✓". Also "अंतर X मत" |
+| विजयी (लॉटरी) | purple | as विजयी, for the **lottery** winner (picked by candidate id); "अंतर 0 मत (लॉटरी से)" |
+| निर्विरोध निर्वाचित | teal | the badge once; the body shows "✓ name" and party; no vote numbers |
+| उपलब्ध नहीं | red | text only |
+| + संशोधित | amber badge | the declaration was corrected |
 
-Numbers use Western digits with Indian grouping (1,23,456).
+- **Candidate rows:** each row has a thin bar in the party colour (निर्दलीय grey), the name, the party
+  short name, and the votes on the right. Names wrap to two lines and only then end with "…"; the
+  winner's name is never cut.
+- **Numbers:** Western digits with Indian grouping (1,23,456).
 
-**Party colours (screen 3)**
+**Colours:**
+- **Where they are defined:** all of them are CSS variables in `frontend/src/styles/screens.css`.
+- **Base:** page #E8EEF5 (blue-grey), header #0B3D91, cards white.
+- **The "अभी बदला" row:** light amber with dark amber text.
+- **Contrast:** a unit test checks that every text colour meets WCAG AA (4.5:1) against its
+  background.
+- **Never colour alone:** a colour always goes with its text.
+
+**Hindi PS names**
+- **Where they come from:** the screens use each Panchayat Samiti's **short** Hindi name (`रतनगढ़`) and
+  add "पंचायत समिति" where a full title is needed. Without a Hindi name they show the English name.
+- **Setting or changing them:**
+
+  ```bash
+  npm run ps:set-hindi-names -- --file ../docs/ps-names.json            # dry run: shows old -> new
+  npm run ps:set-hindi-names -- --file ../docs/ps-names.json --commit   # saves
+  ```
+
+  The file is `{ "<English PS name as imported>": "<short Hindi name>" }`; case and extra spaces in
+  the English name are ignored.
+- **All or nothing:** an unknown name, an empty or non-Hindi value, or a Hindi name used twice
+  writes nothing.
+- **What it writes:** only `panchayat_samiti.name_hindi` (never wards, booths, candidates or
+  entries), plus one `PS_HINDI_NAMES_SET` audit row. It is therefore safe even after counting has
+  started. The screens show the new names within about a minute.
+- **The names in `docs/ps-names.json` are PROVISIONAL** and must be confirmed by the election
+  officials before counting day. `demo:seed` applies them too.
+
+**Party colours**
 - **Where they are set:** `frontend/src/screens/partyColours.ts`, a fixed map from short name to
-  colour. **Edit it before counting day** to match the imported party short names.
+  colour, used for the bar on each card row and on screen 3's pie and tables. **Edit it before
+  counting day** to match the imported party short names.
 - **Other parties:** parties not in the map get a palette colour in the sorted order of their short names.
 - **Independents:** निर्दलीय is grey.
 - **Never colour alone:** a colour always appears next to the party name.

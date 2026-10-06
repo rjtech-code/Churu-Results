@@ -39,7 +39,8 @@
     "demo:reset": "tsx scripts/demo-reset.ts",
     "screens:show": "tsx scripts/screens-show.ts",
     "screens:set": "tsx scripts/screens-set.ts",
-    "demo:simulate": "tsx scripts/demo-simulate.ts"
+    "demo:simulate": "tsx scripts/demo-simulate.ts",
+    "ps:set-hindi-names": "tsx scripts/ps-set-hindi-names.ts"
   },
   "dependencies": {
     "bcrypt": "6.0.0",

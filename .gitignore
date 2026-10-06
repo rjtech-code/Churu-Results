@@ -9,4 +9,5 @@ backups/
 backend/reports/
 frontend/test-results/
 frontend/e2e/.state/
+frontend/screenshots/
 frontend/playwright-report/

@@ -1,4 +1,4 @@
-import { INDEPENDENT, fmt, partyShort } from './format';
+import { INDEPENDENT, fmt, partyShort, psShortName } from './format';
 import { partyColour } from './partyColours';
 import { pieSlices } from './pie';
 import type { SeatRow, WinnerItem } from './types';
@@ -115,7 +115,7 @@ export function LatestWinners({ items }: { items: WinnerItem[] }) {
       ) : (
         items.slice(0, 5).map((w) => (
           <li key={`${w.wardId}-${w.version}`}>
-            {w.kind === 'ZP' ? 'ज़िला परिषद' : (w.psName ?? '')} · वार्ड {w.wardNo}:{' '}
+            {w.kind === 'ZP' ? 'ज़िला परिषद' : psShortName(w.psName ?? '')} · वार्ड {w.wardNo}:{' '}
             <strong>{w.winner.name}</strong> ({partyShort(w.winner.party)})
             {w.status === 'TIE_RESOLVED' ? ' · लॉटरी' : ''}
             {w.isCorrection ? ' · संशोधित' : ''}

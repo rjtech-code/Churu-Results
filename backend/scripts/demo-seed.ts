@@ -16,6 +16,7 @@ import {
 } from './import-candidates.js';
 import { runImportGeography } from './import-geography.js';
 import { PARTY_COLUMNS, runImportParties } from './import-parties.js';
+import { runPsSetHindiNames } from './ps-set-hindi-names.js';
 import { runImportVoters } from './import-voters.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
@@ -30,6 +31,7 @@ import { runUsersCreate } from './users-create.js';
 
 export const DEMO_FILE = resolve(REPO_ROOT, 'docs', 'polling-stations.xlsx');
 export const DEMO_FIXES = resolve(REPO_ROOT, 'docs', 'demo', 'demo-fixes.json');
+export const PS_NAMES = resolve(REPO_ROOT, 'docs', 'ps-names.json');
 export const DEMO_PS = ['CHURU PANCHAYAT SAMITI', 'RAJGARH PANCHAYAT SAMITI'] as const;
 
 /** 4 random lowercase letters/digits (no look-alikes), so demo usernames are not guessable. */
@@ -84,6 +86,10 @@ export async function runDemoSeed(
   // 1. Geography (booth 69 -> ZP ward 30, DEMO ONLY fix).
   if (!(await runImportGeography({ file: DEMO_FILE, fixes: DEMO_FIXES, commit: true }, ctx)).ok) {
     return fail('geography import failed.');
+  }
+  // 1b. The provisional Hindi PS names, so the demo TV screens show Hindi names.
+  if (!(await runPsSetHindiNames({ file: PS_NAMES, commit: true }, ctx)).ok) {
+    return fail('setting the Hindi PS names failed.');
   }
 
   // 2. Five DEMO parties.

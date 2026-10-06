@@ -125,7 +125,9 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
   const ps3 = await insert(
     app,
     'INSERT INTO panchayat_samiti (district_id, name_english, name_hindi) SELECT district_id, ?, ? FROM panchayat_samiti WHERE id = ?',
-    ['SARDARSHAHAR PANCHAYAT SAMITI', 'पंचायत समिति सरदारशहर', ps1],
+    // English in name_hindi, as a real import without Hindi names stores it: the TV-screen e2e
+    // switches it to Hindi with npm run ps:set-hindi-names.
+    ['SARDARSHAHAR PANCHAYAT SAMITI', 'SARDARSHAHAR PANCHAYAT SAMITI', ps1],
   );
   const ward = (type: 'PS' | 'ZP', ps: number | null, no: number) =>
     insert(
@@ -504,7 +506,7 @@ async function seedScreens(
   });
 
   return {
-    psName: 'पंचायत समिति सरदारशहर',
+    psName: 'SARDARSHAHAR PANCHAYAT SAMITI',
     roSardar: 'e2e_ro_sardarshahar',
     live: { wardId: at(4).id, wardNo: 5, boothId: at(4).booth, candidates: at(4).c },
     declaredWardNo: 1,

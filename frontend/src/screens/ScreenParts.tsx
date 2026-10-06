@@ -1,4 +1,5 @@
-import { STATUS_LABEL, fmt, istClock, partyShort } from './format';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { fmt, istClock, tickerText } from './format';
 import { pageLabel } from './paging';
 import type { Page } from './paging';
 import type { RecentItem, Summary } from './types';
@@ -9,15 +10,22 @@ export function ScreenHeader({
   name,
   generatedAt,
   live,
+  progress,
 }: {
   name: string;
   generatedAt: string | null;
   live: boolean;
+  progress: { declared: number; total: number } | null;
 }) {
   return (
     <header className="tv-header">
       <h1 className="tv-title">चूरू पंचायत चुनाव 2026 — परिणाम</h1>
       <span className="tv-screen-name">{name}</span>
+      {progress !== null && (
+        <span className="tv-progress" data-testid="progress">
+          इस स्क्रीन पर घोषित {fmt(progress.declared)} / {fmt(progress.total)}
+        </span>
+      )}
       <span className={live ? 'tv-live tv-live-on' : 'tv-live tv-live-off'}>
         <span className="tv-dot" aria-hidden="true">
           ●
@@ -37,24 +45,29 @@ export function StaleBanner({ generatedAt }: { generatedAt: string | null }) {
   );
 }
 
-function recentText(r: RecentItem): string {
-  const where = `${r.kind === 'ZP' ? 'ज़िला परिषद' : (r.psName ?? '')} · वार्ड ${r.wardNo}`;
-  const who =
-    r.leaderOrWinner === null ? '' : ` — ${r.leaderOrWinner.name} (${partyShort(r.leaderOrWinner.party)})`;
-  return `${where} · ${STATUS_LABEL[r.status]}${who}`;
-}
-
-/** "अभी बदला": a static row of the newest changes (no scrolling text). */
+/**
+ * "अभी बदला": a static row of the 3 newest changes, each a whole short sentence (cut only between
+ * words). If they do not fit in the row, the last item is dropped (never cut mid-word).
+ */
 export function Ticker({ items }: { items: RecentItem[] }) {
+  const texts = items.slice(0, 3).map(tickerText);
+  const key = texts.join('|');
+  const [fit, setFit] = useState({ key, count: texts.length });
+  const count = fit.key === key ? fit.count : texts.length;
+  const row = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = row.current;
+    if (el !== null && el.scrollWidth > el.clientWidth && count > 1) setFit({ key, count: count - 1 });
+  }, [key, count]);
   return (
-    <div className="tv-ticker" data-testid="ticker">
+    <div className="tv-ticker" data-testid="ticker" ref={row}>
       <span className="tv-ticker-label">अभी बदला</span>
-      {items.length === 0 ? (
+      {texts.length === 0 ? (
         <span className="tv-ticker-item">—</span>
       ) : (
-        items.slice(0, 3).map((r) => (
-          <span key={`${r.wardId}-${r.changedAt}`} className="tv-ticker-item">
-            {recentText(r)}
+        texts.slice(0, count).map((t, i) => (
+          <span key={`${String(i)}-${t}`} className="tv-ticker-item">
+            {t}
           </span>
         ))
       )}
@@ -65,10 +78,10 @@ export function Ticker({ items }: { items: RecentItem[] }) {
 export function SummaryChips({ summary }: { summary: Summary }) {
   return (
     <span className="tv-chips">
-      <span className="tv-chip">घोषित {fmt(summary.declared)}</span>
-      <span className="tv-chip">निर्विरोध {fmt(summary.unopposed)}</span>
-      <span className="tv-chip">मतगणना जारी {fmt(summary.counting)}</span>
-      <span className="tv-chip">शुरू नहीं {fmt(summary.notStarted)}</span>
+      <span className="tv-chip tone-green">घोषित {fmt(summary.declared)}</span>
+      <span className="tv-chip tone-teal">निर्विरोध {fmt(summary.unopposed)}</span>
+      <span className="tv-chip tone-blue">मतगणना जारी {fmt(summary.counting)}</span>
+      <span className="tv-chip tone-grey">शुरू नहीं {fmt(summary.notStarted)}</span>
     </span>
   );
 }

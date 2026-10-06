@@ -1,3 +1,4 @@
+import { isQuiet } from './format';
 import type { PsBlock, Summary, WardCard } from './types';
 
 export const DEFAULT_INTERVAL_S = 15;
@@ -65,4 +66,24 @@ export function zpPages(wards: readonly WardCard[], summary: Summary, perPage = 
 
 export function pageLabel(p: Pick<Page, 'title' | 'sub'>): string {
   return p.sub === null ? p.title : `${p.title} ${p.sub}`;
+}
+
+export const QUIET_PAGE_S = 5;
+
+/** Seconds a page stays: 5 s when every ward on it is not started / has no candidates, else the interval. */
+export function pageDuration(page: Pick<Page, 'wards'>, intervalS: number): number {
+  const quiet = page.wards.every((w) => isQuiet(w.status));
+  return quiet ? Math.min(QUIET_PAGE_S, intervalS) : intervalS;
+}
+
+/** Header progress: declared (incl. lottery and unopposed) / all wards of the screen. */
+export function screenProgress(cards: readonly WardCard[]): { declared: number; total: number } {
+  const declared = cards.filter((c) => DECLARED_STATUSES.has(c.status)).length;
+  return { declared, total: cards.length };
+}
+const DECLARED_STATUSES = new Set(['DECLARED', 'TIE_RESOLVED', 'UNOPPOSED']);
+
+/** Rows a page's grid needs (1..3), so the rows stretch to fill the height. */
+export function gridRows(cards: number, columns: number): number {
+  return Math.max(1, Math.ceil(cards / columns));
 }

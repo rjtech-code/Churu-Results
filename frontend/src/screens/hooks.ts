@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LiveFeed } from './liveFeed';
 import type { FeedState } from './liveFeed';
 import { fetchPublic } from './publicApi';
@@ -33,18 +33,29 @@ export function useLiveFeed(screen: ScreenNo): FeedState {
   return state;
 }
 
-/** Index of the page on show; moves on every `intervalS` seconds and wraps. */
-export function usePager(count: number, intervalS: number): number {
+/**
+ * Index of the page on show. Each page has its own duration (seconds); data refreshes do NOT restart
+ * the countdown of the page on show (only its remaining time is re-planned).
+ */
+export function usePager(durationsS: readonly number[]): number {
+  const count = durationsS.length;
   const [index, setIndex] = useState(0);
+  const shownSince = useRef(0); // set when the first page is shown (an effect: render stays pure)
+  const current = count === 0 ? 0 : index % count;
+  const duration = durationsS[current] ?? 15;
   useEffect(() => {
-    const t = setInterval(() => {
-      setIndex((i) => i + 1);
-    }, intervalS * 1000);
+    if (shownSince.current === 0) shownSince.current = Date.now();
+    if (count <= 1) return;
+    const left = Math.max(0, duration * 1000 - (Date.now() - shownSince.current));
+    const t = setTimeout(() => {
+      shownSince.current = Date.now();
+      setIndex((i) => (i + 1) % count);
+    }, left);
     return () => {
-      clearInterval(t);
+      clearTimeout(t);
     };
-  }, [intervalS]);
-  return count === 0 ? 0 : index % count;
+  }, [count, current, duration]);
+  return current;
 }
 
 /** Scales the 1920x1080 stage to the window (one CSS variable; the transform lives in CSS). */

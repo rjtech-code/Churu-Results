@@ -139,3 +139,12 @@ export async function apiLogin(username: string): Promise<{
     dispose: () => ctx.dispose(),
   };
 }
+
+/** Runs a backend npm-script file (tsx) against churu_test, e.g. scripts/ps-set-hindi-names.ts. */
+export function backendTool(file: string, args: string[]): string {
+  return execFileSync('npx', ['tsx', file, ...args], {
+    cwd: BACKEND,
+    env: { ...process.env, DB_NAME: 'churu_test', NODE_ENV: 'test' },
+    encoding: 'utf8',
+  });
+}

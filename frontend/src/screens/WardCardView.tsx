@@ -1,6 +1,8 @@
 import { Component } from 'react';
 import type { ReactNode } from 'react';
-import { STATUS_LABEL, fmt, partyShort, wardLabel } from './format';
+import { STATUS_LABEL, STATUS_TONE, fmt, isQuiet, partyShort, wardLabel } from './format';
+import { gridRows } from './paging';
+import { usePartyColour } from './partyContext';
 import type { TopRow, WardCard } from './types';
 
 const WINNER_STATUSES = new Set(['DECLARED', 'TIE_RESOLVED']);
@@ -23,16 +25,24 @@ function leadLine(card: WardCard): string | null {
   }
 }
 
-function Row({ row, winnerMark }: { row: TopRow; winnerMark: string | null }) {
+/** A thin bar in the party colour (an SVG fill: no inline style, allowed by the CSP). */
+function PartyBar({ colour }: { colour: string }) {
   return (
-    <li
-      className={winnerMark === null ? 'tv-row' : 'tv-row tv-row-winner'}
-      data-candidate-id={row.candidateId}
-    >
+    <svg className="tv-party-bar" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+      <rect width="1" height="1" fill={colour} />
+    </svg>
+  );
+}
+
+function Row({ row, winner }: { row: TopRow; winner: boolean }) {
+  const colourOf = usePartyColour();
+  return (
+    <li className={winner ? 'tv-row tv-row-winner' : 'tv-row'} data-candidate-id={row.candidateId}>
+      <PartyBar colour={colourOf(row.party?.shortName ?? null)} />
       <span className="tv-name">
-        {row.name} <small className="tv-party">{partyShort(row.party)}</small>
+        {winner && <span className="tv-check">✓ </span>}
+        {row.name} <span className="tv-party">{partyShort(row.party)}</span>
       </span>
-      {winnerMark !== null && <span className="tv-winner-mark">{winnerMark}</span>}
       <span className="tv-votes">{fmt(row.votes)}</span>
     </li>
   );
@@ -40,19 +50,23 @@ function Row({ row, winnerMark }: { row: TopRow; winnerMark: string | null }) {
 
 /** One ward card on a TV screen (what it shows per status: README "TV screens"). */
 export function WardCardView({ card, changed }: { card: WardCard; changed: boolean }) {
-  const classes = ['tv-card', `tv-status-${card.status.toLowerCase().replaceAll('_', '-')}`];
+  const colourOf = usePartyColour();
+  const tone = STATUS_TONE[card.status];
+  const classes = ['tv-card', `tone-${tone}`, `tv-status-${card.status.toLowerCase().replaceAll('_', '-')}`];
+  if (isQuiet(card.status)) classes.push('tv-card-quiet');
   if (changed) classes.push('tv-card-changed');
   const header = (
     <div className="tv-card-head">
       <span className="tv-card-title">{wardLabel(card)}</span>
       <span className="tv-badges">
         {card.isCorrected && <span className="tv-badge tv-badge-corrected">संशोधित</span>}
-        <span className="tv-badge">{STATUS_LABEL[card.status]}</span>
+        <span className="tv-badge tv-badge-status">{STATUS_LABEL[card.status]}</span>
       </span>
     </div>
   );
 
   let body: ReactNode;
+  let foot: ReactNode = null;
   switch (card.status) {
     case 'NOT_STARTED':
       body = <p className="tv-note">मतगणना शुरू नहीं</p>;
@@ -64,29 +78,30 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
       body = <p className="tv-note">उपलब्ध नहीं</p>;
       break;
     case 'UNOPPOSED':
+      // The badge already says "निर्विरोध निर्वाचित": the body shows only who.
       body =
-        card.winner === null ? (
-          <p className="tv-note">निर्विरोध निर्वाचित</p>
-        ) : (
+        card.winner === null ? null : (
           <div className="tv-unopposed">
+            <PartyBar colour={colourOf(card.winner.party?.shortName ?? null)} />
             <p className="tv-unopposed-name">
-              {card.winner.name} <small className="tv-party">{partyShort(card.winner.party)}</small>
+              <span className="tv-check">✓ </span>
+              {card.winner.name} <span className="tv-party">{partyShort(card.winner.party)}</span>
             </p>
-            <p className="tv-winner-mark">निर्विरोध निर्वाचित</p>
           </div>
         );
       break;
     default: {
       const winnerId = WINNER_STATUSES.has(card.status) ? (card.winner?.candidateId ?? null) : null;
-      const mark = card.status === 'TIE_RESOLVED' ? 'विजयी (लॉटरी)' : 'विजयी';
       const lead = leadLine(card);
       body = (
+        <ol className="tv-top3">
+          {card.top3.map((row) => (
+            <Row key={row.candidateId} row={row} winner={row.candidateId === winnerId} />
+          ))}
+        </ol>
+      );
+      foot = (
         <>
-          <ol className="tv-top3">
-            {card.top3.map((row) => (
-              <Row key={row.candidateId} row={row} winnerMark={row.candidateId === winnerId ? mark : null} />
-            ))}
-          </ol>
           {lead !== null && <p className="tv-lead">{lead}</p>}
           <p className="tv-small">
             बूथ {card.boothsEntered}/{card.boothsTotal} · राउंड {card.latestRound ?? '—'} · नोटा{' '}
@@ -100,7 +115,8 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
   return (
     <article className={classes.join(' ')} data-ward-id={card.wardId} data-status={card.status}>
       {header}
-      {body}
+      <div className="tv-card-body">{body}</div>
+      {foot}
     </article>
   );
 }
@@ -123,10 +139,10 @@ export class CardBoundary extends Component<
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
     return (
-      <article className="tv-card tv-status-unavailable" data-status="UNAVAILABLE">
+      <article className="tv-card tone-red tv-status-unavailable" data-status="UNAVAILABLE">
         <div className="tv-card-head">
           <span className="tv-card-title">वार्ड {this.props.wardNo}</span>
-          <span className="tv-badge">उपलब्ध नहीं</span>
+          <span className="tv-badge tv-badge-status">उपलब्ध नहीं</span>
         </div>
         <p className="tv-note">उपलब्ध नहीं</p>
       </article>
@@ -138,13 +154,16 @@ export function CardGrid({
   cards,
   changed,
   className,
+  columns = 4,
 }: {
   cards: WardCard[];
   changed: ReadonlySet<number>;
   className: string;
+  columns?: number;
 }) {
+  // Rows stretch to the full height (and fonts grow a little with fewer rows): see screens.css.
   return (
-    <div className={`tv-grid ${className}`}>
+    <div className={`tv-grid ${className}`} data-rows={gridRows(cards.length, columns)}>
       {cards.map((c) => (
         <CardBoundary key={c.wardId} wardNo={c.wardNo} resetKey={JSON.stringify(c)}>
           <WardCardView card={c} changed={changed.has(c.wardId)} />

@@ -52,7 +52,7 @@ test('backend stopped -> red stale banner within ~15 s; started again -> banner 
   try {
     await untilUp();
     await page.goto(`${BASE}/screen/1?interval=120`);
-    await expect(page.getByTestId('page-title')).toHaveText('चूरू');
+    await expect(page.getByTestId('page-title')).toHaveText('चूरू पंचायत समिति');
     await expect(page.getByTestId('stale-banner')).toHaveCount(0);
     const shownTime = await page.locator('.tv-updated').innerText();
 

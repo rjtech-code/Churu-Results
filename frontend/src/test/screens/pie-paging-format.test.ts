@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STATUS_LABEL, fmt, istClock, psShort } from '../../screens/format';
+import { STATUS_LABEL, fmt, istClock, psShortName, psTitle } from '../../screens/format';
 import { FIXED_PARTY_COLOURS, INDEPENDENT_GREY, PALETTE, partyColour } from '../../screens/partyColours';
 import { pieSlices } from '../../screens/pie';
 import { parseInterval, psPages, splitEvenly } from '../../screens/paging';
@@ -95,9 +95,18 @@ describe('formatting', () => {
     expect(istClock('garbage')).toBe('—');
   });
 
-  it('short PS name for page titles', () => {
-    expect(psShort('पंचायत समिति रतनगढ़')).toBe('रतनगढ़');
-    expect(psShort('CHURU')).toBe('CHURU');
+  it('short PS names (ticker, lists) and page titles; English fallback when no Hindi name', () => {
+    expect(psShortName('रतनगढ़')).toBe('रतनगढ़');
+    expect(psShortName('पंचायत समिति रतनगढ़')).toBe('रतनगढ़');
+    expect(psShortName('रतनगढ़ पंचायत समिति')).toBe('रतनगढ़');
+    expect(psShortName('RATANGARH PANCHAYAT SAMITI')).toBe('RATANGARH');
+    expect(psShortName('TARANAGAR WEST(BHALERI) HQ TARANAGAR PANCHAYAT SAMITI')).toBe(
+      'TARANAGAR WEST(BHALERI) HQ TARANAGAR',
+    );
+    expect(psTitle('रतनगढ़')).toBe('रतनगढ़ पंचायत समिति');
+    expect(psTitle('पंचायत समिति रतनगढ़')).toBe('रतनगढ़ पंचायत समिति');
+    expect(psTitle('तारानगर पश्चिम (भालेरी)')).toBe('तारानगर पश्चिम (भालेरी) पंचायत समिति');
+    expect(psTitle('RATANGARH PANCHAYAT SAMITI')).toBe('RATANGARH PANCHAYAT SAMITI');
   });
 
   it('the status label map covers every status the public API can send (read from the backend source)', () => {

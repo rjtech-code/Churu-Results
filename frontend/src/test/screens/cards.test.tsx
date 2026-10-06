@@ -91,12 +91,15 @@ describe('ward card', () => {
     expect(winnerRows(root)).toHaveLength(0);
   });
 
-  it('DECLARED: the winner row is bold/bordered and says "विजयी"; "अंतर X मत"', () => {
+  it('DECLARED: the winner row is bold/bordered, starts with "✓" and has no inner badge; "अंतर X मत"', () => {
     const root = show(card('DECLARED', { winner: { candidateId: 11, name: 'सुरेश कुमार', party: BJP } }));
     const rows = winnerRows(root);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.getAttribute('data-candidate-id')).toBe('11');
-    expect(within(rows[0] as HTMLElement).getByText('विजयी')).toBeTruthy();
+    expect(rows[0]?.querySelector('.tv-name')?.textContent.startsWith('✓ ')).toBe(true);
+    expect(within(rows[0] as HTMLElement).queryByText('विजयी')).toBeNull(); // the card badge says it
+    expect(rows[0]?.querySelector('.tv-badge, .tv-winner-mark')).toBeNull();
+    expect(screen.getAllByText('विजयी')).toHaveLength(1); // only the card badge
     expect(root.textContent).toContain('अंतर 1,00,000 मत');
   });
 
@@ -110,11 +113,13 @@ describe('ward card', () => {
         winner: { candidateId: 22, name: 'गोपाल राम', party: null },
       }),
     );
-    expect(screen.getAllByText('विजयी (लॉटरी)').length).toBe(2); // badge + the row mark
+    expect(screen.getAllByText('विजयी (लॉटरी)')).toHaveLength(1); // the card badge only
     const rows = winnerRows(root);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.getAttribute('data-candidate-id')).toBe('22');
+    expect(rows[0]?.querySelector('.tv-name')?.textContent.startsWith('✓ ')).toBe(true);
     expect(root.querySelectorAll('.tv-row')[0]?.classList.contains('tv-row-winner')).toBe(false);
+    expect(root.querySelectorAll('.tv-row')[0]?.textContent).not.toContain('✓');
     expect(root.textContent).toContain('अंतर 0 मत (लॉटरी से)');
   });
 
@@ -131,7 +136,8 @@ describe('ward card', () => {
     );
     expect(root.textContent).toContain('हरि राम');
     expect(root.textContent).toContain('BJP');
-    expect(screen.getAllByText('निर्विरोध निर्वाचित').length).toBeGreaterThanOrEqual(1);
+    expect(root.textContent.split('निर्विरोध निर्वाचित')).toHaveLength(2); // shown exactly once (the badge)
+    expect(root.querySelector('.tv-unopposed-name')?.textContent).toContain('✓ हरि राम');
     expect(root.textContent.replace('वार्ड 7', '')).not.toMatch(/\d/);
   });
 
