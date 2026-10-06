@@ -387,7 +387,8 @@ export function computeWardResult(input: WardResultInput): WardResult {
     // The declared winner is always first among the top-voted rows. If it is not the leader, it no
     // longer has the most votes: the declaration does not match the counted votes (alarm).
     declarationMismatch =
-      snapshotDiffers(declaration.snapshot, results) || leader.candidateId !== declaration.winnerCandidateId;
+      snapshotDiffers(declaration.snapshot, results) ||
+      leader.candidateId !== declaration.winnerCandidateId;
   } else if (ward.isUnopposed) {
     status = 'UNOPPOSED';
     winnerCandidateId = leader.candidateId;
