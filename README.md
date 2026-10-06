@@ -4,7 +4,8 @@ Results portal for the Churu district Panchayat elections: Zila Parishad (ZP) an
 members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository is built in numbered parts.
 **Done so far: Part 1** (project skeleton, MySQL in Docker, locked-down schema, tests) and
 **Part 2** (master-data import scripts and user accounts, run from the command line on the server) and
-**Part 3** (login, sessions, CSRF, rate limits, role and ownership checks).
+**Part 3** (login, sessions, CSRF, rate limits, role and ownership checks) and
+**Part 4** (the result engine).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -204,6 +205,7 @@ Other user commands:
 npm run users:reset-password -- --username <u> --commit   # new password; clears lockout
 npm run users:disable -- --username <u> --commit
 npm run users:enable  -- --username <u> --commit
+npm run users:unlock  -- --username <u> --by "Name" --commit   # clear a login lockout (password unchanged)
 ```
 
 `npm run templates:generate` re-creates the empty parties and candidates templates.
@@ -273,6 +275,57 @@ curl -s -c "$J" -b "$J" -H 'Content-Type: application/json' -H "X-CSRF-Token: $T
 curl -s -c "$J" -b "$J" $B/api/auth/me
 T=$(curl -s -c "$J" -b "$J" $B/api/auth/csrf | sed 's/.*"csrfToken":"\([^"]*\)".*/\1/')   # new token after login
 curl -s -c "$J" -b "$J" -X POST -H "X-CSRF-Token: $T" -o /dev/null -w '%{http_code}\n' $B/api/auth/logout
+```
+
+## How results are calculated (Part 4)
+
+All vote arithmetic happens in **one place**: `backend/src/services/result.ts`. It is a pure function: it has no
+database, no clock and no randomness, so the same saved data always gives the same result. Everything else
+(screens, reports, declare) asks this engine; nothing else adds votes.
+
+**Totals and ranks**
+- A candidate's total = their votes from every entered booth of the ward + their postal votes.
+- A ZP ward's booths are all booths of that ZP ward, across every Panchayat Samiti.
+- Valid votes = all candidates + NOTA. Rejected postal ballots are shown separately and are **not**
+  valid votes. That rule lives in one function, `expectedPostalVoteSum`, so it is easy to change.
+- **Ranks** are shared on equal votes (1, 1, 3) and run over real candidates only.
+- **Leader, runner-up and top-3** are real candidates only. NOTA is never among them, even when it has the
+  most votes; then the `notaHighest` flag is shown, but nothing else changes.
+- **Margin** = leader's votes − runner-up's votes.
+
+**Status of a ward**
+
+| Status | When |
+|---|---|
+| `UNOPPOSED` | One candidate only. Final; never counted and never declared. The cross-check and ballot lock are its confirmation. |
+| `NOT_STARTED` | Nothing entered yet. |
+| `COUNTING` | Some data entered, but not every booth or not the postal ballots. |
+| `READY_TO_DECLARE` | Every booth and the postal ballots entered, and the top two candidates are not equal. |
+| `TIE_NEEDS_LOTTERY` | Everything entered, and the top two real candidates have equal votes (also 0 = 0). The system **never** picks a winner; the RO records the lottery result. |
+| `DECLARED` / `TIE_RESOLVED` | A declaration exists. The winner, margin and version come from it. |
+
+During counting, an equal top is shown as `topTied` only.
+
+**Alarm:** if a declared ward's current votes ever differ from the votes saved at declaration time,
+`declarationMismatch` is true.
+
+**The engine refuses impossible data** (`ResultInputError`). The database already prevents these;
+the engine checks again:
+- a vote for a candidate of another ward
+- a missing or duplicate vote row (a missing row is never treated as 0)
+- a booth of another ward, or the same booth twice
+- negative or non-whole numbers
+- votes that do not add up to the sheet total
+- two NOTAs
+- entries or a declaration on an unopposed ward
+
+**Loading:** `backend/src/services/result-loader.ts` reads a ward, or many wards, in **one read-only,
+consistent snapshot**. It always runs the same 8 queries, however many wards it loads, and it never writes.
+
+**Inspect a ward by eye** (read only):
+```bash
+npm run result:ward -- --ward <ward id>     # ward ids: npm run ballot:report
+npm run test:coverage                       # coverage of result.ts (100% lines and branches)
 ```
 
 ## Database users

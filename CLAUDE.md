@@ -51,7 +51,7 @@ Counting day: 20 November 2026. This is election data for the government.
 13. Public screens show only saved, valid data, plus a "last updated" time.
 
 ## Security rules (non-negotiable)
-- Only parameterized SQL. Never build SQL from user input (including column/table names).
+- Only parameterized SQL via execute(). query() is allowed only for fixed SQL text with no user input (e.g. transaction control like START TRANSACTION). Never build SQL from user input (including column/table names).
 - Authorization is checked on the server for every request, including ownership (which PS/ballot the user may touch). Hiding a button is not security.
 - Session cookie: HttpOnly, SameSite=Strict, Secure in production. Regenerate session on login, destroy on logout, idle timeout 30 min.
 - Login: rate limit + account lockout after repeated failures. Generic error message ("galat username ya password").

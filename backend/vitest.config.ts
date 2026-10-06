@@ -9,5 +9,11 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 120_000,
+    coverage: {
+      provider: 'v8',
+      include: ['src/services/result.ts'],
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: 'coverage',
+    },
   },
 });
