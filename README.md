@@ -676,6 +676,11 @@ npm start          # repo root: backend on PORT, serving frontend/dist and /api
 
 Equivalent by hand: `cd frontend && npm ci && npm run build`, then `cd backend && npm ci && npm run build && npm start`.
 
+If `PORT` is already in use (for example an old `npm run dev` is still running), the server refuses to
+start: it prints "Cannot start: port N is already in use" and exits with code 1. Stop the other process
+(`ss -ltnp | grep :3000` shows it) and start again. Otherwise the browser would be talking to the old
+process.
+
 **Configuration**
 - **Where the build is:** the backend serves the build from `FRONTEND_DIST`, default `../frontend/dist`,
   relative to `backend/`. If it does not exist, only the API runs, and startup says so.

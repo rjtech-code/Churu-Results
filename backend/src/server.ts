@@ -34,7 +34,18 @@ console.log(
     ? 'Dashboard: no frontend build found (FRONTEND_DIST); serving the API only.'
     : `Dashboard: serving ${config.frontendDist}`,
 );
-const server = app.listen(env.PORT, () => {
+// Express 5 passes a listen failure (e.g. EADDRINUSE) to this callback. It must stop the process:
+// otherwise it keeps running without listening while another process answers on the port.
+const server = app.listen(env.PORT, (err?: Error) => {
+  if (err) {
+    const code = 'code' in err ? String(err.code) : '';
+    console.error(
+      code === 'EADDRINUSE'
+        ? `Cannot start: port ${env.PORT} is already in use (is another server still running?). Stop it or set PORT.`
+        : `Cannot start: listening on port ${env.PORT} failed (${code || err.message})`,
+    );
+    process.exit(1);
+  }
   console.log(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
 
