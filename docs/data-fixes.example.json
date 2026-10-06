@@ -1,0 +1,11 @@
+[
+  {
+    "panchayat_samiti": "EXAMPLE PANCHAYAT SAMITI",
+    "booth_no": 999,
+    "field": "zp_ward_no",
+    "value": 1,
+    "reason": "EXAMPLE ONLY: letter no. ____ dated ____ from the RO confirms the correct ZP ward.",
+    "approved_by": "EXAMPLE: Name, designation",
+    "approved_on": "2026-01-31"
+  }
+]

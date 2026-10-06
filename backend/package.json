@@ -17,10 +17,26 @@
     "format": "prettier --write .",
     "migrate": "tsx src/db/migrate.ts latest",
     "migrate:rollback": "tsx src/db/migrate.ts rollback",
-    "migrate:test": "tsx src/db/migrate.ts latest --test"
+    "migrate:test": "tsx src/db/migrate.ts latest --test",
+    "import:geography": "tsx scripts/import-geography.ts",
+    "import:parties": "tsx scripts/import-parties.ts",
+    "export:voter-template": "tsx scripts/export-voter-template.ts",
+    "import:voters": "tsx scripts/import-voters.ts",
+    "import:candidates": "tsx scripts/import-candidates.ts",
+    "ballot:report": "tsx scripts/ballot-report.ts",
+    "ballot:lock": "tsx scripts/ballot-lock.ts",
+    "ballot:unlock": "tsx scripts/ballot-unlock.ts",
+    "users:create": "tsx scripts/users-create.ts",
+    "users:reset-password": "tsx scripts/users-reset-password.ts",
+    "users:disable": "tsx scripts/users-set-active.ts disable",
+    "users:enable": "tsx scripts/users-set-active.ts enable",
+    "users:list": "tsx scripts/users-list.ts",
+    "templates:generate": "tsx scripts/generate-templates.ts"
   },
   "dependencies": {
+    "bcrypt": "6.0.0",
     "dotenv": "18.0.5",
+    "exceljs": "4.4.0",
     "express": "5.2.1",
     "helmet": "8.3.0",
     "knex": "3.3.0",
@@ -28,6 +44,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/bcrypt": "6.0.0",
     "@types/express": "5.0.6",
     "@types/node": "24.19.1",
     "@types/supertest": "7.2.1",
@@ -38,5 +55,10 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.1",
     "vitest": "5.0.3"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   }
 }
