@@ -226,7 +226,8 @@ th {
 
 /* Inputs */
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   font-size: 22px;
   padding: 0.25rem 0.5rem;
@@ -332,20 +333,18 @@ textarea {
   padding: 0.5rem 1rem;
 }
 
-/* Dialogs */
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dialog {
+/* Dialogs: native <dialog> + showModal() sits on the browser's top layer, above every sticky panel
+   and the header; ::backdrop covers the whole page and the page behind is inert. */
+dialog.dialog {
   background: #fff;
+  color: var(--ink);
   padding: 1.2rem 1.5rem;
   max-width: 40rem;
   border: 3px solid var(--bad);
+  border-radius: 4px;
+}
+dialog.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
 }
 
 /* Login */
@@ -507,4 +506,23 @@ input.num {
 h1.compact {
   font-size: 1.3rem;
   margin: 0 0 0.4rem;
+}
+
+/* Standard reason + details */
+.reason-field select {
+  display: block;
+  font-size: 1.05rem;
+  max-width: 100%;
+}
+.reason-field textarea {
+  font-size: 1.05rem;
+}
+.reason-field label {
+  margin-top: 0.3rem;
+}
+
+/* Whole-story history: entries that were voided */
+.voided-row td {
+  background: #f3f3f3;
+  color: #555;
 }

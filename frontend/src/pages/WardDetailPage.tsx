@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { idParam, loadBooths, loadWard } from '../api/loaders';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
-import { formatDateTime, wardTitle } from '../components/format';
+import { formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
 export interface WardFlash {
@@ -37,7 +37,7 @@ export function WardDetailPage() {
         <Link to="/wards">← मेरे वार्ड</Link>
       </p>
       <h1>
-        {wardTitle(ward)} <StatusBadge status={ward.status} />
+        {wardShort(ward)} <StatusBadge status={ward.status} />
       </h1>
       <SuccessBox text={state.flash} />
       {!ward.ballotLocked && (
@@ -56,7 +56,12 @@ export function WardDetailPage() {
         )}
       </div>
 
-      <h2>डाक मत</h2>
+      <h2>
+        डाक मत{' '}
+        <Link className="btn btn-link" to={`/wards/${ward.id}/postal/history`}>
+          इतिहास
+        </Link>
+      </h2>
       <p>
         {booths.postal.entered ? `✓ दर्ज (${formatDateTime(booths.postal.enteredAt)})` : 'अभी दर्ज नहीं'}{' '}
         {open && !booths.postal.entered && (
@@ -76,9 +81,6 @@ export function WardDetailPage() {
                 रद्द करें
               </Link>
             )}{' '}
-            <Link className="btn btn-link" to={`/postal/${booths.postal.entryId}/history`}>
-              इतिहास
-            </Link>
           </>
         )}
       </p>
@@ -128,11 +130,9 @@ export function WardDetailPage() {
                       </Link>
                     </>
                   )}
-                  {b.entryId !== null && (
-                    <Link className="btn btn-link" to={`/entries/${b.entryId}/history`}>
-                      इतिहास
-                    </Link>
-                  )}
+                  <Link className="btn btn-link" to={`/wards/${ward.id}/booths/${b.boothId}/history`}>
+                    इतिहास
+                  </Link>
                 </td>
               </tr>
             );

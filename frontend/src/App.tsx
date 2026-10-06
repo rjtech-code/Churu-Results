@@ -6,6 +6,7 @@ import { CorrectionPage } from './pages/CorrectionPage';
 import { DeclarePage } from './pages/DeclarePage';
 import { EntryEditPage } from './pages/EntryEditPage';
 import { EntryVoidPage } from './pages/EntryVoidPage';
+import { StoryPage } from './pages/StoryPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { PostalPage } from './pages/PostalPage';
@@ -41,6 +42,8 @@ export const router = createBrowserRouter([
           { path: '/wards/:wardId', element: <WardDetailPage /> },
           { path: '/wards/:wardId/booths/:boothId/entry', element: <BoothEntryPage /> },
           { path: '/wards/:wardId/postal', element: <PostalPage /> },
+          { path: '/wards/:wardId/postal/history', element: <StoryPage kind="POSTAL" /> },
+          { path: '/wards/:wardId/booths/:boothId/history', element: <StoryPage kind="BOOTH" /> },
           { path: '/wards/:wardId/declare', element: <DeclarePage /> },
           { path: '/wards/:wardId/correction', element: <CorrectionPage /> },
           { path: '/entries/:entryId/edit', element: <EntryEditPage /> },

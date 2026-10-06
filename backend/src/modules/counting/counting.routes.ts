@@ -9,12 +9,14 @@ import { loadWardResult } from '../../services/result-loader.js';
 import type { AuthUser } from '../../types/auth.js';
 import {
   boothEntryView,
+  boothHistory,
   entryHistory,
   getBoothEntry,
   getPostalEntry,
   listBooths,
   listWards,
   postalEntryView,
+  postalHistory,
   wardBallot,
 } from './counting.read.js';
 import {
@@ -57,6 +59,7 @@ const boothUpdate = z
   .object({ rowVersion: id, roundNo, sheetTotal: count, votes, reason })
   .strict();
 const voidBody = z.object({ rowVersion: id, reason }).strict();
+const historyQuery = z.object({ ballotFor: z.enum(['PS', 'ZP']) }).strict();
 const postalCreate = z
   .object({ sheetTotal: count, rejectedCount: count.optional(), votes })
   .strict();
@@ -118,6 +121,15 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     res.json({
       history: await entryHistory(pool, currentUser(req), 'BOOTH', param(req, 'entryId')),
     });
+  });
+  router.get('/booths/:boothId/history', async (req, res) => {
+    const { ballotFor } = parse(historyQuery, req.query);
+    res.json({
+      history: await boothHistory(pool, currentUser(req), param(req, 'boothId'), ballotFor),
+    });
+  });
+  router.get('/wards/:wardId/postal/history', async (req, res) => {
+    res.json({ history: await postalHistory(pool, currentUser(req), param(req, 'wardId')) });
   });
   router.get('/postal/:entryId', async (req, res) => {
     res.json({ entry: await getPostalEntry(pool, currentUser(req), param(req, 'entryId')) });

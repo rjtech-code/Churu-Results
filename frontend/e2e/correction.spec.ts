@@ -1,4 +1,4 @@
-import { RO_STATE, expect, test, world } from './support';
+import { RO_STATE, expect, giveReason, test, world } from './support';
 
 test.use({ storageState: RO_STATE });
 
@@ -15,7 +15,7 @@ test('a correction creates declaration version 2', async ({ page }) => {
   await expect(page.getByLabel('भरत कुमार के मत')).toHaveValue('100');
   await page.getByLabel('भरत कुमार के मत').fill('110');
   await page.getByLabel('कुल योग (पर्ची के अनुसार)').fill('365');
-  await page.getByLabel('संशोधन का कारण (अनिवार्य, 10–500 अक्षर)').fill('पुनर्गणना में बूथ 9 के मत बदले');
+  await giveReason(page, 'संशोधन का कारण (अनिवार्य)', 'अन्य', 'पुनर्गणना में बूथ 9 के मत बदले');
   await page.getByRole('button', { name: 'पूर्वावलोकन' }).click();
   await expect(page.getByRole('heading', { name: '3. पुष्टि — नया संस्करण 2' })).toBeVisible();
   await expect(page.getByText('विजेता: अमर सिंह · अंतर: 143')).toBeVisible();

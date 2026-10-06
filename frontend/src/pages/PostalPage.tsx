@@ -7,8 +7,9 @@ import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { LeaveGuard } from '../components/LeaveGuard';
 import { NumberField } from '../components/NumberField';
-import { ReasonField, reasonProblem } from '../components/ReasonField';
-import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
+import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
+import type { ReasonValue } from '../components/ReasonField';
+import { NO_CHANGE_TEXT, VoteSheet, checkSheet, sameAsSaved, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
 import { wardShort, wardTitle } from '../components/format';
 import { SplitLayout } from '../components/SplitLayout';
@@ -35,7 +36,7 @@ export function PostalPage() {
   }, [wardId]);
   const [values, setValues] = useState<SheetValues | null>(null);
   const [rejected, setRejected] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [stage, setStage] = useState<'form' | 'confirm'>('form');
   const [preview, setPreview] = useState<EntryPreview | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -49,7 +50,11 @@ export function PostalPage() {
   const saved = sheetValues(ballot, entry ?? undefined);
   const sheet = values ?? saved;
   const rejectedValue = rejected ?? (entry?.rejectedCount == null ? '' : String(entry.rejectedCount));
-  const dirty = JSON.stringify(sheet) !== JSON.stringify(saved) || rejected !== null || reason !== '';
+  const dirty =
+    JSON.stringify(sheet) !== JSON.stringify(saved) ||
+    rejected !== null ||
+    reason.choice !== '' ||
+    reason.details !== '';
 
   const payload = () => {
     const check = checkSheet(ballot, sheet);
@@ -69,6 +74,11 @@ export function PostalPage() {
       return;
     }
     if (editing) {
+      const typedRejected = rejectedValue === '' ? null : Number(rejectedValue);
+      if (typedRejected === entry.rejectedCount && sameAsSaved(ballot, sheet, entry)) {
+        setError(NO_CHANGE_TEXT); // nothing to correct: no confirm screen
+        return;
+      }
       const problem = reasonProblem(reason);
       if (problem) {
         setError(problem);
@@ -97,7 +107,7 @@ export function PostalPage() {
         await api('PUT', `/api/counting/postal/${entry.id}`, {
           rowVersion: entry.rowVersion,
           ...payload(),
-          reason: reason.trim(),
+          reason: reasonText(reason),
         });
       } else {
         await api('POST', `/api/counting/wards/${wardId}/postal`, payload());
@@ -161,7 +171,7 @@ export function PostalPage() {
                     id="postal-reason"
                     value={reason}
                     onChange={setReason}
-                    label="सुधार का कारण (अनिवार्य, 10–500 अक्षर)"
+                    label="सुधार का कारण (अनिवार्य)"
                   />
                 )}
               </>
@@ -202,7 +212,7 @@ export function PostalPage() {
               </p>
               {editing && (
                 <p>
-                  कारण: <q>{reason.trim()}</q>
+                  कारण: <q>{reasonText(reason)}</q>
                 </p>
               )}
               <div className="actions">

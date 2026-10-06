@@ -300,6 +300,16 @@ async function readEntryVotes(
   }));
 }
 
+/** True when the (already validated, complete) new vote rows equal the saved ones exactly. */
+function sameVotes(
+  saved: readonly { candidateId: number; votes: number }[],
+  next: readonly SheetVote[],
+): boolean {
+  if (saved.length !== next.length) return false;
+  const byId = new Map(saved.map((v) => [v.candidateId, v.votes]));
+  return next.every((v) => byId.get(v.candidateId) === v.votes);
+}
+
 /** Common start of update/void: permission, then ward lock, ward checks, entry lock, version check. */
 async function lockBoothEntryForChange(
   pool: Pool,
@@ -405,6 +415,14 @@ export async function updateBoothEntry(
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const entry = await lockBoothEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
     const { candidates, warnings } = await checkBoothChange(conn, ctx, entry, body);
+    const saved = await readEntryVotes(conn, 'booth_entry_vote', entry.id);
+    if (
+      body.roundNo === entry.roundNo &&
+      body.sheetTotal === entry.sheetTotal &&
+      sameVotes(saved, body.votes)
+    ) {
+      throw new ApiError(400, 'NO_CHANGE'); // nothing written: the transaction rolls back
+    }
     await writeBoothChange(conn, ctx, entry, body, candidates);
     return { entryId, wardId: entry.wardId, warnings };
   });
@@ -709,6 +727,14 @@ export async function updatePostalEntry(
     const entry = await lockPostalEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
     const change = { ...body, rejectedCount: body.rejectedCount ?? null };
     const candidates = await checkPostalChange(conn, entry, change);
+    const saved = await readEntryVotes(conn, 'postal_entry_vote', entry.id);
+    if (
+      change.sheetTotal === entry.sheetTotal &&
+      change.rejectedCount === entry.rejectedCount &&
+      sameVotes(saved, change.votes)
+    ) {
+      throw new ApiError(400, 'NO_CHANGE'); // nothing written: the transaction rolls back
+    }
     await writePostalChange(conn, ctx, entry, change, candidates);
     return { entryId, wardId: entry.wardId, warnings: [] };
   });

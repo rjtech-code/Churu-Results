@@ -206,3 +206,9 @@ export interface HistoryItem {
   newValue: unknown;
   reason: string | null;
 }
+
+/** One event of a booth ballot's / a ward's postal ballots' whole story (live + voided entries). */
+export interface StoryItem extends HistoryItem {
+  entryId: number;
+  entryVoided: boolean;
+}

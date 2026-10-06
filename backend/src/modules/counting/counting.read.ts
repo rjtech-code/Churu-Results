@@ -244,13 +244,21 @@ export async function entryHistory(
       : await canWriteWard(pool, user, Number(owner.ward_id));
   if (!allowed) throw new ApiError(403, 'FORBIDDEN');
 
+  return (await auditRows(pool, kind === 'BOOTH' ? 'booth_entry' : 'postal_entry', entryId)).map(
+    ({ auditId: _auditId, ...event }) => event,
+  );
+}
+
+/** Audit rows of one entry, oldest first (with the audit id, for merging several entries). */
+async function auditRows(pool: Pool, entity: 'booth_entry' | 'postal_entry', entryId: number) {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT a.action, a.created_at, a.old_value, a.new_value, a.reason, u.username, u.full_name
+    `SELECT a.id, a.action, a.created_at, a.old_value, a.new_value, a.reason, u.username, u.full_name
        FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
       WHERE a.entity = ? AND a.entity_id = ? ORDER BY a.id`,
-    [kind === 'BOOTH' ? 'booth_entry' : 'postal_entry', entryId],
+    [entity, entryId],
   );
   return rows.map((r) => ({
+    auditId: Number(r.id),
     action: String(r.action),
     at: r.created_at as Date,
     user:
@@ -264,4 +272,78 @@ export async function entryHistory(
     newValue: r.new_value as unknown,
     reason: r.reason === null ? null : String(r.reason),
   }));
+}
+
+/**
+ * The whole story of a set of entries (the live one and every voided one): their audit rows merged
+ * oldest first, each marked with its entry id and whether that entry was voided.
+ */
+async function storyOf(
+  pool: Pool,
+  entity: 'booth_entry' | 'postal_entry',
+  live: readonly number[],
+  voided: readonly number[],
+) {
+  const events = [];
+  for (const [entryId, entryVoided] of [
+    ...live.map((x) => [x, false] as const),
+    ...voided.map((x) => [x, true] as const),
+  ]) {
+    for (const e of await auditRows(pool, entity, entryId))
+      events.push({ entryId, entryVoided, ...e });
+  }
+  events.sort((a, b) => a.auditId - b.auditId);
+  return events.map(({ auditId: _auditId, ...event }) => event);
+}
+
+/**
+ * Whole history of one booth ballot (PS or ZP): created, updated, voided, re-created ... across the
+ * live entry and every voided one. Same permission as the entry itself.
+ */
+export async function boothHistory(
+  pool: Pool,
+  user: AuthUser,
+  boothId: number,
+  ballotFor: 'PS' | 'ZP',
+) {
+  const [booth] = await pool.execute<RowDataPacket[]>('SELECT id FROM booth WHERE id = ?', [
+    boothId,
+  ]);
+  if (booth.length === 0) throw new ApiError(404, 'NOT_FOUND');
+  if (!(await canWriteBallot(pool, user, boothId, ballotFor))) throw new ApiError(403, 'FORBIDDEN');
+  const [live] = await pool.execute<RowDataPacket[]>(
+    'SELECT id FROM booth_entry WHERE booth_id = ? AND ballot_for = ?',
+    [boothId, ballotFor],
+  );
+  const [voided] = await pool.execute<RowDataPacket[]>(
+    "SELECT original_entry_id FROM voided_entry WHERE entry_kind = 'BOOTH' AND booth_id = ? AND ballot_for = ?",
+    [boothId, ballotFor],
+  );
+  return storyOf(
+    pool,
+    'booth_entry',
+    live.map((r) => Number(r.id)),
+    voided.map((r) => Number(r.original_entry_id)),
+  );
+}
+
+/** Whole history of a ward's postal ballots (live + every voided postal entry). */
+export async function postalHistory(pool: Pool, user: AuthUser, wardId: number) {
+  const [ward] = await pool.execute<RowDataPacket[]>('SELECT id FROM ward WHERE id = ?', [wardId]);
+  if (ward.length === 0) throw new ApiError(404, 'NOT_FOUND');
+  if (!(await canWriteWard(pool, user, wardId))) throw new ApiError(403, 'FORBIDDEN');
+  const [live] = await pool.execute<RowDataPacket[]>(
+    'SELECT id FROM postal_entry WHERE ward_id = ?',
+    [wardId],
+  );
+  const [voided] = await pool.execute<RowDataPacket[]>(
+    "SELECT original_entry_id FROM voided_entry WHERE entry_kind = 'POSTAL' AND ward_id = ?",
+    [wardId],
+  );
+  return storyOf(
+    pool,
+    'postal_entry',
+    live.map((r) => Number(r.id)),
+    voided.map((r) => Number(r.original_entry_id)),
+  );
 }

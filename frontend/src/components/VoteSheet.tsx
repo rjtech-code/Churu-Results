@@ -252,3 +252,19 @@ export function sheetValues(
   }
   return { votes, total: saved === undefined ? '' : String(saved.sheetTotal) };
 }
+
+export const NO_CHANGE_TEXT = 'कोई बदलाव नहीं — सुधार की ज़रूरत नहीं';
+
+/** True when every typed count and the sheet total equal the saved entry (as numbers: "007" = 7). */
+export function sameAsSaved(
+  ballot: readonly BallotCandidate[],
+  values: SheetValues,
+  saved: { votes: { candidateId: number; votes: number }[]; sheetTotal: number },
+): boolean {
+  if (values.total === '' || Number(values.total) !== saved.sheetTotal) return false;
+  return ballot.every((c) => {
+    const typed = values.votes[c.candidateId] ?? '';
+    const before = saved.votes.find((v) => v.candidateId === c.candidateId);
+    return typed !== '' && Number(typed) === before?.votes;
+  });
+}

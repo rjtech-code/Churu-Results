@@ -64,3 +64,40 @@ test('leaving with typed numbers asks first', async ({ page }) => {
   await dialog.getByRole('button', { name: 'रुकें, पेज पर रहें' }).click();
   await expect(page.getByLabel('अमर सिंह के मत')).toHaveValue('12');
 });
+
+test('dialogs sit above everything: with the leave dialog open the confirm button cannot be clicked; Esc stays', async ({
+  page,
+}) => {
+  const w = world().wards.entry;
+  await page.goto(`/wards/${w.id}/booths/${w.booths['2'] ?? 0}/entry`);
+  await typeSheet(page, [5, 4, 1], 10);
+  await page.getByRole('button', { name: 'आगे' }).click();
+  const save = page.getByRole('button', { name: 'पुष्टि करें और सेव करें' });
+  await expect(save).toBeVisible();
+  const box = await save.boundingBox();
+  if (box === null) throw new Error('no confirm button');
+
+  const writes: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() !== 'GET') writes.push(`${r.method()} ${r.url()}`);
+  });
+  await page.getByRole('link', { name: '← वार्ड 1' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'बिना सेव किए छोड़ें?' });
+  await expect(dialog).toBeVisible();
+  // the safe button has the focus, and the dialog is on top of the sticky panel
+  await expect(dialog.getByRole('button', { name: 'रुकें, पेज पर रहें' })).toBeFocused();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  expect(writes).toEqual([]);
+  await expect(dialog).toBeVisible();
+  // Tab never leaves the dialog
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
+  }
+  // Esc = stay on the page, numbers kept
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(save).toBeVisible();
+  expect(writes).toEqual([]);
+});

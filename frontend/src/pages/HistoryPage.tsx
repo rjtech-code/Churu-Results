@@ -6,7 +6,7 @@ import { ErrorBox } from '../components/ErrorBox';
 import { formatDateTime } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
-const ACTION_HINDI: Record<string, string> = {
+export const ACTION_HINDI: Record<string, string> = {
   ENTRY_CREATED: 'दर्ज की गई',
   ENTRY_UPDATED: 'सुधारी गई',
   ENTRY_VOIDED: 'रद्द की गई',
@@ -24,7 +24,7 @@ interface EntryValue {
   correction_version?: number;
 }
 
-function describe(value: unknown, ballot: readonly BallotCandidate[]): string {
+export function describeValue(value: unknown, ballot: readonly BallotCandidate[]): string {
   if (typeof value !== 'object' || value === null) return '—';
   const v = value as EntryValue;
   if (v.votes === undefined) return '—';
@@ -77,8 +77,8 @@ export function HistoryPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
               <td>{formatDateTime(h.at)}</td>
               <td>{ACTION_HINDI[h.action] ?? h.action}</td>
               <td>{h.user ? (h.user.fullName ?? h.user.username) : '—'}</td>
-              <td>{describe(h.oldValue, data.ballot)}</td>
-              <td>{h.action.endsWith('VOIDED') ? 'रद्द' : describe(h.newValue, data.ballot)}</td>
+              <td>{describeValue(h.oldValue, data.ballot)}</td>
+              <td>{h.action.endsWith('VOIDED') ? 'रद्द' : describeValue(h.newValue, data.ballot)}</td>
               <td>{h.reason ?? '—'}</td>
             </tr>
           ))}

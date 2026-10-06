@@ -5,7 +5,9 @@ import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
 import type { BallotCandidate, BoothEntryView, PostalEntryView } from '../api/types';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
-import { ReasonField, reasonProblem } from '../components/ReasonField';
+import { Modal } from '../components/Modal';
+import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
+import type { ReasonValue } from '../components/ReasonField';
 import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
@@ -26,7 +28,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
     const booth = entry.kind === 'BOOTH' ? booths.booths.find((b) => b.boothId === entry.boothId) : undefined;
     return { entry, ward, ballot, booth };
   }, [entryId, base]);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -40,7 +42,10 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
     if (busy) return;
     setBusy(true);
     try {
-      await api('POST', `${base}/${entryId}/void`, { rowVersion: entry.rowVersion, reason: reason.trim() });
+      await api('POST', `${base}/${entryId}/void`, {
+        rowVersion: entry.rowVersion,
+        reason: reasonText(reason),
+      });
       const state: WardFlash = { flash: `${what} की एंट्री रद्द कर दी गई — अब दोबारा दर्ज की जा सकती है` };
       void navigate(`/wards/${ward.id}`, { state });
     } catch (err) {
@@ -68,7 +73,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
         id="void-reason"
         value={reason}
         onChange={setReason}
-        label="रद्द करने का कारण (अनिवार्य, 10–500 अक्षर)"
+        label="रद्द करने का कारण (अनिवार्य)"
       />
       <div className="actions">
         <button
@@ -87,29 +92,32 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
         </button>
       </div>
       {asking && (
-        <div className="dialog-backdrop">
-          <div className="dialog" role="alertdialog" aria-label="पक्का रद्द करें?">
-            <p>
-              क्या आप पक्का <strong>{what}</strong> की एंट्री रद्द करना चाहते हैं? पूरी एंट्री इतिहास में
-              सुरक्षित रहेगी।
-            </p>
-            <div className="actions">
-              <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void onVoid()}>
-                {busy ? 'रद्द हो रहा है…' : 'हाँ, रद्द करें'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => {
-                  setAsking(false);
-                }}
-              >
-                नहीं
-              </button>
-            </div>
+        <Modal
+          label="पक्का रद्द करें?"
+          onCancel={() => {
+            if (!busy) setAsking(false); // Esc = "नहीं"
+          }}
+        >
+          <p>
+            क्या आप पक्का <strong>{what}</strong> की एंट्री रद्द करना चाहते हैं? पूरी एंट्री इतिहास में
+            सुरक्षित रहेगी।
+          </p>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => {
+                setAsking(false);
+              }}
+            >
+              नहीं
+            </button>
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void onVoid()}>
+              {busy ? 'रद्द हो रहा है…' : 'हाँ, रद्द करें'}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

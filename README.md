@@ -371,7 +371,9 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, roundNo, sheetTotal, votes:[{candidateId, votes}]}` |
 | PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
 | POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
+| GET | `/api/counting/booths/:boothId/history?ballotFor=PS\|ZP` | The **whole story** of one booth ballot, oldest first: every entry ever made for it (the live one and every voided one, from `voided_entry`) with all their audit rows: created, updated, voided, re-created … Each event has `entryId` and `entryVoided`. Same permission as the entry. |
 | GET | `/api/counting/postal/:entryId` and `.../history` | Postal entry, and its history |
+| GET | `/api/counting/wards/:wardId/postal/history` | The whole story of the ward's postal ballots (live + every voided postal entry), oldest first. Same permission as the postal entry. |
 | POST | `/api/counting/wards/:wardId/postal/preview` | Postal preview (saves nothing) |
 | POST | `/api/counting/wards/:wardId/postal` | Save the ward's postal sheet (one per ward): `{sheetTotal, rejectedCount?, votes}` |
 | PUT | `/api/counting/postal/:entryId` | `{rowVersion, sheetTotal, rejectedCount?, votes, reason}` |
@@ -386,7 +388,11 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 - `votes` must have exactly one row for **every** candidate of the ward, NOTA included. A zero must be typed.
 - The vote sum must equal `sheetTotal`. For postal sheets, `rejectedCount` is stored, but it is **not** part of the
   sum; that rule lives in `result.ts`.
-- `reason` (PUT and void): 10–500 characters.
+- `reason` (PUT and void): 10–500 characters. The dashboard builds it from a standard reason (पर्ची पढ़ने में
+  गलती / टाइपिंग में गलती / गलत बूथ चुना गया / पर्ची बाद में संशोधित हुई / अन्य) plus details, as
+  "<reason> — <details>"; "अन्य" needs details of at least 10 characters.
+- **No-change edits:** a PUT identical to the saved entry (same round, total, rejected count and votes) is
+  refused with 400 `NO_CHANGE`. Nothing is written: no `row_version` bump and no audit row.
 - Candidate names, wards and booths are always looked up on the server, never taken from the client.
 
 **Error codes.** Every error is `{"error": CODE, ...details}`.
@@ -408,6 +414,7 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | `WARD_DECLARED` | 409 | The ward is declared; changes go through Part 6 corrections. |
 | `ALREADY_ENTERED` | 409 | This booth/ballot (or this ward's postal) already has an entry. Edit or void it. |
 | `STALE_VERSION` | 409 | Someone changed the entry meanwhile: `currentRowVersion`. Reload and redo. |
+| `NO_CHANGE` | 400 | PUT identical to the saved entry; nothing written |
 | `VOTER_COUNT_MISSING` | 409 | The booth has no registered-voter count and `REQUIRE_VOTER_COUNTS=true`. |
 
 **`REQUIRE_VOTER_COUNTS`.** Rule 7 (booth total ≤ registered voters) needs the voter counts from `import:voters`.
@@ -713,9 +720,13 @@ process.
    "पुष्टि करें और सेव करें" saves once; a double click does not save twice. After saving, the ward page
    highlights the next booth.
 4. **Leaving with typed numbers** asks first: in-page for links, and the browser's warning for reload/close.
+   Dialogs are native modal `<dialog>`s: above everything, the page behind is inert, Tab stays inside, and
+   Esc means "stay".
 5. **Edit / void.**
-   - Both need a reason (10–500 characters).
+   - Both need a reason: pick a standard reason from the list and add details ("अन्य" needs details).
+   - An edit that changes nothing is stopped: "कोई बदलाव नहीं — सुधार की ज़रूरत नहीं".
    - Edit shows old vs new before saving.
+   - "इतिहास" on a booth row (and on the postal section) shows the whole story, voided entries included.
    - If someone else changed the entry meanwhile: "किसी और ने इसे बदल दिया है, पेज दोबारा खोलें".
    - After a void, the booth can be entered again.
 6. **Postal.** The same sheet, plus rejected postal votes, which are shown separately and are not in the sum.
@@ -794,7 +805,7 @@ process.
 | `LOTTERY_WINNER_NOT_TIED` | 400 | लॉटरी विजेता बराबरी वाले उम्मीदवारों में से होना चाहिए |
 | `ENTRY_NOT_IN_WARD` | 400 | यह एंट्री इस वार्ड की नहीं है |
 | `DUPLICATE_CHANGE` | 400 | एक ही एंट्री दो बार चुनी गई है |
-| `NO_CHANGE` | 400 | कोई बदलाव नहीं किया गया |
+| `NO_CHANGE` | 400 | कोई बदलाव नहीं — सुधार की ज़रूरत नहीं (identical edit, or a correction equal to the declaration) |
 
 Fallbacks:
 - Express's own `Not found` / `Bad request` / `Payload too large` / `Internal error` bodies get Hindi text too.

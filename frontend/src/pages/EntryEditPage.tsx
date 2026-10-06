@@ -6,8 +6,9 @@ import type { BoothEntryView } from '../api/types';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { LeaveGuard } from '../components/LeaveGuard';
-import { ReasonField, reasonProblem } from '../components/ReasonField';
-import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
+import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
+import type { ReasonValue } from '../components/ReasonField';
+import { NO_CHANGE_TEXT, VoteSheet, checkSheet, sameAsSaved, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
 import { wardShort } from '../components/format';
 import { SplitLayout } from '../components/SplitLayout';
@@ -38,7 +39,7 @@ export function EntryEditPage() {
   }, [entryId]);
   const [values, setValues] = useState<SheetValues | null>(null);
   const [round, setRound] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [stage, setStage] = useState<'form' | 'confirm'>('form');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +52,10 @@ export function EntryEditPage() {
   const sheet = values ?? saved;
   const roundValue = round ?? String(entry.roundNo);
   const dirty =
-    JSON.stringify(sheet) !== JSON.stringify(saved) || roundValue !== String(entry.roundNo) || reason !== '';
+    JSON.stringify(sheet) !== JSON.stringify(saved) ||
+    roundValue !== String(entry.roundNo) ||
+    reason.choice !== '' ||
+    reason.details !== '';
 
   const onNext = () => {
     setError(null);
@@ -62,6 +66,10 @@ export function EntryEditPage() {
     }
     if (roundValue === '' || Number(roundValue) < 1 || Number(roundValue) > 99) {
       setError('राउंड संख्या 1 से 99 के बीच लिखें');
+      return;
+    }
+    if (Number(roundValue) === entry.roundNo && sameAsSaved(ballot, sheet, entry)) {
+      setError(NO_CHANGE_TEXT); // nothing to correct: no confirm screen
       return;
     }
     const problem = reasonProblem(reason);
@@ -83,7 +91,7 @@ export function EntryEditPage() {
         roundNo: Number(roundValue),
         sheetTotal: check.sheetTotal,
         votes: check.votes,
-        reason: reason.trim(),
+        reason: reasonText(reason),
       });
       allowLeave.current = true;
       const state: WardFlash = { flash: `बूथ ${data.boothNo} की एंट्री सुधार दी गई` };
@@ -101,7 +109,8 @@ export function EntryEditPage() {
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
       <p className="backlink">
-        <Link to={`/wards/${ward.id}`}>← {wardShort(ward)}</Link>
+        <Link to={`/wards/${ward.id}`}>← {wardShort(ward)}</Link> ·{' '}
+        <Link to={`/wards/${ward.id}/booths/${entry.boothId}/history`}>इस बूथ का पूरा इतिहास</Link>
       </p>
       <div className="sheet-header">
         <div className="big">
@@ -137,7 +146,7 @@ export function EntryEditPage() {
                 id="edit-reason"
                 value={reason}
                 onChange={setReason}
-                label="सुधार का कारण (अनिवार्य, 10–500 अक्षर)"
+                label="सुधार का कारण (अनिवार्य)"
               />
             }
             actions={
@@ -170,7 +179,7 @@ export function EntryEditPage() {
           panel={
             <>
               <p>
-                कारण: <q>{reason.trim()}</q>
+                कारण: <q>{reasonText(reason)}</q>
               </p>
               <div className="actions">
                 <button

@@ -55,7 +55,7 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   NOT_DECLARED: 'यह वार्ड अभी घोषित नहीं है',
   ENTRY_NOT_IN_WARD: 'यह एंट्री इस वार्ड की नहीं है',
   DUPLICATE_CHANGE: 'एक ही एंट्री दो बार चुनी गई है',
-  NO_CHANGE: 'कोई बदलाव नहीं किया गया',
+  NO_CHANGE: 'कोई बदलाव नहीं — सुधार की ज़रूरत नहीं',
 };
 
 /** Hindi text for any error (unknown codes: generic text + the code, so it can be reported). */

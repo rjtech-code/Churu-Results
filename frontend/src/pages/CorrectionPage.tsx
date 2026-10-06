@@ -12,7 +12,8 @@ import {
 } from '../components/DecisionFields';
 import type { Decision } from '../components/DecisionFields';
 import { ErrorBox, SuccessBox, WarningBox } from '../components/ErrorBox';
-import { ReasonField, reasonProblem } from '../components/ReasonField';
+import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
+import type { ReasonValue } from '../components/ReasonField';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
 import { formatDateTime, wardShort, wardTitle } from '../components/format';
@@ -43,7 +44,7 @@ export function CorrectionPage() {
     return { ward, booths, ballot, declarations };
   }, [wardId]);
   const [picked, setPicked] = useState<Picked[]>([]);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [preview, setPreview] = useState<CorrectionPreview | null>(null);
   const [decision, setDecision] = useState<Decision>(emptyDecision);
   const [error, setError] = useState<unknown>(null);
@@ -126,7 +127,7 @@ export function CorrectionPage() {
     setError(null);
     const body = {
       ...decisionBody(preview.after, preview.wouldStore, decision),
-      reason: reason.trim(),
+      reason: reasonText(reason),
       changes: changes(),
     };
     setDecision((d) => ({ ...d, password: '' }));
@@ -140,7 +141,7 @@ export function CorrectionPage() {
         `संशोधन सेव हुआ: संस्करण ${res.declaration.version}, विजेता ${res.declaration.winner.nameHindi}`,
       );
       setPicked([]);
-      setReason('');
+      setReason(emptyReason);
       setPreview(null);
       reload();
     } catch (err) {
@@ -238,7 +239,7 @@ export function CorrectionPage() {
         id="correction-reason"
         value={reason}
         onChange={setReason}
-        label="संशोधन का कारण (अनिवार्य, 10–500 अक्षर)"
+        label="संशोधन का कारण (अनिवार्य)"
       />
       {error instanceof ApiError && error.code === 'STALE_VERSION' ? (
         <ErrorBox error={STALE_TEXT} />

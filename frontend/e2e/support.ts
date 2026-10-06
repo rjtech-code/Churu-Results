@@ -93,3 +93,9 @@ export async function typeSheet(page: Page, votes: [number, number, number], tot
   await page.getByLabel('नोटा के मत').fill(String(votes[2]));
   await page.getByLabel('कुल योग (पर्ची के अनुसार)').fill(String(total));
 }
+
+/** Picks a standard reason and (optionally) types the details. */
+export async function giveReason(page: Page, label: string, choice: string, details = ''): Promise<void> {
+  await page.getByLabel(label, { exact: true }).selectOption(choice);
+  if (details !== '') await page.getByRole('textbox', { name: /^विवरण/ }).fill(details);
+}

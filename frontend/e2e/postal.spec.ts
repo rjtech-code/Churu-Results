@@ -19,3 +19,21 @@ test('postal entry: rejected postal votes are shown separately, not in the sum',
   await expect(page.getByText(/✓ दर्ज \(/).first()).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('घोषणा के लिए तैयार');
 });
+
+test('postal: an unchanged edit is blocked; the postal history shows the whole story', async ({ page }) => {
+  const w = world().wards.postal;
+  await page.goto(`/wards/${w.id}`);
+  await page.getByRole('link', { name: 'सुधारें' }).first().click();
+  await expect(page.getByLabel('अमर सिंह के मत')).toHaveValue('3');
+  await page.getByRole('button', { name: 'आगे' }).click();
+  await expect(page.getByRole('alert')).toContainText('कोई बदलाव नहीं — सुधार की ज़रूरत नहीं');
+  // changing only the rejected count is a real change, so it goes on to the reason check
+  await page.locator('#postal-rejected').fill('5');
+  await page.getByRole('button', { name: 'आगे' }).click();
+  await expect(page.getByRole('alert')).toContainText('कारण चुनें');
+
+  await page.goto(`/wards/${w.id}/postal/history`);
+  const rows = page.getByTestId('story').locator('tbody tr');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('डाक मत दर्ज');
+});
