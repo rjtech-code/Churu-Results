@@ -103,7 +103,7 @@ function namedVotes(candidates: readonly BallotCandidate[], votes: readonly Shee
   }));
 }
 
-const plainVotes = (votes: readonly SheetVote[]) =>
+export const plainVotes = (votes: readonly SheetVote[]) =>
   votes.map((v) => ({ candidateId: v.candidateId, votes: v.votes }));
 
 // ============================================================== booth entries
@@ -235,7 +235,7 @@ export async function createBoothEntry(
   return outcome;
 }
 
-interface LiveBoothEntry {
+export interface LiveBoothEntry {
   id: number;
   wardId: number;
   boothId: number;
@@ -249,7 +249,7 @@ interface LiveBoothEntry {
   updatedAt: Date | null;
 }
 
-async function readBoothEntry(
+export async function readBoothEntry(
   conn: Pool | PoolConnection,
   entryId: number,
   forUpdate: boolean,
@@ -319,6 +319,83 @@ async function lockBoothEntryForChange(
   return entry;
 }
 
+/** Part 5 rules for a changed booth sheet (completeness, sum, registered voters). */
+export async function checkBoothChange(
+  conn: PoolConnection,
+  ctx: WriteContext,
+  entry: LiveBoothEntry,
+  change: { sheetTotal: number; votes: SheetVote[] },
+): Promise<{ candidates: BallotCandidate[]; warnings: string[] }> {
+  const booth = await readBooth(conn, entry.boothId);
+  const candidates = await readBallot(conn, entry.wardId);
+  checkVoteRows(candidates, change.votes);
+  checkBoothSum(change.votes, change.sheetTotal);
+  const warnings = checkRegisteredVoters(
+    change.sheetTotal,
+    booth.registeredVotersTotal,
+    ctx.requireVoterCounts,
+  );
+  return { candidates, warnings };
+}
+
+/**
+ * Writes an already checked booth change: UPDATE guarded by row_version (+1), the vote rows and
+ * an ENTRY_UPDATED audit row. Used by Part 5 edits and by Part 6 corrections (`auditExtra`).
+ */
+export async function writeBoothChange(
+  conn: PoolConnection,
+  ctx: WriteContext,
+  entry: LiveBoothEntry,
+  change: {
+    rowVersion: number;
+    roundNo: number;
+    sheetTotal: number;
+    votes: SheetVote[];
+    reason: string;
+  },
+  candidates: readonly BallotCandidate[],
+  auditExtra: Record<string, unknown> = {},
+): Promise<void> {
+  const oldVotes = await readEntryVotes(conn, 'booth_entry_vote', entry.id);
+  const [updated] = await conn.execute<ResultSetHeader>(
+    `UPDATE booth_entry SET round_no = ?, sheet_total = ?, updated_by = ?, row_version = row_version + 1
+      WHERE id = ? AND row_version = ?`,
+    [change.roundNo, change.sheetTotal, ctx.user.id, entry.id, change.rowVersion],
+  );
+  if (updated.affectedRows !== 1) throw new ApiError(409, 'STALE_VERSION');
+  for (const v of namedVotes(candidates, change.votes)) {
+    await conn.execute(
+      'UPDATE booth_entry_vote SET votes = ? WHERE entry_id = ? AND candidate_id = ?',
+      [v.votes, entry.id, v.candidateId],
+    );
+  }
+  await writeAudit(conn, {
+    userId: ctx.user.id,
+    action: 'ENTRY_UPDATED',
+    entity: 'booth_entry',
+    entityId: entry.id,
+    oldValue: {
+      ward_id: entry.wardId,
+      booth_id: entry.boothId,
+      round_no: entry.roundNo,
+      sheet_total: entry.sheetTotal,
+      row_version: entry.rowVersion,
+      votes: oldVotes.map((v) => ({ candidateId: v.candidateId, votes: v.votes })),
+    },
+    newValue: {
+      ward_id: entry.wardId,
+      booth_id: entry.boothId,
+      round_no: change.roundNo,
+      sheet_total: change.sheetTotal,
+      row_version: entry.rowVersion + 1,
+      votes: plainVotes(change.votes),
+      ...auditExtra,
+    },
+    reason: change.reason,
+    ip: ctx.ip,
+  });
+}
+
 export async function updateBoothEntry(
   pool: Pool,
   ctx: WriteContext,
@@ -327,53 +404,8 @@ export async function updateBoothEntry(
 ): Promise<WriteOutcome> {
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const entry = await lockBoothEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
-    const booth = await readBooth(conn, entry.boothId);
-    const candidates = await readBallot(conn, entry.wardId);
-    checkVoteRows(candidates, body.votes);
-    checkBoothSum(body.votes, body.sheetTotal);
-    const warnings = checkRegisteredVoters(
-      body.sheetTotal,
-      booth.registeredVotersTotal,
-      ctx.requireVoterCounts,
-    );
-    const oldVotes = await readEntryVotes(conn, 'booth_entry_vote', entryId);
-
-    const [updated] = await conn.execute<ResultSetHeader>(
-      `UPDATE booth_entry SET round_no = ?, sheet_total = ?, updated_by = ?, row_version = row_version + 1
-        WHERE id = ? AND row_version = ?`,
-      [body.roundNo, body.sheetTotal, ctx.user.id, entryId, body.rowVersion],
-    );
-    if (updated.affectedRows !== 1) throw new ApiError(409, 'STALE_VERSION');
-    for (const v of namedVotes(candidates, body.votes)) {
-      await conn.execute(
-        'UPDATE booth_entry_vote SET votes = ? WHERE entry_id = ? AND candidate_id = ?',
-        [v.votes, entryId, v.candidateId],
-      );
-    }
-    await writeAudit(conn, {
-      userId: ctx.user.id,
-      action: 'ENTRY_UPDATED',
-      entity: 'booth_entry',
-      entityId: entryId,
-      oldValue: {
-        ward_id: entry.wardId,
-        booth_id: entry.boothId,
-        round_no: entry.roundNo,
-        sheet_total: entry.sheetTotal,
-        row_version: entry.rowVersion,
-        votes: oldVotes.map((v) => ({ candidateId: v.candidateId, votes: v.votes })),
-      },
-      newValue: {
-        ward_id: entry.wardId,
-        booth_id: entry.boothId,
-        round_no: body.roundNo,
-        sheet_total: body.sheetTotal,
-        row_version: entry.rowVersion + 1,
-        votes: plainVotes(body.votes),
-      },
-      reason: body.reason,
-      ip: ctx.ip,
-    });
+    const { candidates, warnings } = await checkBoothChange(conn, ctx, entry, body);
+    await writeBoothChange(conn, ctx, entry, body, candidates);
     return { entryId, wardId: entry.wardId, warnings };
   });
   emitWardChanged(outcome.wardId);
@@ -545,7 +577,7 @@ export async function createPostalEntry(
   return outcome;
 }
 
-interface LivePostalEntry {
+export interface LivePostalEntry {
   id: number;
   wardId: number;
   sheetTotal: number;
@@ -557,7 +589,7 @@ interface LivePostalEntry {
   updatedAt: Date | null;
 }
 
-async function readPostalEntry(
+export async function readPostalEntry(
   conn: Pool | PoolConnection,
   entryId: number,
   forUpdate: boolean,
@@ -602,6 +634,71 @@ async function lockPostalEntryForChange(
   return entry;
 }
 
+/** Part 5 rules for a changed postal sheet (completeness, sum via result.ts). */
+export async function checkPostalChange(
+  conn: PoolConnection,
+  entry: LivePostalEntry,
+  change: { sheetTotal: number; rejectedCount: number | null; votes: SheetVote[] },
+): Promise<BallotCandidate[]> {
+  const candidates = await readBallot(conn, entry.wardId);
+  checkVoteRows(candidates, change.votes);
+  checkPostalSum(change.votes, change.sheetTotal, change.rejectedCount);
+  return candidates;
+}
+
+/** Writes an already checked postal change (row_version guard, vote rows, POSTAL_UPDATED audit). */
+export async function writePostalChange(
+  conn: PoolConnection,
+  ctx: WriteContext,
+  entry: LivePostalEntry,
+  change: {
+    rowVersion: number;
+    sheetTotal: number;
+    rejectedCount: number | null;
+    votes: SheetVote[];
+    reason: string;
+  },
+  candidates: readonly BallotCandidate[],
+  auditExtra: Record<string, unknown> = {},
+): Promise<void> {
+  const oldVotes = await readEntryVotes(conn, 'postal_entry_vote', entry.id);
+  const [updated] = await conn.execute<ResultSetHeader>(
+    `UPDATE postal_entry SET sheet_total = ?, rejected_count = ?, updated_by = ?, row_version = row_version + 1
+      WHERE id = ? AND row_version = ?`,
+    [change.sheetTotal, change.rejectedCount, ctx.user.id, entry.id, change.rowVersion],
+  );
+  if (updated.affectedRows !== 1) throw new ApiError(409, 'STALE_VERSION');
+  for (const v of namedVotes(candidates, change.votes)) {
+    await conn.execute(
+      'UPDATE postal_entry_vote SET votes = ? WHERE entry_id = ? AND candidate_id = ?',
+      [v.votes, entry.id, v.candidateId],
+    );
+  }
+  await writeAudit(conn, {
+    userId: ctx.user.id,
+    action: 'POSTAL_UPDATED',
+    entity: 'postal_entry',
+    entityId: entry.id,
+    oldValue: {
+      ward_id: entry.wardId,
+      sheet_total: entry.sheetTotal,
+      rejected_count: entry.rejectedCount,
+      row_version: entry.rowVersion,
+      votes: oldVotes.map((v) => ({ candidateId: v.candidateId, votes: v.votes })),
+    },
+    newValue: {
+      ward_id: entry.wardId,
+      sheet_total: change.sheetTotal,
+      rejected_count: change.rejectedCount,
+      row_version: entry.rowVersion + 1,
+      votes: plainVotes(change.votes),
+      ...auditExtra,
+    },
+    reason: change.reason,
+    ip: ctx.ip,
+  });
+}
+
 export async function updatePostalEntry(
   pool: Pool,
   ctx: WriteContext,
@@ -610,45 +707,9 @@ export async function updatePostalEntry(
 ): Promise<WriteOutcome> {
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const entry = await lockPostalEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
-    const candidates = await readBallot(conn, entry.wardId);
-    checkVoteRows(candidates, body.votes);
-    const rejected = body.rejectedCount ?? null;
-    checkPostalSum(body.votes, body.sheetTotal, rejected);
-    const oldVotes = await readEntryVotes(conn, 'postal_entry_vote', entryId);
-    const [updated] = await conn.execute<ResultSetHeader>(
-      `UPDATE postal_entry SET sheet_total = ?, rejected_count = ?, updated_by = ?, row_version = row_version + 1
-        WHERE id = ? AND row_version = ?`,
-      [body.sheetTotal, rejected, ctx.user.id, entryId, body.rowVersion],
-    );
-    if (updated.affectedRows !== 1) throw new ApiError(409, 'STALE_VERSION');
-    for (const v of namedVotes(candidates, body.votes)) {
-      await conn.execute(
-        'UPDATE postal_entry_vote SET votes = ? WHERE entry_id = ? AND candidate_id = ?',
-        [v.votes, entryId, v.candidateId],
-      );
-    }
-    await writeAudit(conn, {
-      userId: ctx.user.id,
-      action: 'POSTAL_UPDATED',
-      entity: 'postal_entry',
-      entityId: entryId,
-      oldValue: {
-        ward_id: entry.wardId,
-        sheet_total: entry.sheetTotal,
-        rejected_count: entry.rejectedCount,
-        row_version: entry.rowVersion,
-        votes: oldVotes.map((v) => ({ candidateId: v.candidateId, votes: v.votes })),
-      },
-      newValue: {
-        ward_id: entry.wardId,
-        sheet_total: body.sheetTotal,
-        rejected_count: rejected,
-        row_version: entry.rowVersion + 1,
-        votes: plainVotes(body.votes),
-      },
-      reason: body.reason,
-      ip: ctx.ip,
-    });
+    const change = { ...body, rejectedCount: body.rejectedCount ?? null };
+    const candidates = await checkPostalChange(conn, entry, change);
+    await writePostalChange(conn, ctx, entry, change, candidates);
     return { entryId, wardId: entry.wardId, warnings: [] };
   });
   emitWardChanged(outcome.wardId);

@@ -6,7 +6,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 2** (master-data import scripts and user accounts, run from the command line on the server) and
 **Part 3** (login, sessions, CSRF, rate limits, role and ownership checks) and
 **Part 4** (the result engine) and
-**Part 5** (booth and postal entry API).
+**Part 5** (booth and postal entry API) and
+**Part 6** (declare, tie lottery, post-declare correction, demo data).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -433,6 +434,103 @@ Because entry writes and declare both lock the same ward row first:
 - `row_version` makes a stale edit fail with `STALE_VERSION` instead of overwriting someone else's change
 
 After every successful commit an in-process `ward-changed` event is emitted, for the live screens in Part 7.
+
+## Declare, tie lottery and correction (Part 6)
+
+Only the ward's own RO can declare: the PS_RO for PS wards of its Panchayat Samiti, the ZP_RO for ZP wards.
+The DM gets 403 on all `/api/declare` routes. Unopposed wards are **never** declared through the system;
+their cross-checked, locked ballot is their confirmation.
+
+| Method | Path | What it does |
+|---|---|---|
+| POST | `/api/declare/wards/:wardId/preview` | Body `{}`. Shows the current result and exactly what would be stored (version, winner, margin, snapshot), or that a lottery is needed and between whom. Saves nothing. |
+| POST | `/api/declare/wards/:wardId` | Declare: `{password, confirmWinnerCandidateId, confirmTotalValidVotes, lottery?, acknowledgeNotaHighest?}` |
+| POST | `/api/declare/wards/:wardId/correction/preview` | Body `{changes}`. The ward before and after the correction. Saves nothing. |
+| POST | `/api/declare/wards/:wardId/correction` | Correct a declared ward: `{password, reason, changes, confirmWinnerCandidateId, confirmTotalValidVotes, lottery?, acknowledgeNotaHighest?}` |
+| GET | `/api/declare/wards/:wardId/declarations` | Every declaration version, oldest first, with lottery, NOTA acknowledgement and correction reasons |
+
+**Declaring, in plain words**
+1. The RO types their **password again**.
+   - A wrong password counts toward the normal 5-attempt lockout and is audited (`REAUTH_FAILED`).
+   - A locked account gets 423 straight away.
+2. A ward can only be declared when **every booth and the postal ballots** are entered.
+3. The RO **confirms the winner and the total valid votes they see on screen**. If the numbers changed
+   meanwhile (another tab, another officer), the server answers `RESULT_CHANGED` with the fresh result
+   and nothing is declared.
+4. **Tie at the top:** the system never picks a winner. The RO holds the lottery as the rules require, then
+   records it: `lottery: {winnerCandidateId, conductedBy, note}`. The winner must be one of the tied
+   candidates. It is stored as `TIE_RESOLVED` with margin 0, and the lottery details are kept forever.
+5. **NOTA has the most votes:** the official rule is not confirmed yet, so the winner logic is unchanged.
+   The RO must explicitly acknowledge it (`acknowledgeNotaHighest: true`), and that is recorded.
+6. The declaration stores a snapshot of every candidate's votes, built by `buildDeclarationSnapshot`.
+
+**Correcting a declared ward.** Numbers of a declared ward change **only** here; Part 5's edit and void
+answer `WARD_DECLARED`. One request, one transaction:
+1. Fix the affected entries (`changes`: booth or postal sheets with their `rowVersion`). The same sheet
+   checks as Part 5 apply.
+2. The new result is computed.
+3. The usual confirm, lottery and NOTA rules apply.
+4. A **new declaration version** is stored with the reason. **Older versions are never changed**; the
+   database blocks it.
+
+There is never a "reopened" ward. If the corrected numbers are identical to the current ones, the
+answer is `NO_CHANGE`; a round number alone is not a result change.
+
+**Lock order.** Declare and correction follow the same lock order as Part 5:
+1. Password check, **before** any lock.
+2. **Ward row `FOR UPDATE`.**
+3. Entries.
+4. Writes and audit.
+5. Commit.
+
+So a declare and an entry write on the same ward never overlap: whichever comes second sees the other.
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `REAUTH_FAILED` | 401 | Wrong password at the re-check (counted toward the lockout) |
+| `ACCOUNT_LOCKED` | 423 | Account locked; `retryAfterSeconds`. The password was not checked. |
+| `WARD_UNOPPOSED` | 409 | Unopposed wards are never declared |
+| `ALREADY_DECLARED` | 409 | Use correction instead |
+| `COUNTING_INCOMPLETE` | 409 | Not every booth/postal entered: `boothsEntered`, `boothsTotal`, `postalEntered` |
+| `RESULT_CHANGED` | 409 | The confirmed winner or total no longer matches: `result` holds the fresh result |
+| `LOTTERY_REQUIRED` | 400 | Top is tied: `tiedCandidateIds` |
+| `LOTTERY_NOT_ALLOWED` | 400 | A lottery was sent but there is no tie |
+| `LOTTERY_WINNER_NOT_TIED` | 400 | The lottery winner is not one of `tiedCandidateIds` |
+| `NOTA_HIGHEST_ACK_REQUIRED` | 409 | NOTA has the most votes; acknowledge it explicitly |
+| `NOT_DECLARED` | 409 | Correction of a ward that has no declaration |
+| `ENTRY_NOT_IN_WARD` | 400 | A change refers to an entry of another ward |
+| `DUPLICATE_CHANGE` | 400 | The same entry twice in `changes` |
+| `NO_CHANGE` | 400 | The corrected numbers equal the current declaration |
+| `STALE_VERSION` | 409 | An entry changed meanwhile (`currentRowVersion`) |
+
+Part 5 sheet codes (`SUM_MISMATCH`, `VOTES_INCOMPLETE`, `EXCEEDS_REGISTERED_VOTERS`, ...) also apply inside `changes`.
+
+## Demo data (development and official demos only)
+
+> **WARNING: never run the demo scripts against a real database.** They refuse to run when
+> `NODE_ENV=production` or when the database name does not end in `_dev`. They check this before
+> opening any connection with write rights. `demo:reset` deletes **everything**: users, audit log,
+> every result.
+
+```bash
+cd backend
+npm run demo:reset                       # dry run: shows what would be wiped
+npm run demo:reset -- --commit           # type RESET to confirm: wipe churu_dev + re-run migrations
+npm run demo:seed                        # dry run (checks the geography import)
+npm run demo:seed -- --commit            # create the demo data (~10 seconds)
+```
+
+`demo:seed -- --commit` uses the normal import scripts to create, all clearly marked **DEMO**:
+- the real geography from `docs/polling-stations.xlsx`, with `docs/demo/demo-fixes.json` putting
+  booth 69 in ZP ward 30 ("DEMO ONLY - not an official decision")
+- 5 DEMO parties
+- 2–5 `DEMO उम्मीदवार n` candidates per ward, including about 14 unopposed wards
+- fake registered-voter counts
+- every ballot locked
+- 4 demo users with random suffixes: Churu PS_RO, Rajgarh PS_RO, ZP_RO and DM. **Their passwords are
+  printed once.**
+
+A final `DEMO_SEED` audit row says "DEMO DATA - not official".
 
 ## Database users
 

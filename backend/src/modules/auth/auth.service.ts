@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import type { Pool, RowDataPacket } from 'mysql2/promise';
+import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { writeAudit } from '../../services/audit.js';
 import { loadActiveUser } from '../../services/users.js';
 import type { AuthUser } from '../../types/auth.js';
@@ -113,36 +113,12 @@ export async function attemptLogin(
     }
 
     if (!passwordOk) {
-      const failures = row.failed_login_count + 1;
-      const lockNow = failures >= MAX_FAILED_LOGINS;
-      await conn.execute(
-        lockNow
-          ? `UPDATE users SET failed_login_count = 0, locked_until = NOW(3) + INTERVAL ${LOCK_MINUTES} MINUTE WHERE id = ?`
-          : 'UPDATE users SET failed_login_count = ? WHERE id = ?',
-        lockNow ? [row.id] : [failures, row.id],
-      );
-      await writeAudit(conn, {
-        userId: row.id,
+      await recordFailedPassword(conn, row, {
         action: 'LOGIN_FAILED',
-        entity: 'users',
-        entityId: row.id,
-        newValue: { username: attempted(username), note: 'wrong password', failed_count: failures },
+        auditUsername: attempted(username),
+        note: 'wrong password',
         ip,
       });
-      if (lockNow) {
-        await writeAudit(conn, {
-          userId: row.id,
-          action: 'ACCOUNT_LOCKED',
-          entity: 'users',
-          entityId: row.id,
-          newValue: {
-            username: attempted(username),
-            failed_count: failures,
-            lock_minutes: LOCK_MINUTES,
-          },
-          ip,
-        });
-      }
       await conn.commit();
       return { kind: 'invalid' };
     }
@@ -169,4 +145,123 @@ export async function attemptLogin(
   } finally {
     conn.release();
   }
+}
+
+/**
+ * Records one wrong password for a user whose row is already locked FOR UPDATE on `conn`:
+ * failed count + 1; at MAX_FAILED_LOGINS the account is locked for LOCK_MINUTES and the counter
+ * restarts at 0. Writes the failure audit row (and ACCOUNT_LOCKED). Shared by login and re-check.
+ */
+export async function recordFailedPassword(
+  conn: PoolConnection,
+  row: { id: number; failed_login_count: number },
+  ctx: {
+    action: 'LOGIN_FAILED' | 'REAUTH_FAILED';
+    auditUsername: string;
+    note: string;
+    ip: string | null;
+  },
+): Promise<void> {
+  const failures = row.failed_login_count + 1;
+  const lockNow = failures >= MAX_FAILED_LOGINS;
+  await conn.execute(
+    lockNow
+      ? `UPDATE users SET failed_login_count = 0, locked_until = NOW(3) + INTERVAL ${LOCK_MINUTES} MINUTE WHERE id = ?`
+      : 'UPDATE users SET failed_login_count = ? WHERE id = ?',
+    lockNow ? [row.id] : [failures, row.id],
+  );
+  await writeAudit(conn, {
+    userId: row.id,
+    action: ctx.action,
+    entity: 'users',
+    entityId: row.id,
+    newValue: { username: ctx.auditUsername, note: ctx.note, failed_count: failures },
+    ip: ctx.ip,
+  });
+  if (lockNow) {
+    await writeAudit(conn, {
+      userId: row.id,
+      action: 'ACCOUNT_LOCKED',
+      entity: 'users',
+      entityId: row.id,
+      newValue: { username: ctx.auditUsername, failed_count: failures, lock_minutes: LOCK_MINUTES },
+      ip: ctx.ip,
+    });
+  }
+}
+
+export type ReauthOutcome =
+  { kind: 'ok' } | { kind: 'invalid' } | { kind: 'locked'; retryAfterSeconds: number };
+
+/**
+ * Re-checks the password of an already logged-in user before a declare/correction.
+ * Locked account: refused without checking the password. Wrong password: counted toward the
+ * normal lockout and audited as REAUTH_FAILED (committed even though the caller then stops).
+ * The password itself is never logged.
+ */
+export async function reauthenticate(
+  pool: Pool,
+  userId: number,
+  password: string,
+  ip: string | null,
+): Promise<ReauthOutcome> {
+  const [rows] = await pool.execute<LoginRow[]>(
+    `SELECT ${LOGIN_COLUMNS}, username FROM users WHERE id = ?`,
+    [userId],
+  );
+  const found = rows[0];
+  if (found?.is_active !== 1) return { kind: 'invalid' };
+  const username = String(found.username);
+
+  const locked = async (row: LoginRow): Promise<ReauthOutcome> => {
+    await writeAudit(pool, {
+      userId: row.id,
+      action: 'REAUTH_FAILED',
+      entity: 'users',
+      entityId: row.id,
+      newValue: { username, note: 'locked' },
+      ip,
+    });
+    return { kind: 'locked', retryAfterSeconds: Math.max(1, Number(row.retry_after ?? 1)) };
+  };
+  if (Number(found.is_locked) === 1) return locked(found);
+
+  const passwordOk = await bcrypt.compare(password, found.password_hash);
+  if (passwordOk) return { kind: 'ok' };
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [lockedRows] = await conn.execute<LoginRow[]>(
+      `SELECT ${LOGIN_COLUMNS} FROM users WHERE id = ? FOR UPDATE`,
+      [userId],
+    );
+    const row = lockedRows[0];
+    if (!row) throw new Error('user vanished during re-check');
+    if (Number(row.is_locked) === 1) {
+      await conn.rollback();
+      return await locked(row);
+    }
+    await recordFailedPassword(conn, row, {
+      action: 'REAUTH_FAILED',
+      auditUsername: username,
+      note: 'wrong password at re-check',
+      ip,
+    });
+    await conn.commit();
+    return { kind: 'invalid' };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/** After a successful re-check: the failed-login counter restarts (like a successful login). */
+export async function resetFailedLogins(conn: PoolConnection, userId: number): Promise<void> {
+  await conn.execute(
+    'UPDATE users SET failed_login_count = 0 WHERE id = ? AND failed_login_count <> 0',
+    [userId],
+  );
 }

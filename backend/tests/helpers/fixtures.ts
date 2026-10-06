@@ -111,20 +111,29 @@ export function addBoothEntry(
 export function addDeclaration(
   pool: Pool,
   f: { wardId: number; version: number; winner: number; userId: number },
-  overrides: { status?: string; margin?: number; reason?: string | null } = {},
+  overrides: { status?: string; margin?: number; reason?: string | null; lottery?: unknown } = {},
 ) {
+  const status = overrides.status ?? 'DECLARED';
+  // A TIE_RESOLVED declaration records its lottery (CHECK since Part 6); pass `lottery` to override.
+  const lottery =
+    overrides.lottery !== undefined
+      ? overrides.lottery
+      : status === 'TIE_RESOLVED'
+        ? { winnerCandidateId: f.winner, conductedBy: 'Fixture', note: 'Fixture lottery' }
+        : null;
   return insert(
     pool,
     `INSERT INTO ward_declarations
-       (ward_id, version, status, winner_candidate_id, margin, snapshot, declared_by, correction_reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (ward_id, version, status, winner_candidate_id, margin, snapshot, lottery_details, declared_by, correction_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       f.wardId,
       f.version,
-      overrides.status ?? 'DECLARED',
+      status,
       f.winner,
       overrides.margin ?? 10,
       JSON.stringify({ candidates: [] }),
+      lottery === null ? null : JSON.stringify(lottery),
       f.userId,
       overrides.reason === undefined ? null : overrides.reason,
     ],

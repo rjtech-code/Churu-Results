@@ -34,7 +34,9 @@
     "templates:generate": "tsx scripts/generate-templates.ts",
     "test:coverage": "vitest run --coverage tests/result",
     "result:ward": "tsx scripts/result-ward.ts",
-    "users:unlock": "tsx scripts/users-unlock.ts"
+    "users:unlock": "tsx scripts/users-unlock.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts"
   },
   "dependencies": {
     "bcrypt": "6.0.0",

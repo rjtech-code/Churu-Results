@@ -340,6 +340,27 @@ describe('ward_declarations', () => {
     ).rejects.toMatchObject({ code: 'ER_CHECK_CONSTRAINT_VIOLATED' });
   });
 
+  it('lottery details exist exactly for TIE_RESOLVED (Part 6 CHECK)', async () => {
+    const decl = { wardId: f.psWard1, version: 1, winner: f.candA, userId: f.psRo1 };
+    await expect(
+      addDeclaration(app, decl, { status: 'TIE_RESOLVED', margin: 0, lottery: null }),
+    ).rejects.toMatchObject({ code: 'ER_CHECK_CONSTRAINT_VIOLATED' });
+    await expect(
+      addDeclaration(app, decl, {
+        status: 'DECLARED',
+        margin: 5,
+        lottery: { winnerCandidateId: f.candA },
+      }),
+    ).rejects.toMatchObject({ code: 'ER_CHECK_CONSTRAINT_VIOLATED' });
+    await expect(
+      app.execute(
+        `INSERT INTO ward_declarations (ward_id, version, status, winner_candidate_id, margin, snapshot, declared_by, nota_highest_ack)
+         VALUES (?, 1, 'DECLARED', ?, 5, '{}', ?, 2)`,
+        [f.psWard1, f.candA, f.psRo1],
+      ),
+    ).rejects.toMatchObject({ code: 'ER_CHECK_CONSTRAINT_VIOLATED' });
+  });
+
   it('NOTA can never be the winner', async () => {
     await expect(
       addDeclaration(app, { wardId: f.psWard1, version: 1, winner: f.notaPs1, userId: f.psRo1 }),

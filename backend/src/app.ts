@@ -13,6 +13,7 @@ import { createSessionStore, sessionMiddleware } from './middleware/session.js';
 import type { SessionStore } from './middleware/session.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
+import { declareRouter } from './modules/declare/declare.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 
 export interface AppDeps {
@@ -79,6 +80,7 @@ export function createApp({ pool, config, sessionStore, routes = [] }: AppDeps):
   // 11. Routes. The login route has its own login rate limiter before validation.
   app.use('/api/auth', authRouter(pool, config));
   app.use('/api/counting', countingRouter(pool, config));
+  app.use('/api/declare', declareRouter(pool, config));
   for (const { path, router } of routes) app.use(path, router);
 
   // 12. 404, 13. central error handler.
