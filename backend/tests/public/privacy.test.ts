@@ -68,8 +68,25 @@ const FORBIDDEN_KEYS = [
   'snapshot',
   'password',
   'passwordHash',
-  'candidateId',
 ];
+
+/**
+ * candidateId is allowed (Part 9: candidate ids are not sensitive; the screens mark the winner row
+ * by id because two candidates can share a name) but ONLY on a shown candidate: a top3 row, a
+ * winner, or a leader/winner of a recent item. Returns every place it appears anywhere else.
+ */
+const CANDIDATE_ID_PARENTS = new Set(['top3[]', 'winner', 'leaderOrWinner']);
+function misplacedCandidateIds(value: unknown, parent = '', out: string[] = []): string[] {
+  if (Array.isArray(value))
+    for (const item of value) misplacedCandidateIds(item, `${parent}[]`, out);
+  else if (typeof value === 'object' && value !== null) {
+    for (const [k, child] of Object.entries(value)) {
+      if (k === 'candidateId' && !CANDIDATE_ID_PARENTS.has(parent)) out.push(parent || '(root)');
+      misplacedCandidateIds(child, k, out);
+    }
+  }
+  return out;
+}
 
 function keysOf(value: unknown, out = new Set<string>()): Set<string> {
   if (Array.isArray(value)) for (const item of value) keysOf(item, out);
@@ -142,6 +159,10 @@ describe('public responses never leak internal data', () => {
       const keys = keysOf(res.body);
       for (const k of FORBIDDEN_KEYS)
         expect(keys.has(k), `${path} contains key "${k}"`).toBe(false);
+      expect(
+        misplacedCandidateIds(res.body),
+        `${path}: candidateId outside a shown candidate`,
+      ).toEqual([]);
       const text = JSON.stringify(res.body);
       for (const s of secrets) expect(text, `${path} contains "${s}"`).not.toContain(s);
     }
@@ -149,6 +170,9 @@ describe('public responses never leak internal data', () => {
     const winners = (await getJson(h.app, '/api/public/winners')).body as {
       items: { status: string; winner: { name: string } }[];
     };
-    expect(winners.items[0]).toMatchObject({ status: 'TIE_RESOLVED', winner: { name: 'बी' } });
+    expect(winners.items[0]).toMatchObject({
+      status: 'TIE_RESOLVED',
+      winner: { candidateId: w.c.B, name: 'बी' },
+    });
   });
 });

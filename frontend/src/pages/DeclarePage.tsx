@@ -13,7 +13,7 @@ import {
 import type { Decision } from '../components/DecisionFields';
 import { ErrorBox, PanelError, SuccessBox, WarningBox } from '../components/ErrorBox';
 import { SplitLayout } from '../components/SplitLayout';
-import { wardShort, wardTitle } from '../components/format';
+import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
 export function DeclarePage() {
@@ -82,7 +82,7 @@ export function DeclarePage() {
       <p className="backlink">
         <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
-      <h1 className="compact">घोषणा — {wardTitle(ward)}</h1>
+      <h1 className="compact">घोषणा — {wardShort(ward)}</h1>
       {done ? (
         <>
           <SuccessBox

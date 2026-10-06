@@ -1,6 +1,8 @@
 // Pure builders: engine results + ward/party data -> what the public media-room screens show.
 // Only WARD-LEVEL facts are copied. Nothing here adds votes (that is result.ts) and nothing here
 // may ever copy officer names, usernames, ids of entries, voter counts, lottery notes or alarms.
+// Candidate ids are public (not sensitive): the screens use them to mark the winner row, because two
+// candidates can have the same name.
 import type { ResultStatus, WardResult } from './result.js';
 
 export type PublicStatus = ResultStatus | 'NO_CANDIDATES' | 'UNAVAILABLE';
@@ -19,6 +21,7 @@ export interface WardCard {
   latestRound: number | null;
   postalEntered: boolean;
   top3: {
+    candidateId: number;
     name: string;
     party: PartyRef | null;
     votes: number;
@@ -28,7 +31,7 @@ export interface WardCard {
   margin: number | null;
   topTied: boolean;
   notaVotes: number;
-  winner: { name: string; party: PartyRef | null } | null;
+  winner: { candidateId: number; name: string; party: PartyRef | null } | null;
   declarationVersion: number | null;
   isCorrected: boolean;
   isUnopposed: boolean;
@@ -91,7 +94,7 @@ export function wardCard(
 ): WardCard {
   const person = (id: number) => {
     const c = candidates.get(id);
-    return { name: c?.name ?? '', party: partyRef(c?.partyId ?? null, parties) };
+    return { candidateId: id, name: c?.name ?? '', party: partyRef(c?.partyId ?? null, parties) };
   };
   const counted = result !== null && status !== 'NOT_STARTED';
   const roundsSeen = result?.roundsSeen ?? [];
@@ -147,11 +150,13 @@ export function summarize(cards: readonly WardCard[]): Summary {
 }
 
 /** Who is ahead or has won, for the "recent" list (null while tied or not started). */
-export function leaderOrWinner(card: WardCard): { name: string; party: PartyRef | null } | null {
+export function leaderOrWinner(
+  card: WardCard,
+): { candidateId: number; name: string; party: PartyRef | null } | null {
   if (card.winner !== null) return card.winner;
   const first = card.top3[0];
   if (LEADING_STATUSES.has(card.status) && !card.topTied && first !== undefined) {
-    return { name: first.name, party: first.party };
+    return { candidateId: first.candidateId, name: first.name, party: first.party };
   }
   return null;
 }

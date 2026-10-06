@@ -16,7 +16,7 @@ import { ReasonField, emptyReason, reasonProblem, reasonText } from '../componen
 import type { ReasonValue } from '../components/ReasonField';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
-import { formatDateTime, wardShort, wardTitle } from '../components/format';
+import { formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 
@@ -159,7 +159,7 @@ export function CorrectionPage() {
       <p className="backlink">
         <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>
-      <h1>संशोधन — {wardTitle(ward)}</h1>
+      <h1>संशोधन — {wardShort(ward)}</h1>
       <SuccessBox text={notice} />
       <h2>घोषणा के सभी संस्करण</h2>
       <table className="list" data-testid="declaration-versions">

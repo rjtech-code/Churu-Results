@@ -21,11 +21,20 @@ function card(
     top3:
       status === 'NOT_STARTED'
         ? []
-        : [{ name: 'x', party: leaderParty, votes: 5, rank: 1, tiedWithPrevious: false }],
+        : [
+            {
+              candidateId: 1,
+              name: 'x',
+              party: leaderParty,
+              votes: 5,
+              rank: 1,
+              tiedWithPrevious: false,
+            },
+          ],
     margin: 1,
     topTied: opts.tied ?? false,
     notaVotes: 0,
-    winner: opts.winner === undefined ? null : { name: 'w', party: opts.winner },
+    winner: opts.winner === undefined ? null : { candidateId: 2, name: 'w', party: opts.winner },
     declarationVersion: null,
     isCorrected: false,
     isUnopposed: status === 'UNOPPOSED',

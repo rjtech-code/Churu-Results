@@ -24,6 +24,21 @@ export interface E2eWorld {
   users: { ro: string; roOther: string; zp: string; dm: string };
   wards: Record<'entry' | 'edit' | 'postal' | 'ready' | 'tie' | 'nota' | 'correction' | 'wide', E2eWard>;
   otherPsWard: number;
+  screens: {
+    psName: string;
+    roSardar: string;
+    live: {
+      wardId: number;
+      wardNo: number;
+      boothId: number;
+      candidates: { A: number; B: number; NOTA: number };
+    };
+    declaredWardNo: number;
+    correctedWardNo: number;
+    unopposedWardNo: number;
+    lottery: { wardNo: number; winnerId: number; loserId: number };
+    zpReady: { wardId: number; wardNo: number };
+  };
 }
 
 let cached: E2eWorld | undefined;
@@ -98,4 +113,29 @@ export async function typeSheet(page: Page, votes: [number, number, number], tot
 export async function giveReason(page: Page, label: string, choice: string, details = ''): Promise<void> {
   await page.getByLabel(label, { exact: true }).selectOption(choice);
   if (details !== '') await page.getByRole('textbox', { name: /^विवरण/ }).fill(details);
+}
+
+/** A fresh API client logged in as `username` (for changes the screens must pick up). */
+export async function apiLogin(username: string): Promise<{
+  post: (path: string, body: object) => Promise<Record<string, unknown>>;
+  dispose: () => Promise<void>;
+}> {
+  const ctx = await request.newContext({ baseURL: 'http://localhost:3199' });
+  const csrf = async () =>
+    ((await (await ctx.get('/api/auth/csrf')).json()) as { csrfToken: string }).csrfToken;
+  const login = await ctx.post('/api/auth/login', {
+    headers: { 'X-CSRF-Token': await csrf() },
+    data: { username, password: world().password },
+  });
+  if (login.status() !== 200) throw new Error(`login ${username}: ${login.status()}`);
+  const token = await csrf();
+  return {
+    post: async (path, body) => {
+      const res = await ctx.post(path, { headers: { 'X-CSRF-Token': token }, data: body });
+      if (res.status() !== 200 && res.status() !== 201)
+        throw new Error(`${path}: ${res.status()} ${await res.text()}`);
+      return (await res.json()) as Record<string, unknown>;
+    },
+    dispose: () => ctx.dispose(),
+  };
 }

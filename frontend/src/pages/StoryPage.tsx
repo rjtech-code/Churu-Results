@@ -5,7 +5,9 @@ import type { StoryItem } from '../api/types';
 import { ErrorBox } from '../components/ErrorBox';
 import { formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
-import { ACTION_HINDI, describeValue } from './HistoryPage';
+import { DiffCells } from '../components/DiffList';
+import { historyDiff } from '../components/historyDiff';
+import { ACTION_HINDI } from './HistoryPage';
 
 /**
  * The whole story of one booth ballot (kind BOOTH) or of a ward's postal ballots (kind POSTAL):
@@ -70,8 +72,7 @@ export function StoryPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
                 </td>
                 <td>{ACTION_HINDI[h.action] ?? h.action}</td>
                 <td>{h.user ? (h.user.fullName ?? h.user.username) : '—'}</td>
-                <td>{describeValue(h.oldValue, ballot)}</td>
-                <td>{h.action.endsWith('VOIDED') ? 'रद्द' : describeValue(h.newValue, ballot)}</td>
+                <DiffCells diff={historyDiff(h.action, h.oldValue, h.newValue, ballot)} />
                 <td>{h.reason ?? '—'}</td>
               </tr>
             ))}

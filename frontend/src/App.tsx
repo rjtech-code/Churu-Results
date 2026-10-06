@@ -1,6 +1,7 @@
 import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { RequireRole } from './components/RequireRole';
+import { ScreenApp } from './screens/ScreenApp';
 import { BoothEntryPage } from './pages/BoothEntryPage';
 import { CorrectionPage } from './pages/CorrectionPage';
 import { DeclarePage } from './pages/DeclarePage';
@@ -30,6 +31,8 @@ function Home() {
 }
 
 export const router = createBrowserRouter([
+  // Media-room TV screens: public, outside the dashboard (no AuthProvider, no /api/auth, no header).
+  { path: '/screen/:n', element: <ScreenApp /> },
   {
     element: <Root />,
     children: [

@@ -9,7 +9,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 5** (booth and postal entry API) and
 **Part 6** (declare, tie lottery, post-declare correction, demo data) and
 **Part 7** (public screen API, live updates, screen layout, demo simulation) and
-**Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend).
+**Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend) and
+**Part 9** (the three media-room TV screens).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -557,6 +558,9 @@ They use a **read-only** public API.
 - **GET only.** Any other method gets 405.
 - **Ward-level data only.** Never usernames, officer names, ids of entries, voter counts, lottery notes,
   audit data or internal alarms (a test scans every response).
+- **Candidate ids** (`candidateId`) are public and appear only on a shown candidate: each `top3` row,
+  `winner`, and `leaderOrWinner`. The screens mark the winner row by id, never by name, because two
+  candidates can have the same name.
 - **Independent of settings:** it does **not** depend on `public_site_enabled`, which is reserved for a
   future internet-facing site. The screens work without flipping any setting on counting day.
 
@@ -814,6 +818,70 @@ Fallbacks:
 
 `frontend/src/test/errors.test.ts` fails if any code in the backend source or in a README error table has
 no Hindi message.
+
+## TV screens (Part 9)
+
+Three full-screen pages for the media-room TVs, in the same build as the dashboard and served by the
+same backend. They are **public**: no login, no cookie, and they never call `/api/auth`.
+
+| URL | Shows |
+|---|---|
+| `/screen/1` | Panchayat Samitis of screen 1, in the screen-layout order (`npm run screens:show`) |
+| `/screen/2` | Panchayat Samitis of screen 2 |
+| `/screen/3` | Zila Parishad: ward cards on the left; on the right, a pie of ZP seats won, the ZP party table (जीते / आगे / कुल), the latest winners, and a table for all PS wards together |
+
+Open each in Chrome kiosk mode, or press F11, e.g. `http://192.168.1.10:3000/screen/1`. Any other screen number
+shows a Hindi message.
+
+**Layout**
+- **Size:** designed for 1920×1080 and scaled to any window with one CSS transform; there are never any
+  scrollbars. The mouse cursor hides after 3 s without movement.
+- **Header:** title, screen name, a "लाइव" dot, and "अंतिम अपडेट HH:MM:SS". The time comes from the
+  server's snapshot (`generatedAt`, IST), not from the laptop's clock.
+- **"अभी बदला":** one static row with the newest changes; nothing scrolls.
+- **Pages:** one PS per page in layout order, 12 cards per page; ZP has 9 per page. A PS with more
+  wards is split evenly into sub-pages ("रतनगढ़ 1/3"). Pages change every **15 s**; `?interval=SECONDS`
+  sets another value between 5 and 120 (e.g. `/screen/1?interval=30`). The footer shows page dots
+  and "अगला: …".
+- **Cards:** a card whose data changed is outlined for 3 s.
+
+| Card status | Shows |
+|---|---|
+| शुरू नहीं | only "मतगणना शुरू नहीं" (no names, no numbers) |
+| मतगणना जारी / घोषणा बाकी | top 3 (name, party or निर्दलीय, votes), "आगे X मत" or "बराबर", and "बूथ a/b · राउंड r · नोटा n" |
+| बराबर — लॉटरी बाकी | top 3 and "बराबर"; nobody is marked as winner |
+| विजयी / विजयी (लॉटरी) | top 3; the winner row is bold, bordered and labelled "विजयी". With a lottery, the lottery winner is marked (by candidate id). Also "अंतर X मत" |
+| निर्विरोध निर्वाचित | the winner and party; no vote numbers |
+| उम्मीदवार सूची बाकी / उपलब्ध नहीं | text only |
+| + संशोधित | the declaration was corrected |
+
+Numbers use Western digits with Indian grouping (1,23,456).
+
+**Party colours (screen 3)**
+- **Where they are set:** `frontend/src/screens/partyColours.ts`, a fixed map from short name to
+  colour. **Edit it before counting day** to match the imported party short names.
+- **Other parties:** parties not in the map get a palette colour in the sorted order of their short names.
+- **Independents:** निर्दलीय is grey.
+- **Never colour alone:** a colour always appears next to the party name.
+
+**Live updates and the red banner**
+- **How updates arrive:** on load a screen fetches `/api/public/meta`, `/screens/N` and `/recent`
+  (plus `/winners` on screen 3). It then listens to `/api/public/stream`. On every snapshot event with
+  a different version, it refetches with `If-None-Match` (304 = keep the data). If no event arrives
+  for 70 s, it refetches anyway.
+- **When the red banner appears:** "कनेक्शन टूटा — अंतिम अपडेट HH:MM:SS (पुराना डेटा)" shows across
+  the screen when any of these happens:
+  - the stream has been disconnected for more than 10 s
+  - a fetch fails
+  - no new snapshot version has arrived for 150 s although the stream looks connected (the server
+    publishes at least every 60 s, so this catches a stuck server)
+- **While the banner shows:** the last data stays on screen, the "लाइव" dot turns red with "लाइव
+  नहीं", and the screen retries every 5 s and reconnects by itself.
+- **When it goes:** only when fresh data has actually arrived.
+- **Before any data:** "डेटा लोड हो रहा है…". While the server has no snapshot yet (503
+  `SNAPSHOT_UNAVAILABLE`), it shows "परिणाम अभी तैयार हो रहे हैं…" and retries every 5 s.
+- **A broken card:** a rendering error in one card shows that card as "उपलब्ध नहीं"; the rest of the
+  screen keeps working.
 
 ## Database users
 

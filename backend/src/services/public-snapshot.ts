@@ -48,7 +48,7 @@ export interface RecentItem {
   psName: string | null;
   wardNo: number;
   status: PublicStatus;
-  leaderOrWinner: { name: string; party: PartyRef | null } | null;
+  leaderOrWinner: { candidateId: number; name: string; party: PartyRef | null } | null;
   changedAt: string;
 }
 
@@ -60,7 +60,7 @@ export interface WinnerItem {
   version: number;
   status: 'DECLARED' | 'TIE_RESOLVED';
   isCorrection: boolean;
-  winner: { name: string; party: PartyRef | null };
+  winner: { candidateId: number; name: string; party: PartyRef | null };
   margin: number;
   declaredAt: string;
 }
@@ -276,7 +276,11 @@ export async function buildPublicSnapshot(
         version,
         status: d.status === 'TIE_RESOLVED' ? 'TIE_RESOLVED' : 'DECLARED',
         isCorrection: version > 1,
-        winner: { name: c?.name ?? '', party: partyRef(c?.partyId ?? null, parties) },
+        winner: {
+          candidateId: Number(d.winner_candidate_id),
+          name: c?.name ?? '',
+          party: partyRef(c?.partyId ?? null, parties),
+        },
         margin: Number(d.margin),
         declaredAt: istIso(toDate(d.declared_at)),
       },
