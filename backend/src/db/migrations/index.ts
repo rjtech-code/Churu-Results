@@ -9,6 +9,7 @@ import * as auditSettings from './20261006000007_audit_settings.js';
 import * as postalRejectedWardFlags from './20261007000001_postal_rejected_ward_flags.js';
 import * as masterDataColumns from './20261008000001_master_data_columns.js';
 import * as sessions from './20261009000001_sessions.js';
+import * as countingVersionsArchive from './20261010000001_counting_versions_archive.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -23,6 +24,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261007000001_postal_rejected_ward_flags', postalRejectedWardFlags],
   ['20261008000001_master_data_columns', masterDataColumns],
   ['20261009000001_sessions', sessions],
+  ['20261010000001_counting_versions_archive', countingVersionsArchive],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {

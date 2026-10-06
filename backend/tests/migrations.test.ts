@@ -4,7 +4,7 @@ import { APP_TABLE_PRIVILEGES } from '../src/db/grants.js';
 import { createMigrationKnex } from '../src/db/knex-config.js';
 import { runMigrations } from '../src/db/migrate.js';
 import { migrationSource } from '../src/db/migrations/index.js';
-import { testEnv } from './helpers/db.js';
+import { createTestMigrationPool, testEnv, wipeAllData } from './helpers/db.js';
 
 const EXPECTED_TABLES = Object.keys(APP_TABLE_PRIVILEGES).sort();
 const EXPECTED_TRIGGERS = [
@@ -12,6 +12,8 @@ const EXPECTED_TRIGGERS = [
   'trg_audit_log_no_update',
   'trg_booth_entry_ward_bi',
   'trg_booth_entry_ward_bu',
+  'trg_voided_entry_no_delete',
+  'trg_voided_entry_no_update',
   'trg_ward_declarations_no_delete',
   'trg_ward_declarations_no_update',
 ];
@@ -51,6 +53,13 @@ afterAll(async () => {
 
 describe('migrations', () => {
   it('case 1: run fully down and up again without errors', async () => {
+    // "On an empty database": earlier test files may have left data behind.
+    const migrator = createTestMigrationPool();
+    try {
+      await wipeAllData(migrator);
+    } finally {
+      await migrator.end();
+    }
     await runMigrations(db, testEnv, 'test', 'rollback-all');
     expect(await appTables()).toEqual([]);
     expect(await triggers()).toEqual([]);

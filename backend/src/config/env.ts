@@ -47,6 +47,11 @@ export const appEnvSchema = z.object({
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(1).max(120).default(30),
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(14),
   TRUST_PROXY: trustProxy.default(false),
+  /** Rule 7 (booth total <= registered voters) needs voter counts. Default: true in production. */
+  REQUIRE_VOTER_COUNTS: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
 

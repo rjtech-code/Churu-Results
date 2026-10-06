@@ -6,7 +6,12 @@ import { loadTestEnv } from './env.js';
 
 export const testEnv = loadTestEnv();
 
-const APPEND_ONLY_TABLES = new Set(['audit_log', 'ward_declarations']);
+/** Tables the app user may not DELETE from are append-only (triggers block DELETE): truncate those. */
+const APPEND_ONLY_TABLES = new Set(
+  Object.entries(APP_TABLE_PRIVILEGES)
+    .filter(([, privileges]) => !privileges.includes('DELETE'))
+    .map(([table]) => table),
+);
 
 /** Pool connected as the least-privilege APP user, to the test database. */
 export function createTestAppPool(): Pool {
@@ -73,4 +78,29 @@ export async function insert(
 ): Promise<number> {
   const [result] = await pool.execute<ResultSetHeader>(sql, params);
   return result.insertId;
+}
+
+/**
+ * Empties EVERY table of the test database (knex bookkeeping excepted), whatever earlier runs left.
+ * Used before rolling migrations back: down migrations are written for an empty schema (e.g. the
+ * Part 2 lock check cannot be restored while wards are locked by name).
+ */
+export async function wipeAllData(migrationPool: Pool): Promise<void> {
+  const [db] = await migrationPool.query<RowDataPacket[]>('SELECT DATABASE() AS db');
+  const name: unknown = db[0]?.db;
+  if (typeof name !== 'string' || !name.endsWith('_test')) {
+    throw new Error('wipeAllData refused: not connected to a *_test database');
+  }
+  const [tables] = await migrationPool.execute<RowDataPacket[]>(
+    "SELECT TABLE_NAME AS t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'knex%'",
+    [name],
+  );
+  const conn = await migrationPool.getConnection();
+  try {
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    for (const row of tables) await conn.query('TRUNCATE TABLE ??', [String(row.t)]);
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+  } finally {
+    conn.release();
+  }
 }

@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { appConfigFromEnv } from './config/app-config.js';
 import { createPool } from './config/db.js';
 import { loadEnvOrExit, serverEnvSchema } from './config/env.js';
+import { announceVoterCheckConfig } from './config/startup-checks.js';
 import { createSessionStore } from './middleware/session.js';
 
 const env = loadEnvOrExit(serverEnvSchema);
@@ -15,6 +16,8 @@ const pool = createPool({
   password: env.DB_APP_PASSWORD,
 });
 const sessionStore = createSessionStore(pool, { clearExpired: true });
+
+await announceVoterCheckConfig(pool, config);
 
 const app = createApp({ pool, config, sessionStore });
 const server = app.listen(env.PORT, () => {

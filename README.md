@@ -5,7 +5,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Done so far: Part 1** (project skeleton, MySQL in Docker, locked-down schema, tests) and
 **Part 2** (master-data import scripts and user accounts, run from the command line on the server) and
 **Part 3** (login, sessions, CSRF, rate limits, role and ownership checks) and
-**Part 4** (the result engine).
+**Part 4** (the result engine) and
+**Part 5** (booth and postal entry API).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -191,11 +192,13 @@ npm run ballot:unlock -- --ward <ward id> --reason "why" --by "Name, designation
 
 ### 8. User accounts (exactly 15)
 ```bash
-npm run users:create -- --role PS_RO --username ro_churu --ps "CHURU PANCHAYAT SAMITI" --full-name "Name" --commit
-npm run users:create -- --role ZP_RO --username ro_zp --full-name "Name" --commit
-npm run users:create -- --role DM    --username dm_churu --full-name "Name" --commit
+npm run users:create -- --role PS_RO --username ro_chu_h3w8 --ps "CHURU PANCHAYAT SAMITI" --full-name "Name" --commit
+npm run users:create -- --role ZP_RO --username zp_ro_p4x9 --full-name "Name" --commit
+npm run users:create -- --role DM    --username dm_q8t3 --full-name "Name" --commit
 npm run users:list
 ```
+- **Usernames get a random suffix**, e.g. `ro_rjg_k7m2`, `zp_ro_p4x9`, `dm_q8t3` (4 random letters/digits
+  chosen when the account is created). **Never derive usernames from the PS name alone.**
 - **Limits:** 13 PS_RO (one per PS), 1 ZP_RO and 1 DM. Disabled accounts still count.
 - **Usernames:** 4-30 characters, lowercase letters, digits and `_`.
 - **Passwords:** the password is printed **once** on the terminal and saved nowhere. Hand it over in person.
@@ -282,7 +285,7 @@ All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS 
 B=http://localhost:3000; J=/tmp/churu-cookies.txt; rm -f "$J"
 T=$(curl -s -c "$J" -b "$J" $B/api/auth/csrf | sed 's/.*"csrfToken":"\([^"]*\)".*/\1/')
 curl -s -c "$J" -b "$J" -H 'Content-Type: application/json' -H "X-CSRF-Token: $T" \
-     -d '{"username":"dm_churu","password":"<password>"}' $B/api/auth/login
+     -d '{"username":"dm_q8t3","password":"<password>"}' $B/api/auth/login
 curl -s -c "$J" -b "$J" $B/api/auth/me
 T=$(curl -s -c "$J" -b "$J" $B/api/auth/csrf | sed 's/.*"csrfToken":"\([^"]*\)".*/\1/')   # new token after login
 curl -s -c "$J" -b "$J" -X POST -H "X-CSRF-Token: $T" -o /dev/null -w '%{http_code}\n' $B/api/auth/logout
@@ -342,6 +345,94 @@ consistent snapshot**. It always runs the same 8 queries, however many wards it 
 npm run result:ward -- --ward <ward id>     # ward ids: npm run ballot:report
 npm run test:coverage                       # coverage of result.ts (100% lines and branches)
 ```
+
+## Counting API: entering result sheets (Part 5)
+
+The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each ward's postal ballots.
+- **Who may use it:** every route needs login and the role **PS_RO or ZP_RO**. The DM gets 403 on all
+  `/api/counting` routes, reads included; the DM uses reports.
+- **Writes** need the `X-CSRF-Token` header (see Part 3).
+- **Scope:** a PS_RO only sees and writes PS ballots and PS wards of its own Panchayat Samiti. A ZP_RO only
+  sees and writes ZP ballots and ZP wards, booths of every PS included.
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/counting/wards` | Your wards with status, booths entered/total, postal entered. A ward without candidates shows `NO_CANDIDATES`. |
+| GET | `/api/counting/wards/:wardId/booths` | Booths of the ward (with the entry id if entered) and the postal entry state |
+| GET | `/api/counting/wards/:wardId/ballot` | Candidates in ballot order, NOTA included: the entry form |
+| GET | `/api/counting/entries/:entryId` | One booth entry with its votes and `rowVersion` (for the edit form) |
+| GET | `/api/counting/entries/:entryId/history` | Who did what and when, with old/new values and reasons (also after a void) |
+| POST | `/api/counting/entries/preview` | Same body and checks as create; **saves nothing**. Returns the summary and the ward as it would become (the confirm screen). |
+| POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, roundNo, sheetTotal, votes:[{candidateId, votes}]}` |
+| PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
+| POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
+| GET | `/api/counting/postal/:entryId` and `.../history` | Postal entry, and its history |
+| POST | `/api/counting/wards/:wardId/postal/preview` | Postal preview (saves nothing) |
+| POST | `/api/counting/wards/:wardId/postal` | Save the ward's postal sheet (one per ward): `{sheetTotal, rejectedCount?, votes}` |
+| PUT | `/api/counting/postal/:entryId` | `{rowVersion, sheetTotal, rejectedCount?, votes, reason}` |
+| POST | `/api/counting/postal/:entryId/void` | `{rowVersion, reason}` |
+
+**What every write returns**
+- the saved entry, with its new `rowVersion`
+- the ward's fresh result, computed by the result engine after the commit
+- `warnings`
+
+**Rules for every sheet**
+- `votes` must have exactly one row for **every** candidate of the ward, NOTA included. A zero must be typed.
+- The vote sum must equal `sheetTotal`. For postal sheets, `rejectedCount` is stored, but it is **not** part of the
+  sum; that rule lives in `result.ts`.
+- `reason` (PUT and void): 10–500 characters.
+- Candidate names, wards and booths are always looked up on the server, never taken from the client.
+
+**Error codes.** Every error is `{"error": CODE, ...details}`.
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | Body or id is malformed. `details: [{path, message}]` (values are never echoed). |
+| `BOOTH_NOT_IN_WARD` | 400 | The booth is not in the `wardId` the form was opened for (for that ballot). |
+| `VOTES_INCOMPLETE` | 400 | A candidate (or NOTA) has no row: `missingCandidateIds`. |
+| `UNKNOWN_CANDIDATE` | 400 | A row for a candidate of another ward: `candidateIds`. |
+| `DUPLICATE_CANDIDATE` | 400 | The same candidate twice: `candidateIds`. |
+| `SUM_MISMATCH` | 400 | Votes do not add up to the sheet total: `sum`, `sheetTotal`. |
+| `EXCEEDS_REGISTERED_VOTERS` | 400 | Booth sheet total > registered voters: `sheetTotal`, `registeredVoters`. |
+| `UNAUTHENTICATED` | 401 | Not logged in. |
+| `FORBIDDEN` | 403 | Not your ballot / ward, or DM. (`CSRF_FAILED` / `ORIGIN_REJECTED`: see Part 3.) |
+| `NOT_FOUND` | 404 | Unknown booth, ward or entry. |
+| `BALLOT_NOT_LOCKED` | 409 | The ward's candidate list is not locked yet (`npm run ballot:lock`). |
+| `WARD_UNOPPOSED` | 409 | Unopposed wards are never counted. |
+| `WARD_DECLARED` | 409 | The ward is declared; changes go through Part 6 corrections. |
+| `ALREADY_ENTERED` | 409 | This booth/ballot (or this ward's postal) already has an entry. Edit or void it. |
+| `STALE_VERSION` | 409 | Someone changed the entry meanwhile: `currentRowVersion`. Reload and redo. |
+| `VOTER_COUNT_MISSING` | 409 | The booth has no registered-voter count and `REQUIRE_VOTER_COUNTS=true`. |
+
+**`REQUIRE_VOTER_COUNTS`.** Rule 7 (booth total ≤ registered voters) needs the voter counts from `import:voters`.
+- **Default:** `true` in production, `false` otherwise.
+- **When `false`:** a booth without a count can be saved, and the response carries
+  `"warnings": ["VOTER_COUNT_MISSING"]`.
+- **When `false` in production:** startup prints a loud warning and writes a `CONFIG_VOTER_CHECK_DISABLED`
+  audit row.
+
+**Void, in plain words.** Void takes a wrong entry out of counting, for example one typed against the wrong
+booth, so that booth can be entered again. Nothing is lost:
+- the full entry (votes, who typed it and when, its edits) is copied into `voided_entry`, which can never be
+  changed or deleted
+- an `ENTRY_VOIDED` audit row records it with the reason
+- only then is the live entry removed, all in one transaction
+
+There is no "undo void": re-enter the booth with a normal create. The history endpoint still shows the voided entry.
+
+**Lock order (every counting write, and Part 6 declare)**
+1. Lock the **ward row** (`SELECT … FROM ward WHERE id = ? FOR UPDATE`). This is always the first lock.
+2. Check the ward: unopposed, ballot locked, declared.
+3. Lock the entry row (edit/void) and check its `row_version`.
+4. Write the entry and vote rows (and the archive), then the audit row, then commit.
+
+Because entry writes and declare both lock the same ward row first:
+- an entry and a declaration can never overlap; whichever comes second sees the other's committed data
+- two writes on one ward run one after the other
+- `row_version` makes a stale edit fail with `STALE_VERSION` instead of overwriting someone else's change
+
+After every successful commit an in-process `ward-changed` event is emitted, for the live screens in Part 7.
 
 ## Database users
 
