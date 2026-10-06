@@ -4,6 +4,8 @@ import { createPool } from './config/db.js';
 import { loadEnvOrExit, serverEnvSchema } from './config/env.js';
 import { announceVoterCheckConfig } from './config/startup-checks.js';
 import { createSessionStore } from './middleware/session.js';
+import { SseHub } from './modules/public/sse.js';
+import { PublicSnapshotService } from './services/public-snapshot.js';
 
 const env = loadEnvOrExit(serverEnvSchema);
 const config = appConfigFromEnv(env);
@@ -19,13 +21,22 @@ const sessionStore = createSessionStore(pool, { clearExpired: true });
 
 await announceVoterCheckConfig(pool, config);
 
-const app = createApp({ pool, config, sessionStore });
+const publicSnapshot = new PublicSnapshotService(pool, config.publicApi);
+void publicSnapshot.start();
+const sseHub = new SseHub(publicSnapshot, {
+  maxConnections: config.publicApi.sseMaxConnections,
+  heartbeatMs: config.publicApi.sseHeartbeatMs,
+});
+
+const app = createApp({ pool, config, sessionStore, publicSnapshot, sseHub });
 const server = app.listen(env.PORT, () => {
   console.log(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
 
 function shutdown(signal: string): void {
   console.log(`${signal} received, shutting down`);
+  sseHub.stop(); // SSE streams would otherwise keep server.close() waiting
+  publicSnapshot.stop();
   server.close(() => {
     sessionStore
       .close()

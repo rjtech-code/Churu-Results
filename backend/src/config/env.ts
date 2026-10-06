@@ -52,6 +52,12 @@ export const appEnvSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
+  /** Public screens: max simultaneous SSE streams (above it: 503 TOO_MANY_STREAMS). */
+  SSE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(1000).default(50),
+  /** Public screens: minimum time between two published snapshots (changes in between are merged). */
+  PUBLIC_MIN_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
+  /** Public screens: GET requests per minute per IP (the TVs may share one IP). */
+  PUBLIC_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(3000),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
 

@@ -18,6 +18,37 @@ export interface AppConfig {
   /** true: a booth without a registered-voter count cannot be entered (409 VOTER_COUNT_MISSING).
    *  false: it can, with a VOTER_COUNT_MISSING warning in the response. */
   requireVoterCounts: boolean;
+  publicApi: PublicApiConfig;
+}
+
+/** Public media-room screens (Part 7). */
+export interface PublicApiConfig {
+  rateLimit: RateLimitConfig;
+  sseMaxConnections: number;
+  sseHeartbeatMs: number;
+  /** Collect ward changes for this long before rebuilding. */
+  debounceMs: number;
+  /** Never publish two snapshots closer together than this. */
+  minSnapshotIntervalMs: number;
+  /** Rebuild anyway this often (catches changes made by CLI scripts). */
+  safetyRebuildMs: number;
+  /** How often to check whether the screen layout setting changed. */
+  layoutPollMs: number;
+}
+
+export const COUNTING_DATE = '2026-11-20';
+
+export function defaultPublicApiConfig(overrides: Partial<PublicApiConfig> = {}): PublicApiConfig {
+  return {
+    rateLimit: { limit: 3000, windowMs: 60_000 },
+    sseMaxConnections: 50,
+    sseHeartbeatMs: 15_000,
+    debounceMs: 500,
+    minSnapshotIntervalMs: 2000,
+    safetyRebuildMs: 60_000,
+    layoutPollMs: 2000,
+    ...overrides,
+  };
 }
 
 export const LOGIN_RATE_LIMIT: RateLimitConfig = { limit: 20, windowMs: 15 * 60_000 };
@@ -34,5 +65,10 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
     loginRateLimit: LOGIN_RATE_LIMIT,
     apiRateLimit: API_RATE_LIMIT,
     requireVoterCounts: env.REQUIRE_VOTER_COUNTS ?? env.NODE_ENV === 'production',
+    publicApi: defaultPublicApiConfig({
+      rateLimit: { limit: env.PUBLIC_RATE_LIMIT_PER_MIN, windowMs: 60_000 },
+      sseMaxConnections: env.SSE_MAX_CONNECTIONS,
+      minSnapshotIntervalMs: env.PUBLIC_MIN_SNAPSHOT_INTERVAL_MS,
+    }),
   };
 }

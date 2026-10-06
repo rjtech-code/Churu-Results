@@ -4,7 +4,11 @@ import type { Pool, ResultSetHeader } from 'mysql2/promise';
 import request from 'supertest';
 import type { Response } from 'supertest';
 import { createApp } from '../../src/app.js';
-import { API_RATE_LIMIT, LOGIN_RATE_LIMIT } from '../../src/config/app-config.js';
+import {
+  API_RATE_LIMIT,
+  LOGIN_RATE_LIMIT,
+  defaultPublicApiConfig,
+} from '../../src/config/app-config.js';
 import type { AppConfig } from '../../src/config/app-config.js';
 import type { Role } from '../../src/types/auth.js';
 
@@ -22,6 +26,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     loginRateLimit: LOGIN_RATE_LIMIT,
     apiRateLimit: API_RATE_LIMIT,
     requireVoterCounts: false,
+    publicApi: defaultPublicApiConfig(),
     ...overrides,
   };
 }

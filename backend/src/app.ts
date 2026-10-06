@@ -15,6 +15,9 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { publicRouter } from './modules/public/public.routes.js';
+import { SseHub } from './modules/public/sse.js';
+import { PublicSnapshotService } from './services/public-snapshot.js';
 
 export interface AppDeps {
   pool: Pool;
@@ -23,11 +26,31 @@ export interface AppDeps {
   sessionStore?: SessionStore;
   /** Extra routers mounted in step 11, after the auth routes and behind every guard. */
   routes?: readonly { path: string; router: Router }[];
+  /** Public snapshot service (server.ts passes the started one); created lazily otherwise. */
+  publicSnapshot?: PublicSnapshotService;
+  sseHub?: SseHub;
 }
 
-export function createApp({ pool, config, sessionStore, routes = [] }: AppDeps): Express {
+export function createApp({
+  pool,
+  config,
+  sessionStore,
+  routes = [],
+  publicSnapshot,
+  sseHub,
+}: AppDeps): Express {
   const app = express();
   const store = sessionStore ?? createSessionStore(pool, { clearExpired: false });
+  // Started on the first public request when not passed in (so other apps/tests never start timers).
+  const snapshots = publicSnapshot ?? new PublicSnapshotService(pool, config.publicApi);
+  const hub =
+    sseHub ??
+    new SseHub(snapshots, {
+      maxConnections: config.publicApi.sseMaxConnections,
+      heartbeatMs: config.publicApi.sseHeartbeatMs,
+    });
+  app.locals.publicSnapshot = snapshots;
+  app.locals.sseHub = hub;
 
   // 1. No framework fingerprint; trust proxy only as configured (never "true").
   app.disable('x-powered-by');
@@ -55,6 +78,10 @@ export function createApp({ pool, config, sessionStore, routes = [] }: AppDeps):
 
   // 3. Health check: before the rate limiter and sessions, never limited, never creates a session.
   app.use('/api/health', healthRouter(pool));
+
+  // 3b. Public media-room screens: read-only, own rate limit, ends here (never reaches sessions,
+  //     so no cookie is read or set and an expired session cannot break a TV screen).
+  app.use('/api/public', publicRouter(snapshots, hub, config.publicApi));
 
   // 4. Generous global per-IP limit on the API.
   app.use('/api', apiRateLimit(config.apiRateLimit));

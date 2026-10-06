@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { createPool } from '../../src/config/db.js';
 import { APP_TABLE_PRIVILEGES } from '../../src/db/grants.js';
+import { DEFAULT_SCREEN_LAYOUT, SCREEN_LAYOUT_KEY } from '../../src/services/screen-layout.js';
 import { loadTestEnv } from './env.js';
 
 export const testEnv = loadTestEnv();
@@ -66,6 +67,10 @@ export async function resetData(migrationPool: Pool): Promise<void> {
     await conn.execute(
       "INSERT INTO app_settings (setting_key, setting_value) VALUES ('public_site_enabled', 'false')",
     );
+    await conn.execute('INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?)', [
+      SCREEN_LAYOUT_KEY,
+      JSON.stringify(DEFAULT_SCREEN_LAYOUT),
+    ]);
   } finally {
     conn.release();
   }

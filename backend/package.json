@@ -36,7 +36,10 @@
     "result:ward": "tsx scripts/result-ward.ts",
     "users:unlock": "tsx scripts/users-unlock.ts",
     "demo:seed": "tsx scripts/demo-seed.ts",
-    "demo:reset": "tsx scripts/demo-reset.ts"
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "screens:show": "tsx scripts/screens-show.ts",
+    "screens:set": "tsx scripts/screens-set.ts",
+    "demo:simulate": "tsx scripts/demo-simulate.ts"
   },
   "dependencies": {
     "bcrypt": "6.0.0",

@@ -7,7 +7,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 3** (login, sessions, CSRF, rate limits, role and ownership checks) and
 **Part 4** (the result engine) and
 **Part 5** (booth and postal entry API) and
-**Part 6** (declare, tie lottery, post-declare correction, demo data).
+**Part 6** (declare, tie lottery, post-declare correction, demo data) and
+**Part 7** (public screen API, live updates, screen layout, demo simulation).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -531,6 +532,113 @@ npm run demo:seed -- --commit            # create the demo data (~10 seconds)
   printed once.**
 
 A final `DEMO_SEED` audit row says "DEMO DATA - not official".
+
+## Public screens: API, live updates and layout (Part 7)
+
+Three media-room TVs show the results:
+- **screens 1 and 2:** Panchayat Samitis, as set in the screen layout
+- **screen 3:** Zila Parishad
+
+They use a **read-only** public API.
+
+**How it is protected**
+- **Before sessions:** `/api/public` sits right after `/api/health`, before sessions. A TV never
+  creates or reads a session, never gets a cookie, and an old or expired cookie can't break it.
+- **GET only.** Any other method gets 405.
+- **Ward-level data only.** Never usernames, officer names, ids of entries, voter counts, lottery notes,
+  audit data or internal alarms (a test scans every response).
+- **Independent of settings:** it does **not** depend on `public_site_enabled`, which is reserved for a
+  future internet-facing site. The screens work without flipping any setting on counting day.
+
+| GET | Returns |
+|---|---|
+| `/api/public/meta` | `version`, `generatedAt` (IST), `countingDate`, which PS ids are on screens 1 and 2 |
+| `/api/public/screens/1`, `/screens/2` | Per Panchayat Samiti (layout order): summary + one card per ward |
+| `/api/public/screens/3` | Zila Parishad: summary + ward cards, `partySeats` (ZP) and `psPartySeats` (all PS wards) for the pie charts |
+| `/api/public/recent?limit=20` | Latest changed wards (max 50), newest first, with leader or winner |
+| `/api/public/winners?limit=20` | Latest declarations (max 50), corrections included, newest first |
+| `/api/public/stream` | Server-Sent Events (below) |
+
+**What the ward cards show**
+- **Before counting starts:** no leader (empty top 3, no margin).
+- **Winner:** shown only once declared, tie-resolved or unopposed.
+- **Corrections:** a corrected ward shows `isCorrected: true`.
+- **Bad data:** a ward whose data the result engine rejects is shown as `UNAVAILABLE` (an alarm for the
+  DM); the other wards keep working.
+- **Seat counts** (`won` / `leading` / `total = won + leading`): a tied ward counts for nobody, and
+  independents are grouped as निर्दलीय.
+
+**Caching**
+- Every response has `Cache-Control: no-store` and `ETag: "<version>"`.
+- Sending `If-None-Match` with the current version gets 304.
+- The limit is 3,000 requests per minute per IP (`PUBLIC_RATE_LIMIT_PER_MIN`), because the TVs may share
+  one IP. These endpoints only read memory.
+
+**The snapshot**
+- The server keeps **one complete result snapshot** in memory, built from one consistent database read.
+  Requests never query the database.
+- **What triggers a rebuild:**
+  - after a counting or declare change (changes are collected for 0.5 s)
+  - every 60 s anyway, which catches changes made by scripts
+  - within ~2 s of a `screens:set`
+- **Rate:** two snapshots are never published less than `PUBLIC_MIN_SNAPSHOT_INTERVAL_MS` (default 2 s)
+  apart. Changes in between go into the next one; nothing is lost.
+- **Failures:** if a rebuild fails, the last good snapshot stays.
+
+**Live updates (SSE): `GET /api/public/stream`**
+- It sends `retry: 3000`, then at once an `event: snapshot` with `{"version", "generatedAt"}`, and again
+  after every new snapshot.
+- It carries **only the version**. A screen that sees a new version fetches its data with the GETs above.
+- A heartbeat comment arrives every 15 s.
+- At most `SSE_MAX_CONNECTIONS` streams (default 50); after that, new ones get 503 `TOO_MANY_STREAMS`.
+- The app adds no compression and sends `X-Accel-Buffering: no`.
+- **Behind Caddy (later):** the reverse proxy must not buffer this route. Use
+  `reverse_proxy { flush_interval -1 }` for `/api/public/stream`, and keep compression off for it.
+
+```bash
+curl -N http://localhost:3000/api/public/stream          # watch versions arrive
+curl -s http://localhost:3000/api/public/screens/1 | head -c 600
+```
+
+### Screen layout (which PS appears on screen 1 and 2)
+- **Storage:** JSON in `app_settings.screen_layout`.
+- **Defaults** (in this order):
+  - Screen 1: Churu, Churu North HQ Churu, Sardarshahar, Sardarshahar East, Taranagar East,
+    Taranagar West (Bhaleri) HQ Taranagar, Ratangarh.
+  - Screen 2: Sujangarh, Bidasar, Bhanipura, Rajgarh, Chandgothi HQ Rajgarh, Siddhmukh.
+- Screen 3 is always Zila Parishad.
+
+```bash
+npm run screens:show
+npm run screens:set -- --file layout.json             # dry run: checks the file
+npm run screens:set -- --file layout.json --commit    # saves (audited); screens update within ~2 s
+```
+`layout.json` is `{"1": ["CHURU PANCHAYAT SAMITI", ...], "2": [...]}`. The names must be exactly as
+imported (case is ignored). All 13 Panchayat Samitis must appear exactly once across screens 1 and 2.
+
+### Demo simulation (development and official demos only)
+`npm run demo:simulate` plays a counting day on the `*_dev` database through the **real** HTTP API
+(login, CSRF, booth entry, postal, declare), as the demo RO accounts. It refuses to run in production
+or on any database whose name doesn't end in `_dev`. Passwords come from environment variables, never
+files: use the ones `demo:seed` printed.
+
+```bash
+export DEMO_RO_CHURU_PASSWORD='...' DEMO_RO_RAJGARH_PASSWORD='...' DEMO_ZP_RO_PASSWORD='...'
+npm run demo:simulate -- --ps all-demo --speed slow --declare --ties    # type SIMULATE (or add --yes)
+```
+
+| Option | Meaning |
+|---|---|
+| `--ps CHURU\|RAJGARH\|all-demo` | Which demo PS_RO(s) count (default `all-demo`) |
+| `--zp` | Also let the demo ZP_RO count the ZP ballots (1,359 booths) |
+| `--speed slow\|normal\|fast` | ~3 s per booth (to watch the screens), ~0.5 s, or no delay |
+| `--declare` | Declare each ward once all booths and postal are in |
+| `--ties` | Make about one ward in seven tied at the top; it is settled by lottery when declaring |
+| `--yes` | Skip the confirmation |
+
+Votes are random but valid: they add up to the sheet total and stay under the registered voters. The
+server must be running (`DEMO_API_URL`, default `http://localhost:3000`). Ctrl+C stops cleanly after
+the current request.
 
 ## Database users
 
