@@ -15,7 +15,7 @@ Counting day: 20 November 2026. This is election data for the government.
 
 ## Fixed stack (do not change without asking)
 - Backend: Node.js 24 LTS, Express, TypeScript (strict, no `any`)
-- Database: MySQL 8 (InnoDB, utf8mb4, timezone Asia/Kolkata), via `mysql2/promise`, raw SQL with prepared statements (`execute`) only. No ORM.
+- Database: MySQL 8.4 LTS (InnoDB, utf8mb4, timezone Asia/Kolkata), via `mysql2/promise`, raw SQL with prepared statements (`execute`) only. No ORM.
 - Migrations: Knex migrations (schema only)
 - Validation: Zod on every request body, query and param
 - Auth: express-session + express-mysql-session, bcrypt (cost 12)

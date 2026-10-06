@@ -1,0 +1,29 @@
+# MySQL only. The app runs on the host in development (see README.md).
+# Secrets come from backend/.env (gitignored) via env_file; nothing secret is in this file.
+services:
+  mysql:
+    image: mysql:8.4.11
+    container_name: churu-mysql
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+05:30
+      - --log-bin-trust-function-creators=1
+    ports:
+      # Bound to localhost only: the database is never reachable from the network.
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - churu_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  churu_mysql_data:
