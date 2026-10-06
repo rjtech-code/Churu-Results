@@ -15,14 +15,54 @@ const dbConnection = {
   DB_NAME: identifier,
 };
 
+/** An origin exactly like the browser sends it: scheme://host[:port], no path or trailing slash. */
+const origin = nonEmpty.refine((value) => {
+  try {
+    return new URL(value).origin === value;
+  } catch {
+    return false;
+  }
+}, 'must be an origin like https://results.example.in (no path, no trailing slash)');
+
+/** false (default), loopback (proxy on the same server) or a number of proxy hops. Never "true". */
+const trustProxy = z
+  .string()
+  .trim()
+  .regex(
+    /^(false|loopback|[1-9])$/,
+    'must be false, loopback or a number of proxy hops (1-9); never true',
+  )
+  .transform((v): false | 'loopback' | number =>
+    v === 'false' ? false : v === 'loopback' ? 'loopback' : Number(v),
+  );
+
 export const appEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']),
   PORT: port,
   ...dbConnection,
   DB_APP_USER: identifier,
   DB_APP_PASSWORD: password,
+  SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  APP_ORIGIN: origin,
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(1).max(120).default(30),
+  SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(14),
+  TRUST_PROXY: trustProxy.default(false),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
+
+/**
+ * What the server validates at startup: appEnvSchema plus cross-field rules.
+ * (Kept separate because Zod cannot .pick() from a refined schema, and scripts pick from appEnvSchema.)
+ */
+export const serverEnvSchema = appEnvSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && env.SESSION_IDLE_MINUTES < 5) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['SESSION_IDLE_MINUTES'],
+      message: 'must be at least 5 in production',
+    });
+  }
+});
 
 export const migrationEnvSchema = z.object({
   ...dbConnection,

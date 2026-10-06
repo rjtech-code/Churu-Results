@@ -26,6 +26,8 @@ export const APP_TABLE_PRIVILEGES: Readonly<Record<string, readonly Privilege[]>
   ward_declarations: APPEND_ONLY,
   audit_log: APPEND_ONLY,
   app_settings: READ_WRITE,
+  // Login sessions: the session store inserts, reads, refreshes and deletes expired rows.
+  sessions: READ_WRITE,
 };
 
 /** Knex bookkeeping tables: the app user gets no access at all. */

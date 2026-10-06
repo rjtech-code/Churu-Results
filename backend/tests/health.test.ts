@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import { errorHandler } from '../src/middleware/errors.js';
+import { testAppConfig } from './auth/helpers.js';
 import { createTestAppPool, createUnreachablePool } from './helpers/db.js';
 
 let pool: Pool;
@@ -20,7 +21,7 @@ afterAll(async () => {
 
 describe('GET /api/health', () => {
   it('case 13: returns 200 when the DB is up', async () => {
-    const res = await request(createApp({ pool })).get('/api/health');
+    const res = await request(createApp({ pool, config: testAppConfig() })).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'ok', db: 'ok' });
     expect(res.headers['content-security-policy']).toBeDefined();
@@ -30,7 +31,9 @@ describe('GET /api/health', () => {
   it('returns 503 when the DB is down', async () => {
     const down = createUnreachablePool();
     try {
-      const res = await request(createApp({ pool: down })).get('/api/health');
+      const res = await request(createApp({ pool: down, config: testAppConfig() })).get(
+        '/api/health',
+      );
       expect(res.status).toBe(503);
       expect(res.body).toEqual({ status: 'error', db: 'down' });
     } finally {
@@ -41,14 +44,14 @@ describe('GET /api/health', () => {
 
 describe('error handling', () => {
   it('unknown routes return 404 JSON', async () => {
-    const res = await request(createApp({ pool })).get('/api/nope');
+    const res = await request(createApp({ pool, config: testAppConfig() })).get('/api/nope');
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'Not found' });
   });
 
   it('bodies over 100kb are rejected with 413 and no details', async () => {
     const big = JSON.stringify({ data: 'x'.repeat(110 * 1024) });
-    const res = await request(createApp({ pool }))
+    const res = await request(createApp({ pool, config: testAppConfig() }))
       .post('/api/health')
       .set('Content-Type', 'application/json')
       .send(big);
@@ -57,7 +60,7 @@ describe('error handling', () => {
   });
 
   it('malformed JSON returns 400 without parser details', async () => {
-    const res = await request(createApp({ pool }))
+    const res = await request(createApp({ pool, config: testAppConfig() }))
       .post('/api/health')
       .set('Content-Type', 'application/json')
       .send('{"a":');

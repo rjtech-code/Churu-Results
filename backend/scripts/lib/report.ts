@@ -50,7 +50,7 @@ export class Report {
   /** `committed` is true only if a transaction was actually committed. */
   render(startedAt: Date, committed: boolean): string {
     const out = [
-      `${this.scriptName} — ${startedAt.toISOString()}`,
+      `${this.scriptName} — ${formatIst(startedAt)}`,
       `Mode: ${this.mode === 'commit' ? 'COMMIT' : this.mode === 'dry-run' ? 'DRY RUN' : 'READ ONLY'}`,
       ...this.body,
       '',
@@ -74,9 +74,17 @@ export class Report {
   }
 }
 
+const IST_OFFSET_MS = 330 * 60_000; // Asia/Kolkata is UTC+05:30 all year (no DST)
+
+/** Human-readable IST time for reports, e.g. "2026-10-06 09:56:11 IST". */
+export function formatIst(date: Date): string {
+  const ist = new Date(date.getTime() + IST_OFFSET_MS).toISOString();
+  return `${ist.slice(0, 10)} ${ist.slice(11, 19)} IST`;
+}
+
 /** File-name timestamp in IST, e.g. 20261006-143005-123. */
 export function istStamp(date: Date): string {
-  const ist = new Date(date.getTime() + 330 * 60_000).toISOString(); // +05:30
+  const ist = new Date(date.getTime() + IST_OFFSET_MS).toISOString();
   return `${ist.slice(0, 10).replaceAll('-', '')}-${ist.slice(11, 19).replaceAll(':', '')}-${ist.slice(20, 23)}`;
 }
 

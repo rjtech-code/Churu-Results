@@ -13,6 +13,8 @@ const VALID = {
   DB_NAME: 'churu_dev',
   DB_APP_USER: 'churu_app',
   DB_APP_PASSWORD: 'Sup3rSecretValue!!',
+  SESSION_SECRET: 'a-test-session-secret-of-at-least-32-chars',
+  APP_ORIGIN: 'http://localhost:5173',
 };
 
 describe('parseEnv', () => {

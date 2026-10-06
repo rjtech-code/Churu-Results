@@ -38,6 +38,9 @@
     "dotenv": "18.0.5",
     "exceljs": "4.4.0",
     "express": "5.2.1",
+    "express-mysql-session": "3.0.3",
+    "express-rate-limit": "8.7.1",
+    "express-session": "1.19.0",
     "helmet": "8.3.0",
     "knex": "3.3.0",
     "mysql2": "3.24.5",
@@ -46,6 +49,8 @@
   "devDependencies": {
     "@types/bcrypt": "6.0.0",
     "@types/express": "5.0.6",
+    "@types/express-mysql-session": "3.0.8",
+    "@types/express-session": "1.19.0",
     "@types/node": "24.19.1",
     "@types/supertest": "7.2.1",
     "eslint": "10.12.0",
@@ -59,6 +64,12 @@
   "overrides": {
     "exceljs": {
       "uuid": "11.1.1"
+    },
+    "express-mysql-session": {
+      "mysql2": "$mysql2"
+    },
+    "@types/express-mysql-session": {
+      "mysql2": "$mysql2"
     }
   }
 }

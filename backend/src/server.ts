@@ -1,8 +1,11 @@
 import { createApp } from './app.js';
-import { appEnvSchema, loadEnvOrExit } from './config/env.js';
+import { appConfigFromEnv } from './config/app-config.js';
 import { createPool } from './config/db.js';
+import { loadEnvOrExit, serverEnvSchema } from './config/env.js';
+import { createSessionStore } from './middleware/session.js';
 
-const env = loadEnvOrExit(appEnvSchema);
+const env = loadEnvOrExit(serverEnvSchema);
+const config = appConfigFromEnv(env);
 
 const pool = createPool({
   host: env.DB_HOST,
@@ -11,8 +14,9 @@ const pool = createPool({
   user: env.DB_APP_USER,
   password: env.DB_APP_PASSWORD,
 });
+const sessionStore = createSessionStore(pool, { clearExpired: true });
 
-const app = createApp({ pool });
+const app = createApp({ pool, config, sessionStore });
 const server = app.listen(env.PORT, () => {
   console.log(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
@@ -20,13 +24,16 @@ const server = app.listen(env.PORT, () => {
 function shutdown(signal: string): void {
   console.log(`${signal} received, shutting down`);
   server.close(() => {
-    pool.end().then(
-      () => process.exit(0),
-      (err: unknown) => {
-        console.error('Error closing DB pool', err);
-        process.exit(1);
-      },
-    );
+    sessionStore
+      .close()
+      .then(() => pool.end())
+      .then(
+        () => process.exit(0),
+        (err: unknown) => {
+          console.error('Error during shutdown', err);
+          process.exit(1);
+        },
+      );
   });
 }
 

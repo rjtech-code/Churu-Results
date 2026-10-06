@@ -1,7 +1,7 @@
 // npm run users:list — never shows password hashes.
 import type { RowDataPacket } from 'mysql2/promise';
 import { UsageError, isMainModule, runCli } from './lib/cli.js';
-import { Report } from './lib/report.js';
+import { Report, formatIst } from './lib/report.js';
 import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
 import { ROLE_LIMITS } from './lib/users.js';
@@ -23,7 +23,7 @@ export async function runUsersList(
     ];
     for (const r of rows) {
       usernames.push(String(r.username));
-      const lastLogin = r.last_login_at instanceof Date ? r.last_login_at.toISOString() : 'never';
+      const lastLogin = r.last_login_at instanceof Date ? formatIst(r.last_login_at) : 'never';
       lines.push(
         `${String(r.username).padEnd(22)}${String(r.role).padEnd(7)}${(Number(r.is_active) === 1 ? 'yes' : 'NO').padEnd(8)}` +
           `${lastLogin.padEnd(26)}${r.full_name === null ? '-' : String(r.full_name)}${r.ps_name === null ? '' : ` / ${String(r.ps_name)}`}`,

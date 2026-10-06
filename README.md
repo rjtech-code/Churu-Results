@@ -3,7 +3,8 @@
 Results portal for the Churu district Panchayat elections: Zila Parishad (ZP) and Panchayat Samiti (PS)
 members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository is built in numbered parts.
 **Done so far: Part 1** (project skeleton, MySQL in Docker, locked-down schema, tests) and
-**Part 2** (master-data import scripts and user accounts, run from the command line on the server).
+**Part 2** (master-data import scripts and user accounts, run from the command line on the server) and
+**Part 3** (login, sessions, CSRF, rate limits, role and ownership checks).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -42,7 +43,8 @@ cp backend/.env.example backend/.env
 chmod 600 backend/.env
 ```
 
-Edit `backend/.env` and fill in the three empty passwords (at least 12 characters each). To generate them:
+Edit `backend/.env` and fill in the three empty passwords (at least 12 characters each) and
+`SESSION_SECRET` (at least 32 characters). To generate them:
 
 ```bash
 openssl rand -base64 24 | tr -d '/+='
@@ -205,6 +207,73 @@ npm run users:enable  -- --username <u> --commit
 ```
 
 `npm run templates:generate` re-creates the empty parties and candidates templates.
+
+## Login, sessions and CSRF (Part 3)
+
+All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS headers.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /api/auth/csrf` | `{ "csrfToken": "..." }` for the current session (creates the session if needed) |
+| `POST /api/auth/login` | body `{ "username", "password" }` → 200 with the same body as `/me` |
+| `POST /api/auth/logout` | 204; the session is destroyed and the cookie cleared |
+| `GET /api/auth/me` | `{ id, username, fullName, role, panchayatSamiti: { id, name } \| null }`, or 401 |
+
+**How a client must call the API**
+1. `GET /api/auth/csrf` and keep the `csrfToken`.
+2. Send it in the **`X-CSRF-Token`** header on **every POST/PUT/PATCH/DELETE**, login and logout included.
+   A missing or wrong token gives 403 `CSRF_FAILED`.
+3. **After login and after logout, call `GET /api/auth/csrf` again.** The token changes (login gets a
+   new session id and a new token; logout destroys the session).
+4. If an `Origin` header is sent with a POST/PUT/PATCH/DELETE, it must equal `APP_ORIGIN`. Otherwise the
+   answer is 403 `ORIGIN_REJECTED`.
+
+**Sessions**
+- **Storage:** MySQL table `sessions`. Cookie `churu.sid`: HttpOnly, SameSite=Strict, Path=/, and Secure in production.
+- **Idle timeout:** `SESSION_IDLE_MINUTES` (default 30). Every request pushes the expiry forward.
+- **Absolute lifetime:** `SESSION_ABSOLUTE_HOURS` (default 14) after login, even if the session is active.
+  When it ends, the client gets 401 `SESSION_EXPIRED` once; after that it is `UNAUTHENTICATED`.
+- **Fresh user check:** every request re-reads the user from the database. A disabled user
+  (`npm run users:disable`) is out on the very next request. Role and Panchayat Samiti always come from
+  the database, never from the session.
+
+**Login errors**
+- Unknown user, wrong password and disabled user all get the same 401 `INVALID_CREDENTIALS`.
+- **Lockout:** 5 wrong passwords lock the account for 15 minutes. While locked, **every** attempt gets
+  423 `{"error":"ACCOUNT_LOCKED","retryAfterSeconds":n}`, and the password is not even checked.
+- Unknown usernames always get 401, never 423.
+- A malformed body gets 400 `VALIDATION_FAILED`.
+
+**Rate limits** (per client IP)
+- Login: 20 attempts per 15 minutes.
+- All `/api` routes: 600 per minute. `/api/health` is never limited.
+- Over the limit: 429 `TOO_MANY_REQUESTS`.
+- **The counters are kept in memory**, which is correct for our deployment of **one Node process**.
+  Running several processes or servers would need a shared store; otherwise each one counts separately.
+- Behind a reverse proxy (Caddy), set `TRUST_PROXY=loopback` (or the number of proxy hops) so the
+  real client IP is used. **Never `true`**, because then anyone could fake their IP with `X-Forwarded-For`.
+
+**Roles** (checked on the server for every request)
+- **DM:** read-only. A global guard returns 403 to any DM POST/PUT/PATCH/DELETE except login and logout.
+- **PS_RO:** only PS ballots and wards of their own Panchayat Samiti.
+- **ZP_RO:** only ZP ballots and wards.
+- Later parts use `requireAuth`, `requireRole(...)` (`src/middleware/auth.ts`) and `canWriteBallot`,
+  `canWriteWard` and `canReadWard` (`src/services/access.ts`).
+
+**Audit:** LOGIN_SUCCESS, LOGIN_FAILED, ACCOUNT_LOCKED, LOGOUT and SESSION_EXPIRED_ABSOLUTE are written to
+`audit_log` with the IP. Passwords, hashes, session ids and CSRF tokens are never stored.
+
+### Log in from the terminal with curl
+
+```bash
+B=http://localhost:3000; J=/tmp/churu-cookies.txt; rm -f "$J"
+T=$(curl -s -c "$J" -b "$J" $B/api/auth/csrf | sed 's/.*"csrfToken":"\([^"]*\)".*/\1/')
+curl -s -c "$J" -b "$J" -H 'Content-Type: application/json' -H "X-CSRF-Token: $T" \
+     -d '{"username":"dm_churu","password":"<password>"}' $B/api/auth/login
+curl -s -c "$J" -b "$J" $B/api/auth/me
+T=$(curl -s -c "$J" -b "$J" $B/api/auth/csrf | sed 's/.*"csrfToken":"\([^"]*\)".*/\1/')   # new token after login
+curl -s -c "$J" -b "$J" -X POST -H "X-CSRF-Token: $T" -o /dev/null -w '%{http_code}\n' $B/api/auth/logout
+```
 
 ## Database users
 
