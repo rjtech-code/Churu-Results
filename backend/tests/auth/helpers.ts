@@ -27,6 +27,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     apiRateLimit: API_RATE_LIMIT,
     requireVoterCounts: false,
     publicApi: defaultPublicApiConfig(),
+    frontendDist: null,
     ...overrides,
   };
 }

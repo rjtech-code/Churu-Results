@@ -14,6 +14,7 @@ import type { SessionStore } from './middleware/session.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
+import { frontendStatic } from './modules/frontend/static.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { SseHub } from './modules/public/sse.js';
@@ -82,6 +83,10 @@ export function createApp({
   // 3b. Public media-room screens: read-only, own rate limit, ends here (never reaches sessions,
   //     so no cookie is read or set and an expired session cannot break a TV screen).
   app.use('/api/public', publicRouter(snapshots, hub, config.publicApi));
+
+  // 3c. The built operator dashboard (static, GET only, never /api): before sessions, so static
+  //     files never touch a session. SPA routes fall back to index.html.
+  if (config.frontendDist !== null) app.use(frontendStatic(config.frontendDist));
 
   // 4. Generous global per-IP limit on the API.
   app.use('/api', apiRateLimit(config.apiRateLimit));

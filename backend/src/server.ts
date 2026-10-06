@@ -29,6 +29,11 @@ const sseHub = new SseHub(publicSnapshot, {
 });
 
 const app = createApp({ pool, config, sessionStore, publicSnapshot, sseHub });
+console.log(
+  config.frontendDist === null
+    ? 'Dashboard: no frontend build found (FRONTEND_DIST); serving the API only.'
+    : `Dashboard: serving ${config.frontendDist}`,
+);
 const server = app.listen(env.PORT, () => {
   console.log(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
 });

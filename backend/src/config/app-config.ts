@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { findFrontendDist } from '../modules/frontend/static.js';
 import type { AppEnv } from './env.js';
 
 export interface RateLimitConfig {
@@ -19,6 +21,8 @@ export interface AppConfig {
    *  false: it can, with a VOTER_COUNT_MISSING warning in the response. */
   requireVoterCounts: boolean;
   publicApi: PublicApiConfig;
+  /** Folder with the built dashboard (index.html), or null to serve the API only. */
+  frontendDist: string | null;
 }
 
 /** Public media-room screens (Part 7). */
@@ -70,5 +74,6 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
       sseMaxConnections: env.SSE_MAX_CONNECTIONS,
       minSnapshotIntervalMs: env.PUBLIC_MIN_SNAPSHOT_INTERVAL_MS,
     }),
+    frontendDist: findFrontendDist(resolve(process.cwd(), env.FRONTEND_DIST)),
   };
 }

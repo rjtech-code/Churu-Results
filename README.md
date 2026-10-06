@@ -8,13 +8,16 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 4** (the result engine) and
 **Part 5** (booth and postal entry API) and
 **Part 6** (declare, tie lottery, post-declare correction, demo data) and
-**Part 7** (public screen API, live updates, screen layout, demo simulation).
+**Part 7** (public screen API, live updates, screen layout, demo simulation) and
+**Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
   scripts/  command-line master-data scripts (imports, ballot lock, users)
   reports/  every script run's report (git-ignored; keep and back these up)
-frontend/   (Part 8)
+frontend/   React + Vite operator dashboard (Hindi); built to frontend/dist, served by the backend
+  e2e/      Playwright tests against the production build
+package.json  root: `npm run build` / `npm start` for production
 docker/     MySQL init script (creates databases and users)
 docs/       reference files; docs/templates/ holds the import templates
 ```
@@ -639,6 +642,162 @@ npm run demo:simulate -- --ps all-demo --speed slow --declare --ties    # type S
 Votes are random but valid: they add up to the sheet total and stay under the registered voters. The
 server must be running (`DEMO_API_URL`, default `http://localhost:3000`). Ctrl+C stops cleanly after
 the current request.
+
+## Operator dashboard (Part 8)
+
+The Hindi dashboard for the PS and ZP Returning Officers lives in `frontend/` (React + Vite + TypeScript).
+In production it is a static build that the backend serves itself, on the same origin as the API, under the
+same strict CSP. Everything is self-hosted: no CDN, no Google Fonts, no internet needed on counting day. The
+font is Noto Sans Devanagari (official v2.007 TTF, OFL licence) in `frontend/src/assets/fonts/`.
+
+**Who sees what**
+- **PS_RO / ZP_RO:** their wards, booth entry, edit, void, postal, history, declare, correction.
+- **DM:** only a placeholder page; the DM reports come in Part 10.
+- **Wrong ward or entry:** a direct URL to another PS's ward or entry shows "अनुमति नहीं".
+
+### Development (two terminals)
+
+```bash
+# terminal 1: API on :3000 (backend/.env: APP_ORIGIN=http://localhost:5173)
+cd backend && npm run dev
+# terminal 2: dashboard with hot reload on http://localhost:5173 (proxies /api to :3000)
+cd frontend && npm ci && npm run dev
+```
+
+The Vite proxy keeps the browser's `Origin: http://localhost:5173`, so `APP_ORIGIN` must be exactly that in
+development. The production Origin check is not relaxed for this.
+
+### Production (one process)
+
+```bash
+npm run build      # repo root: frontend build (with the CSP check) + backend build
+npm start          # repo root: backend on PORT, serving frontend/dist and /api
+```
+
+Equivalent by hand: `cd frontend && npm ci && npm run build`, then `cd backend && npm ci && npm run build && npm start`.
+
+**Configuration**
+- **Where the build is:** the backend serves the build from `FRONTEND_DIST`, default `../frontend/dist`,
+  relative to `backend/`. If it does not exist, only the API runs, and startup says so.
+- **`APP_ORIGIN`:** must be the exact address operators type in the browser, scheme and port included. For
+  example `http://192.168.1.10:3000`, or the Caddy HTTPS URL. Otherwise every save gets `ORIGIN_REJECTED`.
+- **Counting day must be HTTPS** (Caddy in front, later part). With `NODE_ENV=production` the session cookie
+  is `Secure`, so it is never sent over plain http, and HSTS is on. Plain http works only in development and
+  in the e2e tests (`NODE_ENV=test`).
+
+**How the build is served**
+- **Which requests:** only GET/HEAD for paths outside `/api`. Unknown paths get `index.html`, so the
+  browser's routes work on reload.
+- **Caching:** `/assets/*` files have content hashes in their names: `Cache-Control: public, max-age=31536000,
+  immutable`. `index.html` gets `no-cache`, so a new build is picked up at once.
+- **No session:** static files are served before the session middleware, so they never create a session or
+  set a cookie.
+- **CSP:** the build has no inline script or style and no `data:` or external URLs; Vite's asset inlining is
+  off. `npm run build` runs `scripts/check-csp.mjs`, which fails the build if any of these appear.
+
+### Using it (operator's view)
+1. **Log in.** The page goes to मेरे वार्ड (refreshes every 15 s; filter by ward number), then open a ward.
+2. **Booth entry.** Type the round, then each candidate's votes in ballot order (NOTA last), then the sheet
+   total ("कुल योग").
+   - **Enter** moves to the next field. Enter on the total is "आगे".
+   - **Live line:** "आपका जोड़ / पर्ची का योग" shows ✓ बराबर (green) or ✗ बराबर नहीं (red), always with text.
+   - **Empty is not 0:** type 0 for zero.
+   - **Only whole numbers:** minus, decimals, "e", spaces, paste of other text and the mouse wheel are all
+     blocked.
+3. **Confirm.** "आगे" shows a confirm screen with exactly the typed numbers and the ward totals after saving.
+   "पुष्टि करें और सेव करें" saves once; a double click does not save twice. After saving, the ward page
+   highlights the next booth.
+4. **Leaving with typed numbers** asks first: in-page for links, and the browser's warning for reload/close.
+5. **Edit / void.**
+   - Both need a reason (10–500 characters).
+   - Edit shows old vs new before saving.
+   - If someone else changed the entry meanwhile: "किसी और ने इसे बदल दिया है, पेज दोबारा खोलें".
+   - After a void, the booth can be entered again.
+6. **Postal.** The same sheet, plus rejected postal votes, which are shown separately and are not in the sum.
+7. **Declare / correction.**
+   - Shows the result table, winner, margin and total valid votes.
+   - **Tie:** the lottery result is entered; the system never picks a winner.
+   - **NOTA highest:** needs the acknowledgement box.
+   - **Password re-check:** the password is cleared after each try.
+   - **If the result changed meanwhile:** it shows the fresh result and asks again.
+   - **Correction:** lists all declaration versions and creates version N+1.
+
+**Security in the browser**
+- **CSRF token:** kept only in memory; never in localStorage, sessionStorage or cookies readable by script.
+  On `CSRF_FAILED` the client fetches a new token and retries once.
+- **Session lost:** any 401 (`SESSION_EXPIRED` / `UNAUTHENTICATED`) clears the state and returns to the
+  login page with the reason.
+- **Last round used:** remembered only in memory, per tab.
+
+### Frontend scripts (in `frontend/`)
+
+| Script | What it does |
+|---|---|
+| `dev` | Vite dev server on :5173 (proxy `/api` → :3000) |
+| `build` | typecheck + production build + CSP check (`scripts/check-csp.mjs`) |
+| `test` | Vitest unit/component tests (jsdom) |
+| `e2e` | build, then Playwright (Chromium) against the build served by the real backend on `churu_test` |
+| `lint` / `typecheck` / `format` | ESLint / `tsc --noEmit` / Prettier |
+
+**E2E setup**
+- **Browser:** install once with `npx playwright install chromium`.
+- **Server:** `npm run e2e` starts the backend itself on port 3199 with `DB_NAME=churu_test`,
+  `NODE_ENV=test` and `APP_ORIGIN=http://localhost:3199`. Do not run it at the same time as the backend
+  tests; they share `churu_test`.
+- **Data:** `backend/tests/e2e-support/seed-e2e.ts` empties `churu_test` and builds one ward per scenario.
+  Entries go through the real API. It refuses any database whose name does not end in `_test`.
+- **Session expiry:** `expire-sessions.ts` simulates it by ageing or deleting one user's session rows.
+- **CSP:** every e2e test fails on any Content-Security-Policy violation in the browser.
+
+### All error codes (`{"error": CODE}`) and what the dashboard shows
+
+| Code | HTTP | Dashboard message |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | भरी गई जानकारी सही नहीं है, कृपया जाँचें (on the login page: गलत यूज़रनेम या पासवर्ड) |
+| `INVALID_CREDENTIALS` | 401 | गलत यूज़रनेम या पासवर्ड |
+| `UNAUTHENTICATED` | 401 | कृपया दोबारा लॉगिन करें (→ login page) |
+| `SESSION_EXPIRED` | 401 | सत्र समाप्त, दोबारा लॉगिन करें (→ login page) |
+| `REAUTH_FAILED` | 401 | पासवर्ड गलत है |
+| `CSRF_FAILED` | 403 | सुरक्षा जाँच विफल, पेज दोबारा खोलें (after one automatic retry) |
+| `ORIGIN_REJECTED` | 403 | यह पेज गलत पते से खुला है, सही पते से खोलें |
+| `FORBIDDEN` | 403 | आपको यह काम करने की अनुमति नहीं है (ward/entry pages: "अनुमति नहीं") |
+| `NOT_FOUND` | 404 | जानकारी नहीं मिली |
+| `METHOD_NOT_ALLOWED` | 405 | यह काम यहाँ नहीं हो सकता |
+| `ACCOUNT_LOCKED` | 423 | खाता अस्थायी रूप से बंद है, N मिनट बाद प्रयास करें |
+| `TOO_MANY_REQUESTS` | 429 | बहुत अधिक प्रयास, थोड़ी देर बाद फिर प्रयास करें |
+| `SNAPSHOT_UNAVAILABLE` | 503 | परिणाम अभी उपलब्ध नहीं हैं |
+| `TOO_MANY_STREAMS` | 503 | बहुत अधिक स्क्रीन जुड़ी हैं |
+| `BOOTH_NOT_IN_WARD` | 400 | यह बूथ इस वार्ड का नहीं है |
+| `VOTES_INCOMPLETE` | 400 | हर उम्मीदवार (नोटा सहित) के मत भरें |
+| `UNKNOWN_CANDIDATE` | 400 | उम्मीदवार इस वार्ड का नहीं है |
+| `DUPLICATE_CANDIDATE` | 400 | एक उम्मीदवार दो बार भरा गया है |
+| `SUM_MISMATCH` | 400 | मतों का जोड़ (sum) पर्ची के योग (sheetTotal) से मेल नहीं खाता |
+| `EXCEEDS_REGISTERED_VOTERS` | 400 | योग बूथ के पंजीकृत मतदाताओं से अधिक है (both numbers shown) |
+| `VOTER_COUNT_MISSING` | 409 / warning | इस बूथ की मतदाता संख्या दर्ज नहीं है |
+| `BALLOT_NOT_LOCKED` | 409 | इस वार्ड की उम्मीदवार सूची अभी लॉक नहीं है |
+| `WARD_UNOPPOSED` | 409 | यह वार्ड निर्विरोध है, मतगणना नहीं होगी |
+| `WARD_DECLARED` | 409 | वार्ड घोषित हो चुका है; बदलाव केवल संशोधन से होगा |
+| `ALREADY_ENTERED` | 409 | यह बूथ/डाक मत पहले ही दर्ज हो चुका है |
+| `STALE_VERSION` | 409 | किसी और ने इसे बदल दिया है, पेज दोबारा खोलें |
+| `ALREADY_DECLARED` | 409 | यह वार्ड पहले ही घोषित है |
+| `COUNTING_INCOMPLETE` | 409 | सभी बूथ और डाक मत दर्ज नहीं हुए (counts shown) |
+| `RESULT_CHANGED` | 409 | परिणाम बदल गया है, कृपया दोबारा जाँचें (fresh result shown) |
+| `NOTA_HIGHEST_ACK_REQUIRED` | 409 | नोटा को सर्वाधिक मत — पुष्टि का बॉक्स चुनें |
+| `NOT_DECLARED` | 409 | यह वार्ड अभी घोषित नहीं है |
+| `LOTTERY_REQUIRED` | 400 | बराबरी है — लॉटरी का परिणाम भरें |
+| `LOTTERY_NOT_ALLOWED` | 400 | बराबरी नहीं है, लॉटरी की आवश्यकता नहीं |
+| `LOTTERY_WINNER_NOT_TIED` | 400 | लॉटरी विजेता बराबरी वाले उम्मीदवारों में से होना चाहिए |
+| `ENTRY_NOT_IN_WARD` | 400 | यह एंट्री इस वार्ड की नहीं है |
+| `DUPLICATE_CHANGE` | 400 | एक ही एंट्री दो बार चुनी गई है |
+| `NO_CHANGE` | 400 | कोई बदलाव नहीं किया गया |
+
+Fallbacks:
+- Express's own `Not found` / `Bad request` / `Payload too large` / `Internal error` bodies get Hindi text too.
+- A network failure shows "सर्वर से संपर्क नहीं हो सका — नेटवर्क जाँचें".
+- Any code not in this list shows "कुछ गड़बड़ हुई (CODE)".
+
+`frontend/src/test/errors.test.ts` fails if any code in the backend source or in a README error table has
+no Hindi message.
 
 ## Database users
 

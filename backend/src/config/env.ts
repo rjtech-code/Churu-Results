@@ -58,6 +58,8 @@ export const appEnvSchema = z.object({
   PUBLIC_MIN_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
   /** Public screens: GET requests per minute per IP (the TVs may share one IP). */
   PUBLIC_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(3000),
+  /** Built operator dashboard to serve (relative to the backend folder). Missing folder = API only. */
+  FRONTEND_DIST: z.string().trim().min(1).default('../frontend/dist'),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
 

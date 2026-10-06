@@ -1,0 +1,365 @@
+/* Self-hosted Devanagari font (no internet on counting day). */
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  src: url('../assets/fonts/NotoSansDevanagari-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  src: url('../assets/fonts/NotoSansDevanagari-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --ink: #111;
+  --paper: #fff;
+  --muted: #4a4a4a;
+  --line: #9a9a9a;
+  --brand: #0b3d91;
+  --ok-bg: #e3f4e5;
+  --ok: #0a5a1a;
+  --bad-bg: #fde4e4;
+  --bad: #9b0000;
+  --warn-bg: #fff3cd;
+  --warn: #6b4e00;
+  --focus: #ffbf00;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  font-size: 18px;
+}
+body {
+  margin: 0;
+  font-family: 'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+h1 {
+  font-size: 1.6rem;
+  margin: 0.4rem 0 0.8rem;
+}
+h2 {
+  font-size: 1.3rem;
+  margin: 1.2rem 0 0.5rem;
+}
+a {
+  color: var(--brand);
+}
+
+/* Header */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 0.5rem 1rem;
+  background: var(--brand);
+  color: #fff;
+}
+.topbar .brand {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.topbar .who {
+  flex: 1;
+}
+.topbar .clock {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.page {
+  padding: 0.8rem 1.2rem 3rem;
+  max-width: 1500px;
+}
+.loading {
+  padding: 1rem;
+}
+.muted {
+  color: var(--muted);
+}
+.big {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.45rem 1rem;
+  border: 2px solid var(--brand);
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  margin: 0.15rem 0.3rem 0.15rem 0;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-secondary {
+  background: #fff;
+  color: var(--brand);
+}
+.btn-danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+.btn-link {
+  border-color: transparent;
+  background: none;
+  color: var(--brand);
+  text-decoration: underline;
+}
+.actions {
+  margin: 0.8rem 0;
+}
+
+/* Messages: colour always with a symbol and text */
+.msg {
+  padding: 0.6rem 0.9rem;
+  border-left: 6px solid;
+  margin: 0.6rem 0;
+  font-weight: 700;
+}
+.msg-ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.msg-error {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.msg-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* Status badges (text always shown) */
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border: 2px solid;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-not-started,
+.badge-no-candidates {
+  color: #444;
+  background: #eee;
+}
+.badge-counting {
+  color: #0b3d91;
+  background: #e5edfb;
+}
+.badge-ready-to-declare {
+  color: #6b4e00;
+  background: var(--warn-bg);
+}
+.badge-tie-needs-lottery {
+  color: var(--bad);
+  background: var(--bad-bg);
+}
+.badge-declared,
+.badge-tie-resolved,
+.badge-unopposed {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  margin: 0.4rem 0 1rem;
+}
+th,
+td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  vertical-align: middle;
+}
+th {
+  background: #f0f0f0;
+}
+.list {
+  width: 100%;
+}
+.numcell {
+  text-align: right;
+  font-weight: 700;
+}
+.highlight {
+  background: #fff8d6;
+  outline: 3px solid var(--focus);
+}
+.nota-row {
+  background: #f6f6f6;
+}
+.total-row td {
+  font-weight: 700;
+  background: #f0f0f0;
+}
+
+/* Inputs */
+input,
+textarea {
+  font: inherit;
+  font-size: 22px;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid #555;
+  border-radius: 4px;
+}
+.num {
+  width: 9rem;
+  text-align: right;
+  font-weight: 700;
+}
+.num-small {
+  width: 5rem;
+}
+textarea {
+  width: 100%;
+  max-width: 50rem;
+}
+.field,
+.field-row {
+  margin: 0.6rem 0;
+}
+.field label,
+.field-row label {
+  display: block;
+  font-weight: 700;
+}
+.field-row.separate {
+  border-top: 2px dashed var(--line);
+  padding-top: 0.6rem;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Booth entry */
+.sheet-header {
+  border: 3px solid var(--brand);
+  padding: 0.5rem 0.9rem;
+  margin: 0.4rem 0 0.8rem;
+}
+.sheet-header .big {
+  font-size: 1.7rem;
+}
+.sheet-table td.cand {
+  min-width: 18rem;
+  font-weight: 700;
+}
+.sheet-table td.pos {
+  text-align: center;
+  font-weight: 700;
+}
+.sumline {
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 0.4rem 0.8rem;
+  border-left: 6px solid;
+}
+.sum-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.sum-bad {
+  color: var(--bad);
+  background: var(--bad-bg);
+}
+.confirm {
+  border: 3px solid var(--ok);
+  padding: 0.6rem 1rem;
+  margin: 0.8rem 0;
+}
+.confirm-table td {
+  font-size: 1.15rem;
+}
+.changed {
+  background: var(--warn-bg);
+}
+.card {
+  border: 1px solid var(--line);
+  padding: 0.5rem 1rem;
+  margin: 0.6rem 0;
+}
+.summary-box {
+  border: 2px solid var(--line);
+  padding: 0.5rem 1rem;
+}
+.decision label {
+  display: block;
+  margin-top: 0.5rem;
+  font-weight: 700;
+}
+.decision .radio,
+.decision .checkbox,
+.pick-list .checkbox {
+  font-weight: 400;
+  display: block;
+}
+.lottery {
+  border: 2px solid var(--bad);
+  padding: 0.5rem 1rem;
+}
+
+/* Dialogs */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dialog {
+  background: #fff;
+  padding: 1.2rem 1.5rem;
+  max-width: 40rem;
+  border: 3px solid var(--bad);
+}
+
+/* Login */
+.login {
+  max-width: 30rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+.login-form label {
+  display: block;
+  margin-top: 0.8rem;
+  font-weight: 700;
+}
+.login-form input {
+  width: 100%;
+}
+.login-form .btn {
+  margin-top: 1.2rem;
+  width: 100%;
+  font-size: 1.2rem;
+}
