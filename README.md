@@ -10,7 +10,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 6** (declare, tie lottery, post-declare correction, demo data) and
 **Part 7** (public screen API, live updates, screen layout, demo simulation) and
 **Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend) and
-**Part 9** (the three media-room TV screens; 9.2: redesign and Hindi PS names).
+**Part 9** (the three media-room TV screens; 9.2: redesign and Hindi PS names) and
+**Part 10** (the DM's read-only reports).
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -663,7 +664,7 @@ font is Noto Sans Devanagari (official v2.007 TTF, OFL licence) in `frontend/src
 
 **Who sees what**
 - **PS_RO / ZP_RO:** their wards, booth entry, edit, void, postal, history, declare, correction.
-- **DM:** only a placeholder page; the DM reports come in Part 10.
+- **DM:** the read-only reports (Part 10, "DM reports" below); never any entry or declare action.
 - **Wrong ward or entry:** a direct URL to another PS's ward or entry shows "अनुमति नहीं".
 
 ### Development (two terminals)
@@ -935,6 +936,60 @@ shows a Hindi message.
   `SNAPSHOT_UNAVAILABLE`), it shows "परिणाम अभी तैयार हो रहे हैं…" and retries every 5 s.
 - **A broken card:** a rendering error in one card shows that card as "उपलब्ध नहीं"; the rest of the
   screen keeps working.
+
+## DM reports (Part 10)
+
+The DM logs in and lands on **`/reports`**, a read-only dashboard in Hindi (`/dm` redirects there).
+- **Nothing to change:** there is no entry, edit, declare or correction button for the DM anywhere.
+  The server enforces this too: `/api/reports` is DM only, and the global DM guard refuses every write.
+- **Other roles:** a PS_RO or ZP_RO opening `/reports` or `/dm` sees "अनुमति नहीं", and the API answers
+  403 (401 when logged out).
+
+**On the page**
+- **Alarms first:** a red box when any of these exist, otherwise a green "कोई चेतावनी नहीं":
+  - a declared ward whose votes no longer match its declaration (`declarationMismatch`)
+  - a ward whose data the result engine refuses (`UNAVAILABLE`)
+  - the voter-count check running disabled: a `CONFIG_VOTER_CHECK_DISABLED` startup audit row exists
+    **and** the running server has `REQUIRE_VOTER_COUNTS=false`
+  - a declared ward where NOTA had the most votes
+- **Filter:** सभी पंचायत समितियाँ (all PS together), each Panchayat Samiti, ज़िला परिषद. Alarms are
+  always district-wide.
+- **Refresh:** every 30 s; "अंतिम अपडेट" is the server's time of the data.
+
+| Section | How it is counted |
+|---|---|
+| प्रगति | wards: total / declared (incl. lottery) / unopposed / counting / not started (and no-candidate / unavailable if any); booths entered / total; postal entered / needed |
+| पार्टीवार सीटें | won = declared + lottery + unopposed; leading = untied leader of a counting ward; independents as निर्दलीय (the same rule as the TV screens) |
+| महिला विजेता | winners (declared, lottery or **unopposed**) whose candidate gender is F: by party and listed |
+| आरक्षण वर्ग | per `reservation_category`: wards, decided, women winners (hidden when no ward has a category) |
+| नोटा | total NOTA votes (and share of valid votes); wards where NOTA had the most votes |
+| नज़दीकी मुकाबले | **declared** wards with margin ≤ 100 votes **or** ≤ 1% of valid votes (NOTA included), smallest margin first |
+| लॉटरी से निर्णय | wards decided by lottery: winner, tied votes, who conducted it, the note, who declared and when |
+| संशोधन | every correction (version > 1): old and new winner, reason, who, when |
+| मतदान प्रतिशत | valid votes / registered voters, only over fully counted wards whose every booth has a voter count; otherwise "डेटा उपलब्ध नहीं" |
+
+**Ward detail and print**
+- **Ward detail** (`/reports/wards/:id`, from any ward link):
+  - candidates with booth / postal / total votes (gender shown, the winner marked)
+  - the booth-wise votes as entered, with who entered them and when, and the number of edits and voids
+  - the postal entry
+  - every declaration version, with the lottery details, the NOTA acknowledgement and the correction reason
+- **Print** ("प्रिंट करें"): A4, no buttons or filter, each section on a new page, the page number and
+  the print time in the footer.
+
+**CSV** ("CSV डाउनलोड" per section)
+- **Endpoint:** `GET /api/reports/export.csv?section=<alarms|progress|party-seats|women|reservation|nota|close-contests|lottery|corrections|turnout>[&scope=ALL_PS|ZP|PS:<id>]`.
+- **Format:** UTF-8 with a BOM, so Excel shows Hindi correctly. Every cell is quoted, and text starting
+  with `= + - @` gets a leading `'` (CSV-injection safe).
+- **File name:** `report-<section>-YYYYMMDD-HHMMSS-IST.csv`.
+- **Audit:** each export writes a `REPORT_EXPORTED` audit row (section, scope, user, IP). Viewing is not
+  audited.
+
+**API**
+- **`GET /api/reports/summary`:** built from **one** read-only consistent snapshot with a fixed
+  number of queries, and cached for 5 s.
+- **`GET /api/reports/wards/:wardId`:** the ward detail.
+- **The numbers:** all vote numbers come from the result engine (`result.ts`).
 
 ## Database users
 

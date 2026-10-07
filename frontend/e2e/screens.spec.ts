@@ -143,7 +143,7 @@ test('cards: NOT_STARTED no names; declared winner; corrected; unopposed; lotter
 
   const unopposed = cardOf(page, s.unopposedWardNo);
   await expect(unopposed.getByText('निर्विरोध निर्वाचित')).toHaveCount(1); // once: the badge
-  await expect(unopposed).toContainText('✓ हरि राम');
+  await expect(unopposed).toContainText('✓ हेमा देवी');
 
   // Two tied candidates with the same name: the row marked as winner is the lottery winner's id.
   const lottery = cardOf(page, s.lottery.wardNo);

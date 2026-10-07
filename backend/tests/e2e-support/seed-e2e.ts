@@ -321,11 +321,20 @@ async function seedScreens(
       ['राष्ट्रीय लोकतांत्रिक पार्टी', 'Rashtriya Loktantrik Party', 'RLP', 'बोतल'],
     ),
   };
+  // Women candidates (Part 10 reports: an unopposed woman winner, a woman leading a ZP ward).
+  const FEMALE = new Set(['हेमा देवी', 'कमला देवी', 'सीता देवी']);
   const cand = (w: number, pos: number, name: string, p: PartyKey | null, nota = false) =>
     insert(
       app,
       'INSERT INTO candidate (ward_id, ballot_position, name_hindi, gender, is_nota, party_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [w, pos, name, nota ? null : 'M', nota ? 1 : 0, p === null ? null : party[p]],
+      [
+        w,
+        pos,
+        name,
+        nota ? null : FEMALE.has(name) ? 'F' : 'M',
+        nota ? 1 : 0,
+        p === null ? null : party[p],
+      ],
     );
   const pair = async (w: number, a: [string, PartyKey | null], b: [string, PartyKey | null]) => ({
     A: await cand(w, 1, a[0], a[1]),
@@ -363,7 +372,7 @@ async function seedScreens(
       ['गोपाल राम', null],
     ], // 3 lottery: same name, both independent (one party may field only one candidate)
     [
-      ['हरि राम', 'BJP'],
+      ['हेमा देवी', 'BJP'],
       ['', null],
     ], // 4 unopposed (one candidate only)
     [
@@ -376,7 +385,7 @@ async function seedScreens(
     const b = await booth(no, id);
     let c: { A: number; B: number; NOTA: number };
     if (no === 4) {
-      c = { A: await cand(id, 1, 'हरि राम', 'BJP'), B: 0, NOTA: 0 };
+      c = { A: await cand(id, 1, 'हेमा देवी', 'BJP'), B: 0, NOTA: 0 };
       await app.execute('UPDATE ward SET is_unopposed = 1 WHERE id = ?', [id]);
     } else {
       const n = names[no - 1] ?? [

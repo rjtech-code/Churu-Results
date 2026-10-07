@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { eachPage, layoutProblems } from './layout-check';
-import { expect, test } from './support';
+import { expect, loginUi, test, world } from './support';
 
 // Screenshots of every page of the three TV screens at 1920x1080 and 1366x768 with the e2e data,
 // for visual review (frontend/screenshots/, git-ignored). Runs last, after the other specs changed
@@ -27,3 +27,15 @@ for (const viewport of [
     }
   });
 }
+
+test('screenshots of the DM reports (home and a ward) at 1920x1080', async ({ page }) => {
+  mkdirSync(DIR, { recursive: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginUi(page, world().users.dm);
+  await expect(page.getByTestId('section-progress')).toBeVisible();
+  await page.screenshot({ path: resolve(DIR, 'reports-home.png'), fullPage: true });
+  await page.getByRole('button', { name: /सरदारशहर|SARDARSHAHAR/ }).click();
+  await page.getByTestId('section-corrections').locator('td a').first().click();
+  await expect(page.getByTestId('ward-declarations')).toBeVisible();
+  await page.screenshot({ path: resolve(DIR, 'reports-ward.png'), fullPage: true });
+});

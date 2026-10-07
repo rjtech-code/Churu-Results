@@ -1,0 +1,262 @@
+/* DM reports (Part 10): same plain style as the operator dashboard; numbers with tabular digits.
+   Print: A4, no buttons or filter, a new page per section, page number and print time in the footer. */
+.rp-page {
+  max-width: 1400px;
+}
+.rp-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-bottom: 16px;
+}
+.rp-title-row h1 {
+  margin: 0;
+}
+.rp-chip {
+  font-weight: 700;
+  padding: 0 16px;
+  border: 2px solid var(--brand);
+  border-radius: 999px;
+  color: var(--brand);
+}
+.rp-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rp-filter-btn {
+  font: inherit;
+  font-size: 1rem;
+  padding: 4px 16px;
+  border: 2px solid var(--brand);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--brand);
+  cursor: pointer;
+}
+.rp-filter-on {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+.rp-scope-print,
+.rp-print-footer {
+  display: none;
+}
+
+/* Alarms: red only when present, else a green line */
+.rp-alarms {
+  border: 3px solid var(--bad);
+  border-left-width: 8px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  padding: 8px 16px 16px;
+  margin-bottom: 16px;
+}
+.rp-alarms h2 {
+  margin: 8px 0;
+}
+.rp-alarms ul {
+  margin: 0 0 8px;
+  padding-left: 24px;
+}
+.rp-alarms li {
+  margin: 4px 0;
+  color: var(--ink);
+}
+.rp-ok {
+  border-left: 8px solid var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-weight: 700;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+}
+
+/* Panels */
+.rp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .rp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.rp-panel {
+  min-width: 0;
+  border: 1px solid #c5d0de;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 16px 16px;
+  margin-bottom: 16px;
+}
+.rp-grid .rp-panel {
+  margin-bottom: 0;
+}
+.rp-wide {
+  grid-column: 1 / -1;
+}
+.rp-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.rp-panel h2 {
+  margin: 8px 0;
+  font-size: 1.25rem;
+  color: var(--brand);
+}
+.rp-csv {
+  flex: none;
+  font-size: 0.9rem;
+  padding: 2px 8px;
+}
+.rp-empty {
+  color: var(--muted);
+  margin: 8px 0;
+}
+.rp-lead {
+  margin: 8px 0;
+}
+
+/* Stat tiles */
+.rp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+.rp-stat {
+  min-width: 128px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px;
+  border: 1px solid #c5d0de;
+  border-left: 6px solid #9aa4b2;
+  border-radius: 8px;
+  background: #fff;
+}
+.rp-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rp-stat-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.rp-green {
+  border-left-color: #15803d;
+}
+.rp-teal {
+  border-left-color: #0f766e;
+}
+.rp-blue {
+  border-left-color: #1d5fd0;
+}
+.rp-red {
+  border-left-color: var(--bad);
+}
+
+/* Tables */
+.rp-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+.rp-table th,
+.rp-table td {
+  border-bottom: 1px solid #d6dde7;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.rp-table th {
+  background: #eef2f7;
+}
+.rp-table .num {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rp-table .rp-winner td {
+  background: #e3f6e8;
+  font-weight: 700;
+}
+.rp-scroll {
+  overflow-x: auto;
+}
+.rp-scroll .rp-table td,
+.rp-scroll .rp-table th {
+  overflow-wrap: normal;
+}
+
+/* ---------------------------------------------------------------- print (A4) */
+@page {
+  size: A4;
+  margin: 14mm 12mm 18mm;
+  @bottom-right {
+    content: 'पृष्ठ ' counter(page);
+    font-size: 9pt;
+  }
+}
+@media print {
+  .no-print,
+  .topbar {
+    display: none !important;
+  }
+  html {
+    font-size: 11pt;
+  }
+  .page {
+    padding: 0;
+    max-width: none;
+  }
+  .rp-scope-print {
+    display: block;
+    font-weight: 700;
+  }
+  .rp-grid {
+    display: block;
+  }
+  .rp-panel {
+    border: none;
+    padding: 0;
+    break-before: page;
+  }
+  .rp-panel h2 {
+    color: #000;
+  }
+  .rp-table tr {
+    break-inside: avoid;
+  }
+  .rp-table th {
+    background: #eee;
+  }
+  .rp-scroll {
+    overflow: visible;
+  }
+  .rp-print-footer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    font-size: 9pt;
+    color: #333;
+  }
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+}

@@ -97,3 +97,59 @@ export async function eachPage(
     }
   }
 }
+
+/**
+ * The same checks for the DM report pages: nothing inside a panel, the alarm box, the title row or
+ * the filter overflows its box (the booth table's own horizontal scroll box is intentional and
+ * skipped), and title-row / filter / panel-head items never overlap. No page-width overflow.
+ */
+export async function reportLayoutProblems(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const name = (el: Element) =>
+      `${el.tagName.toLowerCase()}.${(el.getAttribute('class') ?? '').split(' ')[0] ?? ''} "${el.textContent.trim().slice(0, 30)}"`;
+    const roots = document.querySelectorAll(
+      '.rp-panel, .rp-alarms, .rp-ok, .rp-title-row, .rp-filter, .rp-stats',
+    );
+    for (const root of roots) {
+      for (const el of [root, ...root.querySelectorAll('*')]) {
+        if (!(el instanceof HTMLElement)) continue;
+        if (el.closest('.rp-scroll') !== null && !el.classList.contains('rp-scroll')) continue;
+        if (el.classList.contains('rp-scroll')) continue;
+        const display = getComputedStyle(el).display;
+        if (
+          display === 'inline' ||
+          display === 'contents' ||
+          display === 'none' ||
+          display === 'table-cell' ||
+          display === 'table-row'
+        )
+          continue;
+        if (el.scrollWidth > el.clientWidth + 1)
+          problems.push(`overflows width: ${name(el)} (${el.scrollWidth} > ${el.clientWidth})`);
+        if (el.scrollHeight > el.clientHeight + 1)
+          problems.push(`overflows height: ${name(el)} (${el.scrollHeight} > ${el.clientHeight})`);
+      }
+    }
+    const overlap = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+    for (const parent of document.querySelectorAll(
+      '.rp-title-row, .rp-filter, .rp-panel-head, .rp-stats, .topbar',
+    )) {
+      const kids = [...parent.children]
+        .map((k) => [k, k.getBoundingClientRect()] as const)
+        .filter(([, r]) => r.width > 0 && r.height > 0);
+      for (let i = 0; i < kids.length; i++) {
+        for (let j = i + 1; j < kids.length; j++) {
+          const [a, ra] = kids[i] ?? [];
+          const [b, rb] = kids[j] ?? [];
+          if (a && b && ra && rb && overlap(ra, rb))
+            problems.push(`overlap in ${name(parent)}: ${name(a)} / ${name(b)}`);
+        }
+      }
+    }
+    if (document.documentElement.scrollWidth > window.innerWidth) problems.push('horizontal page scrollbar');
+    return problems;
+  });
+}

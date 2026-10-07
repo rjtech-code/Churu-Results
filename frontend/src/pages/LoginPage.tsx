@@ -13,7 +13,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to={user.role === 'DM' ? '/dm' : '/wards'} replace />;
+  if (user) return <Navigate to={user.role === 'DM' ? '/reports' : '/wards'} replace />;
 
   const onSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export function LoginPage() {
     setPassword(''); // the password is not kept longer than the request
     try {
       const me = await login(username.trim(), typed);
-      void navigate(me.role === 'DM' ? '/dm' : '/wards', { replace: true });
+      void navigate(me.role === 'DM' ? '/reports' : '/wards', { replace: true });
     } catch (err) {
       // A malformed username is just "wrong username or password" for the operator.
       setError(

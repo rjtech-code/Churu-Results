@@ -11,7 +11,9 @@ import { StoryPage } from './pages/StoryPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { PostalPage } from './pages/PostalPage';
-import { DmPlaceholderPage, NotAllowedPage, NotFoundPage } from './pages/SimplePages';
+import { NotAllowedPage, NotFoundPage } from './pages/SimplePages';
+import { ReportWardPage } from './pages/reports/ReportWardPage';
+import { ReportsHomePage } from './pages/reports/ReportsHomePage';
 import { WardDetailPage } from './pages/WardDetailPage';
 import { WardListPage } from './pages/WardListPage';
 
@@ -27,7 +29,7 @@ function Home() {
   const { user } = useAuth();
   if (user === undefined) return <p className="loading">लोड हो रहा है…</p>;
   if (user === null) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === 'DM' ? '/dm' : '/wards'} replace />;
+  return <Navigate to={user.role === 'DM' ? '/reports' : '/wards'} replace />;
 }
 
 export const router = createBrowserRouter([
@@ -57,8 +59,13 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <RequireRole roles={['DM']} />,
-        children: [{ path: '/dm', element: <DmPlaceholderPage /> }],
+        element: <RequireRole roles={['DM']} denied="not-allowed" />,
+        // DM reports (Part 10). Other roles opening these URLs get the "not allowed" page.
+        children: [
+          { path: '/reports', element: <ReportsHomePage /> },
+          { path: '/reports/wards/:wardId', element: <ReportWardPage /> },
+          { path: '/dm', element: <Navigate to="/reports" replace /> },
+        ],
       },
       {
         element: <RequireRole roles={['PS_RO', 'ZP_RO', 'DM']} />,

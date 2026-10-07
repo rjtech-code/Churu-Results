@@ -28,12 +28,14 @@ test('login: wrong password message, then own wards only, then logout', async ({
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('the DM sees only the placeholder', async ({ page }) => {
+test('the DM lands on the reports; operator pages send the DM back to the reports', async ({ page }) => {
   await loginUi(page, world().users.dm);
-  await expect(page).toHaveURL(/\/dm$/);
-  await expect(page.getByText('जिला निर्वाचन अधिकारी की रिपोर्ट भाग 10 में आएँगी।')).toBeVisible();
+  await expect(page).toHaveURL(/\/reports$/);
+  await expect(page.getByRole('heading', { name: 'रिपोर्ट — चूरू पंचायत चुनाव 2026' })).toBeVisible();
   await page.goto('/wards');
-  await expect(page).toHaveURL(/\/dm$/);
+  await expect(page).toHaveURL(/\/reports$/);
   await page.goto(`/wards/${world().wards.ready.id}/declare`);
-  await expect(page).toHaveURL(/\/dm$/);
+  await expect(page).toHaveURL(/\/reports$/);
+  await page.goto('/dm');
+  await expect(page).toHaveURL(/\/reports$/);
 });

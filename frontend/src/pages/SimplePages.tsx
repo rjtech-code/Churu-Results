@@ -1,16 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
-
-export function DmPlaceholderPage() {
-  const { user } = useAuth();
-  return (
-    <>
-      <h1>नमस्ते{user?.fullName ? `, ${user.fullName}` : ''}</h1>
-      <p className="big">जिला निर्वाचन अधिकारी की रिपोर्ट भाग 10 में आएँगी।</p>
-      <p>इस डैशबोर्ड पर अभी आपके लिए कोई काम नहीं है।</p>
-    </>
-  );
-}
 
 export function NotAllowedPage() {
   return (
