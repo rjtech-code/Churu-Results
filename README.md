@@ -836,15 +836,16 @@ shows a Hindi message.
 **Layout**
 - **Size:** designed for 1920×1080 and scaled to any window with one CSS transform; there are never any
   scrollbars. The mouse cursor hides after 3 s without movement.
-- **Header:** title, screen name, "इस स्क्रीन पर घोषित X / Y" (X = declared + lottery + unopposed
-  wards, Y = all wards on the screen; on screen 3 the ZP wards), a "लाइव" dot, and "अंतिम अपडेट
-  HH:MM:SS". The time comes from the server's snapshot (`generatedAt`, IST), not from the laptop's clock.
+- **Header:** two groups. On the left, the title and screen name. On the right, the chip "घोषित X / Y"
+  (X = declared + lottery + unopposed wards, Y = all wards on the screen; on screen 3 the ZP wards),
+  a "लाइव" dot, and "अंतिम अपडेट HH:MM:SS". The time comes from the server's snapshot (`generatedAt`, IST), not from the laptop's clock.
 - **"अभी बदला":** one static row with the 3 newest changes, each a short sentence with the short Hindi
   PS name (or ज़िला परिषद), e.g. "राजगढ़ · वार्ड 9 · विजयी: <name> (<party>)" or
   "चूरू · वार्ड 8 · मतगणना जारी — आगे: <name> (<party>)". Text is cut only between words; if the row
   is too narrow, the 3rd item is dropped. Nothing scrolls.
 - **Pages:** one PS per page in layout order, titled "<Hindi name> पंचायत समिति" with the summary
-  chips (घोषित, निर्विरोध, मतगणना जारी, शुरू नहीं). There are up to 12 cards per page; ZP has 9 per page.
+  chips (घोषित, निर्विरोध, मतगणना जारी, शुरू नहीं). There are up to 8 cards per page (4×2); ZP has 6 per page (3×2), so the top 3 with two-line
+  names fit at full size.
   A PS with more wards is split evenly into sub-pages ("रतनगढ़ पंचायत समिति 1/3").
 - **Timing:** pages change every **15 s**; `?interval=SECONDS` sets another value between 5 and 120
   (e.g. `/screen/1?interval=30`). A page where **every** ward is शुरू नहीं / उम्मीदवार सूची बाकी stays
@@ -866,9 +867,18 @@ shows a Hindi message.
 | उपलब्ध नहीं | red | text only |
 | + संशोधित | amber badge | the declaration was corrected |
 
-- **Candidate rows:** each row has a thin bar in the party colour (निर्दलीय grey), the name, the party
-  short name, and the votes on the right. Names wrap to two lines and only then end with "…"; the
-  winner's name is never cut.
+- **Candidate rows:** every row has the same structure: a thin bar in the party colour (निर्दलीय
+  grey); the name (bold for the winner or the leader) with the party on its own line under it; the
+  votes in a fixed right-aligned column (tabular digits, so numbers line up across rows and cards).
+  Names wrap to two lines and only then end with "…"; the winner's name is never cut.
+- **Inside a card:** content flows top to bottom (title, rows, then "आगे/अंतर" directly under the
+  rows, then the meta line); spare height stays at the bottom. Spacing is 8/16/24 px, with three
+  text sizes per card.
+- **Screen 3 right side:** three white panels: "जीती सीटें" (pie with the legend beside it, and the
+  table), "नवीनतम विजेता" (as many of the newest as fit), and "सभी पंचायत समितियाँ".
+- **Layout test:** `frontend/e2e/screens-layout.spec.ts` checks every page of every screen at
+  1920×1080 and 1366×768: nothing overflows its box, row and header parts never overlap, the vote
+  numbers line up, and there are no scrollbars.
 - **Numbers:** Western digits with Indian grouping (1,23,456).
 
 **Colours:**

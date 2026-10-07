@@ -3,9 +3,10 @@ import type { ReactNode } from 'react';
 import { STATUS_LABEL, STATUS_TONE, fmt, isQuiet, partyShort, wardLabel } from './format';
 import { gridRows } from './paging';
 import { usePartyColour } from './partyContext';
-import type { TopRow, WardCard } from './types';
+import type { PartyRef, WardCard } from './types';
 
 const WINNER_STATUSES = new Set(['DECLARED', 'TIE_RESOLVED']);
+const LEADING = new Set(['COUNTING', 'READY_TO_DECLARE']);
 
 /** The line under the top 3: lead, margin or tie. */
 function leadLine(card: WardCard): string | null {
@@ -34,23 +35,49 @@ function PartyBar({ colour }: { colour: string }) {
   );
 }
 
-function Row({ row, winner }: { row: TopRow; winner: boolean }) {
+/**
+ * One candidate row, always the same structure:
+ *   [party bar] | name (line 1, bold for the winner/leader)  | votes (fixed right column)
+ *               | party (line 2, always its own line)        |
+ * Names wrap to two lines, then end with "…" — except the winner's, which is never cut.
+ */
+function Row({
+  name,
+  party,
+  votes,
+  winner,
+  leader,
+  candidateId,
+}: {
+  name: string;
+  party: PartyRef | null;
+  votes: number | null;
+  winner: boolean;
+  leader: boolean;
+  candidateId: number;
+}) {
   const colourOf = usePartyColour();
+  const classes = ['tv-row'];
+  if (winner) classes.push('tv-row-winner');
+  if (leader) classes.push('tv-row-leader');
+  if (votes === null) classes.push('tv-row-novotes');
   return (
-    <li className={winner ? 'tv-row tv-row-winner' : 'tv-row'} data-candidate-id={row.candidateId}>
-      <PartyBar colour={colourOf(row.party?.shortName ?? null)} />
-      <span className="tv-name">
-        {winner && <span className="tv-check">✓ </span>}
-        {row.name} <span className="tv-party">{partyShort(row.party)}</span>
+    <li className={classes.join(' ')} data-candidate-id={candidateId}>
+      <PartyBar colour={colourOf(party?.shortName ?? null)} />
+      <span className="tv-row-text">
+        <span className="tv-name" data-clamp={winner ? undefined : '2'}>
+          {winner && <span className="tv-check">✓ </span>}
+          {name}
+        </span>
+        <span className="tv-party">{partyShort(party)}</span>
       </span>
-      <span className="tv-votes">{fmt(row.votes)}</span>
+      {votes !== null && <span className="tv-votes">{fmt(votes)}</span>}
     </li>
   );
 }
 
 /** One ward card on a TV screen (what it shows per status: README "TV screens"). */
 export function WardCardView({ card, changed }: { card: WardCard; changed: boolean }) {
-  const colourOf = usePartyColour();
   const tone = STATUS_TONE[card.status];
   const classes = ['tv-card', `tone-${tone}`, `tv-status-${card.status.toLowerCase().replaceAll('_', '-')}`];
   if (isQuiet(card.status)) classes.push('tv-card-quiet');
@@ -81,13 +108,16 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
       // The badge already says "निर्विरोध निर्वाचित": the body shows only who.
       body =
         card.winner === null ? null : (
-          <div className="tv-unopposed">
-            <PartyBar colour={colourOf(card.winner.party?.shortName ?? null)} />
-            <p className="tv-unopposed-name">
-              <span className="tv-check">✓ </span>
-              {card.winner.name} <span className="tv-party">{partyShort(card.winner.party)}</span>
-            </p>
-          </div>
+          <ol className="tv-top3">
+            <Row
+              candidateId={card.winner.candidateId}
+              name={card.winner.name}
+              party={card.winner.party}
+              votes={null}
+              winner
+              leader={false}
+            />
+          </ol>
         );
       break;
     default: {
@@ -95,8 +125,16 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
       const lead = leadLine(card);
       body = (
         <ol className="tv-top3">
-          {card.top3.map((row) => (
-            <Row key={row.candidateId} row={row} winner={row.candidateId === winnerId} />
+          {card.top3.map((row, i) => (
+            <Row
+              key={row.candidateId}
+              candidateId={row.candidateId}
+              name={row.name}
+              party={row.party}
+              votes={row.votes}
+              winner={row.candidateId === winnerId}
+              leader={i === 0 && LEADING.has(card.status) && !card.topTied}
+            />
           ))}
         </ol>
       );

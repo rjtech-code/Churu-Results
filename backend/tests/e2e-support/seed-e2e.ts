@@ -352,10 +352,10 @@ async function seedScreens(
   const names: [[string, PartyKey | null], [string, PartyKey | null]][] = [
     [
       ['सुरेश कुमार', 'BJP'],
-      ['महेश चंद', 'INC'],
+      ['महेश चंद्र प्रकाश शर्मा चौधरी', 'INC'], // long name: wraps to 2 lines on the TV card
     ], // 1 declared
     [
-      ['रमेश लाल', 'INC'],
+      ['रमेश लाल विश्वकर्मा जांगिड़', 'INC'], // long WINNER name: must never be cut
       ['दिनेश सैनी', 'RLP'],
     ], // 2 corrected
     [

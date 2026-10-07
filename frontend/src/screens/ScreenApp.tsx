@@ -151,7 +151,7 @@ function ZpSide({ bundle, names }: { bundle: ScreenBundle; names: readonly strin
         <SeatPie rows={zp?.partySeats ?? []} allShortNames={names} />
         <SeatTable rows={zp?.partySeats ?? []} allShortNames={names} withTotal testId="zp-seats" />
       </section>
-      <section className="tv-panel">
+      <section className="tv-panel tv-panel-winners">
         <h3>नवीनतम विजेता</h3>
         <LatestWinners items={bundle.winners} />
       </section>

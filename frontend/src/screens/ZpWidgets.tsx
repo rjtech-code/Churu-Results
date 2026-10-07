@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { INDEPENDENT, fmt, partyShort, psShortName } from './format';
 import { partyColour } from './partyColours';
 import { pieSlices } from './pie';
@@ -80,9 +81,9 @@ export function SeatTable({
       <thead>
         <tr>
           <th>पार्टी</th>
-          <th>जीते</th>
-          <th>आगे</th>
-          {withTotal && <th>कुल</th>}
+          <th className="tv-num">जीते</th>
+          <th className="tv-num">आगे</th>
+          {withTotal && <th className="tv-num">कुल</th>}
         </tr>
       </thead>
       <tbody>
@@ -93,7 +94,7 @@ export function SeatTable({
         ) : (
           shown.map((r) => (
             <tr key={keyOf(r)}>
-              <td>
+              <td className="tv-party-cell">
                 <Swatch colour={partyColour(r.party.shortName, allShortNames)} /> {r.party.nameHindi}
               </td>
               <td className="tv-num">{fmt(r.won)}</td>
@@ -107,18 +108,35 @@ export function SeatTable({
   );
 }
 
+/**
+ * "नवीनतम विजेता", newest first. Shows as many items as fit in its panel (measured after render;
+ * the oldest are dropped), so nothing is ever cut or overflows.
+ */
 export function LatestWinners({ items }: { items: WinnerItem[] }) {
+  const all = items.slice(0, 4);
+  const key = all.map((w) => `${w.wardId}-${w.version}`).join('|');
+  const [fit, setFit] = useState({ key, count: all.length });
+  const count = fit.key === key ? fit.count : all.length;
+  const list = useRef<HTMLOListElement | null>(null);
+  useLayoutEffect(() => {
+    const panel = list.current?.parentElement;
+    if (panel && panel.scrollHeight > panel.clientHeight + 1 && count > 1) setFit({ key, count: count - 1 });
+  }, [key, count]);
   return (
-    <ol className="tv-winners" data-testid="latest-winners">
-      {items.length === 0 ? (
-        <li>—</li>
+    <ol className="tv-winners" data-testid="latest-winners" ref={list}>
+      {all.length === 0 ? (
+        <li className="tv-winners-empty">—</li>
       ) : (
-        items.slice(0, 5).map((w) => (
+        all.slice(0, count).map((w) => (
           <li key={`${w.wardId}-${w.version}`}>
-            {w.kind === 'ZP' ? 'ज़िला परिषद' : psShortName(w.psName ?? '')} · वार्ड {w.wardNo}:{' '}
-            <strong>{w.winner.name}</strong> ({partyShort(w.winner.party)})
-            {w.status === 'TIE_RESOLVED' ? ' · लॉटरी' : ''}
-            {w.isCorrection ? ' · संशोधित' : ''}
+            <span className="tv-winners-where">
+              {w.kind === 'ZP' ? 'ज़िला परिषद' : psShortName(w.psName ?? '')} · वार्ड {w.wardNo}
+              {w.status === 'TIE_RESOLVED' ? ' · लॉटरी' : ''}
+              {w.isCorrection ? ' · संशोधित' : ''}
+            </span>
+            <span className="tv-winners-who">
+              ✓ <strong>{w.winner.name}</strong> ({partyShort(w.winner.party)})
+            </span>
           </li>
         ))
       )}

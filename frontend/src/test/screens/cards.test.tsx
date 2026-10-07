@@ -137,7 +137,9 @@ describe('ward card', () => {
     expect(root.textContent).toContain('हरि राम');
     expect(root.textContent).toContain('BJP');
     expect(root.textContent.split('निर्विरोध निर्वाचित')).toHaveLength(2); // shown exactly once (the badge)
-    expect(root.querySelector('.tv-unopposed-name')?.textContent).toContain('✓ हरि राम');
+    expect(root.querySelector('.tv-row-winner .tv-name')?.textContent).toBe('✓ हरि राम');
+    expect(root.querySelector('.tv-row-winner .tv-party')?.textContent).toBe('BJP');
+    expect(root.querySelector('.tv-votes')).toBeNull();
     expect(root.textContent.replace('वार्ड 7', '')).not.toMatch(/\d/);
   });
 

@@ -24,7 +24,7 @@ test('/screen/1 works with no login and no cookies, never calls /api/auth, shows
   });
   await page.goto('/screen/1');
   await expect(page.getByTestId('page-title')).toHaveText('चूरू पंचायत समिति');
-  await expect(page.getByTestId('progress')).toHaveText(/^इस स्क्रीन पर घोषित \d+ \/ 8$/);
+  await expect(page.getByTestId('progress')).toHaveText(/^घोषित \d+ \/ 8$/);
   await expect(page.locator('.tv-header')).toContainText('चूरू पंचायत चुनाव 2026 — परिणाम');
   await expect(page.locator('.tv-header')).toContainText('स्क्रीन 1');
   await expect(page.locator('.tv-header')).toContainText('लाइव');
@@ -128,7 +128,8 @@ test('cards: NOT_STARTED no names; declared winner; corrected; unopposed; lotter
   const declared = cardOf(page, s.declaredWardNo);
   await expect(declared.locator('.tv-row-winner')).toHaveCount(1);
   await expect(declared.locator('.tv-row-winner')).toContainText('सुरेश कुमार');
-  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText(/^✓ सुरेश कुमार BJP$/);
+  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText('✓ सुरेश कुमार');
+  await expect(declared.locator('.tv-row-winner .tv-party')).toHaveText('BJP'); // its own line
   await expect(declared.locator('.tv-row-winner .tv-badge')).toHaveCount(0); // no badge inside the row
   await expect(declared.locator('.tv-badge-status')).toHaveText('विजयी');
   await expect(declared).toContainText('अंतर 100 मत');

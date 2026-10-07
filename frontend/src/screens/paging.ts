@@ -4,8 +4,8 @@ import type { PsBlock, Summary, WardCard } from './types';
 export const DEFAULT_INTERVAL_S = 15;
 export const MIN_INTERVAL_S = 5;
 export const MAX_INTERVAL_S = 120;
-export const PS_CARDS_PER_PAGE = 12;
-export const ZP_CARDS_PER_PAGE = 9;
+export const PS_CARDS_PER_PAGE = 8; // 4 x 2: room for top 3 with two-line names at full size
+export const ZP_CARDS_PER_PAGE = 6; // 3 x 2
 
 /** ?interval=SECONDS -> seconds between pages (missing/invalid: 15; clamped to 5..120). */
 export function parseInterval(search: string): number {

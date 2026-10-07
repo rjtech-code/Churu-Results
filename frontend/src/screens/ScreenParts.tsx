@@ -19,20 +19,24 @@ export function ScreenHeader({
 }) {
   return (
     <header className="tv-header">
-      <h1 className="tv-title">चूरू पंचायत चुनाव 2026 — परिणाम</h1>
-      <span className="tv-screen-name">{name}</span>
-      {progress !== null && (
-        <span className="tv-progress" data-testid="progress">
-          इस स्क्रीन पर घोषित {fmt(progress.declared)} / {fmt(progress.total)}
+      <div className="tv-header-group tv-header-left">
+        <h1 className="tv-title">चूरू पंचायत चुनाव 2026 — परिणाम</h1>
+        <span className="tv-screen-name">{name}</span>
+      </div>
+      <div className="tv-header-group tv-header-right">
+        {progress !== null && (
+          <span className="tv-progress" data-testid="progress">
+            घोषित {fmt(progress.declared)} / {fmt(progress.total)}
+          </span>
+        )}
+        <span className={live ? 'tv-live tv-live-on' : 'tv-live tv-live-off'}>
+          <span className="tv-dot" aria-hidden="true">
+            ●
+          </span>{' '}
+          {live ? 'लाइव' : 'लाइव नहीं'}
         </span>
-      )}
-      <span className={live ? 'tv-live tv-live-on' : 'tv-live tv-live-off'}>
-        <span className="tv-dot" aria-hidden="true">
-          ●
-        </span>{' '}
-        {live ? 'लाइव' : 'लाइव नहीं'}
-      </span>
-      <span className="tv-updated">अंतिम अपडेट {generatedAt === null ? '—' : istClock(generatedAt)}</span>
+        <span className="tv-updated">अंतिम अपडेट {generatedAt === null ? '—' : istClock(generatedAt)}</span>
+      </div>
     </header>
   );
 }

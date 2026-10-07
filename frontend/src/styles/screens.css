@@ -114,42 +114,60 @@ html.hide-cursor * {
   --tone-ink: var(--st-red-ink);
 }
 
-/* Header */
+/* ---------------------------------------------------------------- layout (8px spacing scale) */
+
+/* Header: two groups, left (title + screen) and right (progress, live, time) */
 .tv-header {
   flex: none;
-  height: 84px;
+  height: 80px;
   display: flex;
   align-items: center;
-  gap: 30px;
-  padding: 0 28px;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 0 24px;
   background: var(--tv-header);
   color: #fff;
 }
+.tv-header-group {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+.tv-header-right {
+  flex: none;
+}
 .tv-title {
   margin: 0;
-  font-size: 36px;
-  font-weight: 700;
-  flex: 1;
-  white-space: nowrap;
-}
-.tv-screen-name {
+  min-width: 0;
   font-size: 34px;
   font-weight: 700;
-  padding: 2px 16px;
-  border: 3px solid #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tv-screen-name {
+  flex: none;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0 16px;
+  border: 2px solid #fff;
   border-radius: 8px;
   white-space: nowrap;
 }
 .tv-progress {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
-  white-space: nowrap;
-  padding: 2px 14px;
+  line-height: 1.5;
+  padding: 0 16px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
+  white-space: nowrap;
 }
-.tv-live {
-  font-size: 28px;
+.tv-live,
+.tv-updated {
+  font-size: 26px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -159,81 +177,85 @@ html.hide-cursor * {
 .tv-live-off .tv-dot {
   color: #ff8a8a;
 }
-.tv-updated {
-  font-size: 28px;
-  font-weight: 700;
-  white-space: nowrap;
-}
 
 /* Stale banner */
 .tv-stale {
   flex: none;
-  height: 60px;
+  height: 56px;
   display: flex;
   align-items: center;
-  padding: 0 28px;
+  padding: 0 24px;
   background: var(--st-red);
   color: #fff;
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 /* "अभी बदला": one static row */
 .tv-ticker {
   flex: none;
-  height: 54px;
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 0 28px;
+  gap: 24px;
+  padding: 0 24px;
   background: var(--tv-ticker-bg);
   color: var(--tv-ticker-ink);
-  border-bottom: 2px solid #f0d58a;
+  border-bottom: 1px solid #f0d58a;
   overflow: hidden;
   white-space: nowrap;
 }
 .tv-ticker-label {
   flex: none;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
+  line-height: 1.5;
   color: #fff;
   background: var(--tv-ticker-label);
-  padding: 2px 14px;
-  border-radius: 6px;
+  padding: 0 16px;
+  border-radius: 8px;
 }
 .tv-ticker-item {
   flex: none;
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 700;
 }
 .tv-ticker-item + .tv-ticker-item {
-  border-left: 3px solid #e2b85c;
-  padding-left: 22px;
+  border-left: 2px solid #e2b85c;
+  padding-left: 24px;
 }
 
 /* Page header + summary chips */
 .tv-page-head {
   flex: none;
-  height: 62px;
+  height: 56px;
   display: flex;
   align-items: center;
   gap: 24px;
+  min-width: 0;
 }
 .tv-page-title {
   margin: 0;
-  font-size: 40px;
+  min-width: 0;
+  font-size: 36px;
   font-weight: 700;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--tv-header);
 }
 .tv-chips {
+  flex: none;
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 .tv-chip {
-  font-size: 25px;
+  font-size: 22px;
   font-weight: 700;
-  padding: 2px 16px;
+  line-height: 1.5;
+  padding: 0 16px;
   border: 2px solid var(--tone);
   border-radius: 999px;
   background: var(--tone-bg);
@@ -247,26 +269,22 @@ html.hide-cursor * {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 24px 10px;
+  padding: 0 24px 16px;
 }
 .tv-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  gap: 12px;
+  gap: 16px;
   --tv-fs: 1;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 .tv-grid[data-rows='1'] {
   grid-template-rows: minmax(0, 1fr);
-  --tv-fs: 1.25;
+  --tv-fs: 1.12;
 }
 .tv-grid[data-rows='2'] {
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  --tv-fs: 1.12;
-}
-.tv-grid[data-rows='3'] {
-  grid-template-rows: repeat(3, minmax(0, 1fr));
   --tv-fs: 1;
 }
 .tv-grid-ps {
@@ -276,53 +294,56 @@ html.hide-cursor * {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* Ward card: white, rounded, thin border, 6px stripe on top in the status tone */
+/* Ward card: content flows top to bottom (title, rows, lead, meta); spare height stays at the bottom.
+   Three text sizes: title 32, body 26 (names, votes, lead, note), meta 20 (party, badges, meta). */
 .tv-card {
+  --fs-title: calc(32px * var(--tv-fs));
+  --fs-body: calc(26px * var(--tv-fs));
+  --fs-meta: calc(20px * var(--tv-fs));
+  --votes-w: calc(136px * var(--tv-fs));
   min-height: 0;
   overflow: hidden;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 16px;
   border: 1px solid var(--tv-card-border);
   border-top: 6px solid var(--tone);
-  border-radius: 10px;
-  padding: 6px 14px 8px;
+  border-radius: 8px;
   background: var(--tv-card);
-}
-.tv-card-quiet {
-  background: var(--tv-quiet);
 }
 .tv-card-changed {
   outline: 8px solid var(--tv-change);
   outline-offset: -1px;
 }
 .tv-card-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 4px;
+  min-width: 0;
 }
 .tv-card-title {
-  font-size: calc(30px * var(--tv-fs));
+  flex: none;
+  font-size: var(--fs-title);
   font-weight: 700;
+  line-height: 1.3; /* Devanagari glyphs need more than 1.2 */
   white-space: nowrap;
-}
-.tv-card-quiet .tv-card-title {
-  font-size: calc(26px * var(--tv-fs));
-  color: var(--tv-muted);
 }
 .tv-badges {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 .tv-badge {
   display: inline-flex;
   align-items: center;
-  line-height: 1.2;
-  font-size: calc(21px * var(--tv-fs));
+  font-size: var(--fs-meta);
   font-weight: 700;
-  padding: 3px 12px;
+  line-height: 1.5;
+  padding: 0 8px;
   border: 2px solid var(--tone);
   border-radius: 999px;
   background: var(--tone-bg);
@@ -335,231 +356,290 @@ html.hide-cursor * {
   color: var(--st-amber-ink);
 }
 .tv-card-body {
+  flex: none;
   min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
-/* Candidate rows: [party bar] [name + party] [votes] */
+/* Candidate row: [bar] [name / party] [votes] — the same structure in every row */
 .tv-top3 {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .tv-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) var(--votes-w);
+  column-gap: 16px;
   align-items: center;
-  gap: 10px;
-  padding: 3px 8px 3px 0;
-  border-radius: 6px;
+  padding: 0 8px 0 0;
+  border-radius: 8px;
+}
+.tv-row-novotes {
+  grid-template-columns: 6px minmax(0, 1fr);
 }
 .tv-party-bar {
-  flex: none;
   align-self: stretch;
-  width: 5px;
-  min-height: 34px;
-  border-radius: 2px;
+  width: 6px;
+  height: 100%;
+  border-radius: 3px;
+}
+.tv-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .tv-name {
-  flex: 1;
-  min-width: 0;
-  font-size: calc(26px * var(--tv-fs));
-  line-height: 1.22;
-  /* wrap to two lines, only then end with "…" (never cut in the middle of a line) */
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+.tv-name[data-clamp='2'] {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  overflow-wrap: anywhere;
 }
 .tv-party {
-  font-size: calc(21px * var(--tv-fs));
-  font-weight: 700;
-  color: var(--tv-muted);
-  white-space: nowrap;
-}
-.tv-votes {
-  flex: none;
-  font-size: calc(33px * var(--tv-fs));
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.tv-row-winner {
-  background: var(--tv-winner-bg);
-  color: var(--tv-winner-ink);
-}
-.tv-row-winner .tv-name {
-  font-weight: 700;
-  /* the winner's name is never clamped */
-  display: block;
-  -webkit-line-clamp: unset;
-  line-clamp: none;
-}
-.tv-row-winner .tv-party {
-  color: var(--tv-winner-ink);
-}
-.tv-check {
-  font-weight: 700;
-}
-.tv-lead {
-  margin: 4px 0 0;
-  font-size: calc(27px * var(--tv-fs));
-  font-weight: 700;
-}
-.tv-small {
-  margin: 2px 0 0;
-  font-size: calc(20px * var(--tv-fs));
+  font-size: var(--fs-meta);
+  font-weight: 400;
+  line-height: 1.25;
   color: var(--tv-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tv-note {
-  margin: auto 0;
-  text-align: center;
-  font-size: calc(24px * var(--tv-fs));
-  color: var(--tv-muted);
-}
-.tv-card-quiet .tv-note {
-  font-size: calc(22px * var(--tv-fs));
-}
-.tv-unopposed {
-  margin: auto 0;
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-}
-.tv-unopposed-name {
-  margin: 0;
-  font-size: calc(30px * var(--tv-fs));
+.tv-votes {
+  font-size: var(--fs-body);
   font-weight: 700;
-  overflow-wrap: anywhere;
+  line-height: 1.25;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tv-row-leader .tv-name,
+.tv-row-winner .tv-name {
+  font-weight: 700;
+}
+.tv-row-winner {
+  background: var(--tv-winner-bg);
+  color: var(--tv-winner-ink);
+}
+.tv-row-winner .tv-party {
+  color: var(--tv-winner-ink);
+}
+.tv-lead {
+  flex: none;
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.tv-small {
+  flex: none;
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: 1.25;
+  color: var(--tv-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Screen 3 */
+/* Quiet cards: grey, only the grey stripe, one centred muted line */
+.tv-card-quiet {
+  background: var(--tv-quiet);
+}
+.tv-card-quiet .tv-card-title {
+  color: var(--tv-muted);
+}
+.tv-card-quiet .tv-card-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tv-note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-body);
+  line-height: 1.25;
+  color: var(--tv-muted);
+}
+
+/* Screen 3: cards on the left, three white panels on the right */
 .tv-zp {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 .tv-zp-left {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 16px 10px 24px;
+  padding: 0 16px 16px 24px;
 }
 .tv-zp-side {
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 24px 10px 8px;
-  font-size: 22px;
+  gap: 16px;
+  padding: 16px 24px 16px 8px;
 }
 .tv-panel {
+  flex: none;
+  min-height: 0;
+  overflow: hidden;
   background: var(--tv-card);
   border: 1px solid var(--tv-card-border);
-  border-radius: 10px;
-  padding: 6px 16px 8px;
+  border-radius: 8px;
+  padding: 16px;
+}
+.tv-panel-winners {
+  flex: 0 1 auto; /* stacks at its own height; may give up space only if the column is tight */
 }
 .tv-panel h3 {
-  margin: 2px 0 6px;
-  font-size: 26px;
+  margin: 0 0 8px;
+  font-size: 24px;
+  line-height: 1.25;
   color: var(--tv-header);
 }
 .tv-pie-box {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 24px;
+  margin-bottom: 8px;
 }
 .tv-pie {
   flex: none;
-  width: 190px;
-  height: 190px;
+  width: 144px;
+  height: 144px;
 }
 .tv-legend {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 24px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 22px;
+  line-height: 1.25;
 }
 .tv-legend li {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 4px 0;
+  min-width: 0;
+}
+.tv-legend-name {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .tv-swatch {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   vertical-align: middle;
 }
 .tv-empty {
-  margin: 14px 0;
-  font-size: 27px;
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.25;
   font-weight: 700;
   color: var(--tv-muted);
 }
 .tv-seats {
   width: 100%;
   border-collapse: collapse;
-  margin: 6px 0 2px;
-  font-size: 22px;
+  font-size: 20px;
+  line-height: 1.2;
 }
 .tv-seats th,
 .tv-seats td {
-  border: 1px solid var(--tv-card-border);
-  padding: 2px 8px;
+  border-bottom: 1px solid var(--tv-card-border);
+  padding: 8px;
   text-align: left;
 }
 .tv-seats th {
   background: var(--tv-bg);
+  font-weight: 700;
+}
+.tv-seats .tv-party-cell {
+  width: 100%;
+  overflow-wrap: break-word;
 }
 .tv-num {
+  width: 1%;
+  white-space: nowrap;
   text-align: right !important;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .tv-winners {
+  list-style: none;
   margin: 0;
-  padding-left: 28px;
-  font-size: 21px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1.25;
 }
 .tv-winners li {
-  margin: 2px 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border-top: 1px solid var(--tv-card-border);
+}
+.tv-winners li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.tv-winners-where {
+  color: var(--tv-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.tv-winners-who {
+  overflow-wrap: break-word;
 }
 
 /* Footer: page dots + next */
 .tv-footer {
   flex: none;
-  height: 46px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  gap: 24px;
+  padding: 0 24px;
   background: var(--tv-card);
   border-top: 1px solid var(--tv-card-border);
 }
+.tv-dots {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
 .tv-page-dot {
-  font-size: 18px;
+  font-size: 16px;
   color: #b8c2d0;
-  margin-right: 6px;
+  margin-right: 8px;
 }
 .tv-page-dot-on {
   color: var(--tv-header);
 }
 .tv-next {
-  font-size: 26px;
+  flex: none;
+  font-size: 24px;
   font-weight: 700;
   color: var(--tv-header);
+  white-space: nowrap;
 }
 
 /* Messages (loading, waiting, unknown screen) */
@@ -574,9 +654,9 @@ html.hide-cursor * {
   text-align: center;
 }
 .tv-message p {
-  margin: 10px;
+  margin: 8px;
 }
 .tv-message-small {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 400;
 }
