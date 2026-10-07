@@ -18,7 +18,7 @@ export async function fetchPublic(path: string, etag: string | null): Promise<Fe
     res = await fetch(path, {
       credentials: 'omit',
       cache: 'no-store',
-      headers: etag === null ? {} : { 'If-None-Match': etag },
+      headers: etag === null ? { 'ngrok-skip-browser-warning': '1' } : { 'If-None-Match': etag, 'ngrok-skip-browser-warning': '1' },
     });
   } catch {
     throw new PublicHttpError(0, 'NETWORK_ERROR');
