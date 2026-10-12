@@ -12,6 +12,7 @@ import * as sessions from './20261009000001_sessions.js';
 import * as countingVersionsArchive from './20261010000001_counting_versions_archive.js';
 import * as declarationLotteryNota from './20261011000001_declaration_lottery_nota.js';
 import * as screenLayout from './20261012000001_screen_layout.js';
+import * as candidateListStatus from './20261013000001_candidate_list_status.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -29,6 +30,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261010000001_counting_versions_archive', countingVersionsArchive],
   ['20261011000001_declaration_lottery_nota', declarationLotteryNota],
   ['20261012000001_screen_layout', screenLayout],
+  ['20261013000001_candidate_list_status', candidateListStatus],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {

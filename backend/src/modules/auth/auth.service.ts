@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
 import { loadActiveUser } from '../../services/users.js';
 import type { AuthUser } from '../../types/auth.js';
@@ -264,4 +265,22 @@ export async function resetFailedLogins(conn: PoolConnection, userId: number): P
     'UPDATE users SET failed_login_count = 0 WHERE id = ? AND failed_login_count <> 0',
     [userId],
   );
+}
+
+/**
+ * Password re-check for a sensitive action (Part 13 admin tools and candidate lists), before any
+ * lock or write. Wrong password: 401 REAUTH_FAILED (counted toward the lockout and audited by
+ * reauthenticate). Locked account: 423 ACCOUNT_LOCKED. The password is never logged.
+ */
+export async function requireReauth(
+  pool: Pool,
+  userId: number,
+  password: string,
+  ip: string | null,
+): Promise<void> {
+  const outcome = await reauthenticate(pool, userId, password, ip);
+  if (outcome.kind === 'locked') {
+    throw new ApiError(423, 'ACCOUNT_LOCKED', { retryAfterSeconds: outcome.retryAfterSeconds });
+  }
+  if (outcome.kind === 'invalid') throw new ApiError(401, 'REAUTH_FAILED');
 }

@@ -11,7 +11,9 @@ import { originCheck } from './middleware/origin.js';
 import { apiRateLimit } from './middleware/rate-limit.js';
 import { createSessionStore, sessionMiddleware } from './middleware/session.js';
 import type { SessionStore } from './middleware/session.js';
+import { UPLOAD_PATHS, adminRouter } from './modules/admin/admin.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { candidatesRouter } from './modules/candidates/candidates.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
@@ -92,8 +94,16 @@ export function createApp({
   // 4. Generous global per-IP limit on the API.
   app.use('/api', apiRateLimit(config.apiRateLimit));
 
-  // 5. JSON bodies, max 100 kb.
-  app.use(express.json({ limit: '100kb' }));
+  // 5. JSON bodies, max 100 kb. The DM's Excel uploads (base64, up to 5 MB) are the only
+  //    exception: their router parses them itself, AFTER the DM role check (admin.routes.ts).
+  const json = express.json({ limit: '100kb' });
+  app.use((req, res, next) => {
+    if (UPLOAD_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+    json(req, res, next);
+  });
 
   // 6. Sessions (MySQL store, churu.sid cookie, 30-min rolling idle timeout).
   app.use(sessionMiddleware(config, store));
@@ -115,6 +125,8 @@ export function createApp({
   app.use('/api/counting', countingRouter(pool, config));
   app.use('/api/declare', declareRouter(pool, config));
   app.use('/api/reports', reportsRouter(pool, config));
+  app.use('/api/admin', adminRouter(pool, config));
+  app.use('/api/candidates', candidatesRouter(pool, config));
   for (const { path, router } of routes) app.use(path, router);
 
   // 12. 404, 13. central error handler.

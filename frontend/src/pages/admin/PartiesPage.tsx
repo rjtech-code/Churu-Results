@@ -1,0 +1,158 @@
+import { useState } from 'react';
+import type { PartiesPreview, Party } from '../../api/adminTypes';
+import type { Issue } from '../../api/adminTypes';
+import { api } from '../../api/api';
+import { IssueList, PageIntro, Section, issuesOf } from '../../components/AdminParts';
+import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
+import { PasswordDialog } from '../../components/PasswordDialog';
+import { UploadFlow } from '../../components/UploadFlow';
+import { useApiData } from '../../components/useApiData';
+import '../../styles/admin.css';
+
+const EMPTY = { nameHindi: '', nameEnglish: '', shortName: '', symbol: '' };
+
+/** DM "पार्टी सूची": upload the parties Excel, or add one party. */
+export function PartiesPage() {
+  const { data, error, reload } = useApiData(
+    () => api<{ parties: Party[] }>('GET', '/api/admin/parties'),
+    [],
+  );
+  const [form, setForm] = useState(EMPTY);
+  const [confirming, setConfirming] = useState(false);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [added, setAdded] = useState<string | null>(null);
+  const complete = Object.values(form).every((v) => v.trim() !== '');
+
+  const add = async (password: string) => {
+    try {
+      await api('POST', '/api/admin/parties/add', { ...form, password });
+    } catch (err) {
+      const list = issuesOf(err);
+      if (list === null) throw err;
+      setIssues(list);
+      setConfirming(false);
+      return;
+    }
+    setConfirming(false);
+    setAdded(`पार्टी "${form.shortName}" जुड़ गई`);
+    setForm(EMPTY);
+    reload();
+  };
+
+  const field = (key: keyof typeof EMPTY, label: string) => (
+    <div className="field">
+      <label htmlFor={`party-${key}`}>{label}</label>
+      <input
+        id={`party-${key}`}
+        value={form[key]}
+        onChange={(e) => {
+          setForm({ ...form, [key]: e.target.value });
+          setAdded(null);
+          setIssues([]);
+        }}
+      />
+    </div>
+  );
+
+  return (
+    <>
+      <PageIntro title="पार्टी सूची" hint="यहाँ पार्टियों की Excel फ़ाइल चुनें, या नीचे एक पार्टी जोड़ें।" />
+      <UploadFlow<PartiesPreview>
+        checkPath="/api/admin/parties/check"
+        savePath="/api/admin/parties/save"
+        templateHref="/api/admin/templates/parties.xlsx"
+        successText="सूची सेव हो गई"
+        saveExplain={(p) => `${p.toInsert.length} नई पार्टियाँ सूची में जुड़ेंगी।`}
+        onSaved={reload}
+        renderPreview={(p) => (
+          <>
+            <p className="big">
+              नई पार्टियाँ: {p.toInsert.length} · पहले से मौजूद: {p.unchanged.length}
+            </p>
+            {p.toInsert.length > 0 && (
+              <table className="list">
+                <thead>
+                  <tr>
+                    <th>छोटा नाम</th>
+                    <th>हिंदी नाम</th>
+                    <th>अंग्रेज़ी नाम</th>
+                    <th>चुनाव चिह्न</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.toInsert.map((x) => (
+                    <tr key={x.shortName}>
+                      <td>{x.shortName}</td>
+                      <td>{x.nameHindi}</td>
+                      <td>{x.nameEnglish}</td>
+                      <td>{x.symbol}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      />
+
+      <Section title="एक पार्टी जोड़ें">
+        <div className="form-grid">
+          {field('nameHindi', 'हिंदी नाम')}
+          {field('nameEnglish', 'अंग्रेज़ी नाम')}
+          {field('shortName', 'छोटा नाम (जैसे BJP)')}
+          {field('symbol', 'चुनाव चिह्न')}
+        </div>
+        <IssueList title="पार्टी नहीं जुड़ी" issues={issues} />
+        <SuccessBox text={added} />
+        <button
+          type="button"
+          className="btn btn-secondary btn-big"
+          disabled={!complete}
+          onClick={() => {
+            setConfirming(true);
+          }}
+        >
+          पार्टी जोड़ें
+        </button>
+      </Section>
+
+      <Section title={`सूची में पार्टियाँ (${data?.parties.length ?? 0})`}>
+        <ErrorBox error={error} />
+        {data && data.parties.length > 0 && (
+          <table className="list" data-testid="party-list">
+            <thead>
+              <tr>
+                <th>छोटा नाम</th>
+                <th>हिंदी नाम</th>
+                <th>अंग्रेज़ी नाम</th>
+                <th>चुनाव चिह्न</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.parties.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.short_name}</td>
+                  <td>{p.name_hindi}</td>
+                  <td>{p.name_english}</td>
+                  <td>{p.symbol}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Section>
+
+      {confirming && (
+        <PasswordDialog
+          title="पार्टी जोड़ें?"
+          explain={`पार्टी "${form.shortName}" (${form.nameHindi}) सूची में जुड़ेगी। बाद में इसे बदला नहीं जा सकेगा।`}
+          confirmLabel="हाँ, जोड़ें"
+          onConfirm={add}
+          onCancel={() => {
+            setConfirming(false);
+          }}
+        />
+      )}
+    </>
+  );
+}

@@ -11,7 +11,8 @@ members, ward-wise. Project rules are in [CLAUDE.md](CLAUDE.md). This repository
 **Part 7** (public screen API, live updates, screen layout, demo simulation) and
 **Part 8** (the Hindi operator dashboard for PS/ZP Returning Officers, served by the backend) and
 **Part 9** (the three media-room TV screens; 9.2: redesign and Hindi PS names) and
-**Part 10** (the DM's read-only reports).
+**Part 10** (the DM's read-only reports) and
+**Part 13** (DM master-data tools in the browser, and RO candidate entry; see "प्रबंधन और उम्मीदवार").
 
 ```
 backend/    Node.js + Express + TypeScript API, Knex migrations, tests
@@ -113,8 +114,9 @@ Production build: `npm run build && npm start`. Migrations also run from the bui
 
 ## Master data runbook (Part 2)
 
-All master data is loaded by command-line scripts **on the server**, never through a web page.
-Run them from `backend/`. File paths are relative to where you type the command.
+Master data can be loaded by command-line scripts **on the server** (this section) or, since Part 13,
+by the DM in the browser (see "प्रबंधन और उम्मीदवार"). Both use the **same rules and the same code**
+(`backend/src/services/master-data/`). Run the scripts from `backend/`. File paths are relative to where you type the command.
 
 **How every script behaves:**
 - **Dry run by default.** Without `--commit` it checks everything (including database rules)
@@ -277,7 +279,9 @@ All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS 
   real client IP is used. **Never `true`**, because then anyone could fake their IP with `X-Forwarded-For`.
 
 **Roles** (checked on the server for every request)
-- **DM:** read-only. A global guard returns 403 to any DM POST/PUT/PATCH/DELETE except login and logout.
+- **DM:** never counts, edits, voids, declares or corrects. A global guard returns 403 to any DM
+  POST/PUT/PATCH/DELETE except login, logout and (Part 13) an exact allow-list of `POST /api/admin/...`
+  master-data paths (`dmWriteAllowed` in `src/middleware/auth.ts`).
 - **PS_RO:** only PS ballots and wards of their own Panchayat Samiti.
 - **ZP_RO:** only ZP ballots and wards.
 - Later parts use `requireAuth`, `requireRole(...)` (`src/middleware/auth.ts`) and `canWriteBallot`,
@@ -664,7 +668,8 @@ font is Noto Sans Devanagari (official v2.007 TTF, OFL licence) in `frontend/src
 
 **Who sees what**
 - **PS_RO / ZP_RO:** their wards, booth entry, edit, void, postal, history, declare, correction.
-- **DM:** the read-only reports (Part 10, "DM reports" below); never any entry or declare action.
+- **DM:** the read-only reports (Part 10, "DM reports" below) and the master-data tools (Part 13); never
+  any entry or declare action.
 - **Wrong ward or entry:** a direct URL to another PS's ward or entry shows "अनुमति नहीं".
 
 ### Development (two terminals)
@@ -990,6 +995,196 @@ The DM logs in and lands on **`/reports`**, a read-only dashboard in Hindi (`/dm
   number of queries, and cached for 5 s.
 - **`GET /api/reports/wards/:wardId`:** the ward detail.
 - **The numbers:** all vote numbers come from the result engine (`result.ts`).
+
+## प्रबंधन और उम्मीदवार (Part 13)
+
+The DM manages the master data in the browser, and each RO fills in the candidate lists of their own
+wards. The rules are exactly the Part 2 importer rules: the CLI scripts and these pages call the same code
+in `backend/src/services/master-data/`. The DM still **never** enters votes, edits or voids entries,
+declares or corrects.
+
+**Pages**
+
+| Who | Menu | What it is for |
+|---|---|---|
+| DM | रिपोर्ट | the Part 10 reports (unchanged) |
+| DM | उम्मीदवार सूची | 1. upload the candidate Excel (all PS and ZP wards); 2. "उम्मीदवार जाँच": status per PS / ZP, ballot report (.xlsx) for printing and the two-person cross-check, "वापस भेजें", "लॉक करें" |
+| DM | RO सूची | the 13 PS posts and the ZP post: नया RO बनाएँ, RO बदलें, पासवर्ड बदलें, बंद / चालू करें, लॉक खोलें |
+| DM | बूथ / वार्ड | booth name, registered voters, move a booth to another ward, a ward's reservation category |
+| DM | पार्टी सूची | upload the parties Excel, or add one party |
+| PS_RO / ZP_RO | उम्मीदवार | own wards with status सूची बाकी / सूची तैयार / लॉक; per ward: ballot number, Hindi name, party (or निर्दलीय), gender; then "सूची तैयार है" |
+
+**How the screens work**
+- **Uploads go in 4 steps:** 1 फ़ाइल चुनें → 2 जाँच → 3 पूर्वावलोकन → 4 सेव. Only the current step's
+  button is enabled.
+  - **Check:** runs in a `READ ONLY` transaction, so it can never write. Problems come back in simple
+    Hindi, with the row number and how to fix them, e.g. "पंक्ति 15: … वार्ड 5 में बैलेट नंबर 2 दो बार है
+    — Excel में इसे ठीक करके फ़ाइल फिर से चुनें".
+  - **Save:** needs the DM's password and runs **every** check again inside the write transaction. One
+    problem means nothing is written.
+  - **Templates:** each upload page links to an empty template (the same as `npm run templates:generate`).
+- **Sensitive actions need the user's password typed again:** saving an upload, adding a party, वापस
+  भेजें, लॉक, every RO action, booth and ward changes, and the RO's "सूची तैयार है".
+  - A wrong password answers `REAUTH_FAILED`, counts toward the normal 5-try lockout, and writes nothing
+    else.
+  - Dangerous actions open a confirmation box that says in one sentence what will happen.
+- **New passwords** (create, replace, reset) are shown **once** in a large box with "प्रिंट करें" (which
+  prints only that box) and "यह पासवर्ड दोबारा नहीं दिखेगा".
+  - The response has `Cache-Control: no-store`.
+  - The password is never stored, logged or put in the audit log.
+
+**Rules (enforced on the server)**
+- **Candidate lists:**
+  - ballot numbers 1..N with no gaps or repeats
+  - at most one candidate per party per ward (independents exempt)
+  - name and gender required; at most 59 candidates, so the ballot fits the 60-row counting sheet
+  - NOTA is added automatically at N+1; exactly one candidate means निर्विरोध (no NOTA)
+  - The RO saves the **whole** list of a ward at once, so a half-edited list is never stored.
+- **Nothing about a ward's candidates may change once its ballot is locked or any counting entry exists.**
+  The same applies to a booth's name, a booth move (old and new ward) and a ward's reservation category.
+- **Registered voters** (male / female / other; the total is computed on the server) may change until the
+  booth has a counting entry: the same rule as `npm run import:voters`.
+  - All three numbers must be typed; empty is never saved as 0.
+  - "Other" is not stored separately: it is total − male − female.
+- **List status:**
+  - A DM upload marks its wards **सूची तैयार**.
+  - Any RO change clears the mark.
+  - "वापस भेजें" (reason, 10–500 characters) clears it and shows the reason to the RO.
+  - Status lives in `ward.candidates_ready_at / candidates_ready_by / candidates_return_reason`
+    (migration `20261013000001`).
+- **Lock** (one PS, all PS, or ZP) uses the existing lock rule.
+  - **Refused:** wards without candidates are listed and refused (all or nothing).
+  - **Warned:** wards not marked ready are listed as a warning only.
+  - **Confirmation:** the DM types `LOCK` and the password.
+  - **Plan changed:** if the wards changed since the preview, the answer is `LOCK_PLAN_CHANGED`.
+- **Accounts:** at most one active login per post (`users.active_slot`), so never more than 15 active
+  logins.
+  - **नया RO बनाएँ:** works only for a post that never had an account. The Part 2 limits are unchanged,
+    and disabled accounts count.
+  - **RO बदलें:** the one exception. It disables the old account (logging it out at once) and creates the
+    new one in the same transaction. The old account is kept so the audit history keeps the right
+    person.
+  - **Usernames** get a random suffix: `ro_<3 letters of the PS>_<4>` or `zp_ro_<4>`.
+  - **पासवर्ड बदलें and बंद करें** also end the RO's open sessions.
+  - **The DM's own account** is never managed here (CLI only).
+- **No overlap with the CLI:** web changes and CLI master-data scripts share the MySQL lock
+  `churu_master_data`. While a script runs, a web change waits up to 5 s, then answers
+  `MASTER_DATA_BUSY`.
+- **Lock order:** every write locks the affected `ward` rows `FOR UPDATE` first (ascending id), the
+  same first lock as counting and declare.
+- **Uploads:** an upload is base64 inside JSON (no new npm package), at most 5 MB.
+  - **Body limit:** only these 4 routes accept the larger body, and only after the DM role check. All
+    other routes keep 100 kb.
+  - **Before exceljs reads it:** the bytes must be a real .xlsx: a ZIP that lists `[Content_Types].xml`
+    and `xl/workbook.xml`, has at most 2,000 entries, and at most 50 MB uncompressed (zip-bomb guard).
+    At most 10,000 rows.
+
+**Changes to the Part 2 scripts (same output, same tests):**
+- **Shared code:** the scripts are now thin wrappers over `src/services/master-data/`.
+- **`import:candidates`:**
+  - also clears the "ready" mark of the wards it replaces
+  - refuses a ward with more than 59 candidates
+  - refuses names over 200 characters, with a clear message instead of a database error
+- **`import:parties`:** checks the column lengths in the same way.
+
+**API** (DM: `/api/admin`, all `requireRole('DM')`; RO: `/api/candidates`, PS_RO own PS / ZP_RO ZP)
+
+| Method | Path | Password | What it does |
+|---|---|---|---|
+| GET | `/api/admin/parties` | | party list |
+| POST | `/api/admin/parties/check` | – | `{fileName, fileBase64}` → `{ok, errors, warnings, preview}`; writes nothing |
+| POST | `/api/admin/parties/save` | ✓ | same body + `password`; all or nothing |
+| POST | `/api/admin/parties/add` | ✓ | `{nameHindi, nameEnglish, shortName, symbol, password}` |
+| GET | `/api/admin/templates/parties.xlsx`, `/candidates.xlsx` | | empty templates |
+| POST | `/api/admin/candidates/check` | – | as parties; preview per ward |
+| POST | `/api/admin/candidates/save` | ✓ | as parties; marks the wards ready |
+| GET | `/api/admin/candidate-status[?area=PS:<id>\|ZP]` | | counts per PS / ZP; with `area`, its wards |
+| GET | `/api/admin/wards/:id/candidates` | | one ward's list |
+| POST | `/api/admin/wards/:id/send-back` | ✓ | `{reason, password}` |
+| GET | `/api/admin/lock/preview?area=PS:<id>\|ALL_PS\|ZP` | | to lock / refused / not ready |
+| POST | `/api/admin/lock` | ✓ | `{area, confirmText: "LOCK", expectedWardIds, password}` |
+| GET | `/api/admin/ballot-report.xlsx?scope=PS:<id>\|ZP\|ALL` | | printable ballot report (audited) |
+| GET | `/api/admin/users` | | the posts and their accounts |
+| POST | `/api/admin/users/create` | ✓ | `{seat: "PS:<id>"\|"ZP", fullName, password}` → `{username, password}` |
+| POST | `/api/admin/users/:id/replace` | ✓ | `{fullName, password}` → `{username, password}` |
+| POST | `/api/admin/users/:id/reset-password` | ✓ | → `{username, password}` |
+| POST | `/api/admin/users/:id/disable`, `enable`, `unlock` | ✓ | `{password}` |
+| GET | `/api/admin/booths?psId=<id>[&wardNo=<n>]`, `/api/admin/wards?psId=<id>` | | search |
+| POST | `/api/admin/booths/:id` | ✓ | `{nameHindi, votersMale, votersFemale, votersOther, reason, password}` |
+| POST | `/api/admin/booths/:id/move` | ✓ | `{psWardId, zpWardId, reason, password}` |
+| POST | `/api/admin/wards/:id/category` | ✓ | `{category, reason, password}` |
+| GET | `/api/candidates/wards` | | the RO's wards with list status |
+| GET | `/api/candidates/wards/:id` | | list + parties |
+| PUT | `/api/candidates/wards/:id` | – | `{candidates: [{ballotPosition, nameHindi, partyId\|null, gender}]}` |
+| POST | `/api/candidates/wards/:id/ready` | ✓ | `{password}` |
+
+**Audit actions** (user, IP, old and new values; never a password):
+- **Parties and candidates:** `IMPORT_PARTIES`, `PARTY_ADDED`, `IMPORT_CANDIDATES`, `CANDIDATES_SAVED`,
+  `CANDIDATES_READY`, `CANDIDATES_SENT_BACK`
+- **Ballots:** `BALLOT_LOCK`, `BALLOT_REPORT_DOWNLOADED`
+- **Accounts:** `USER_CREATE`, `USER_REPLACE`, `USER_RESET_PASSWORD`, `USER_DISABLE`, `USER_ENABLE`,
+  `USER_UNLOCKED`
+- **Booths and wards:** `BOOTH_UPDATED`, `BOOTH_MOVED`, `WARD_CATEGORY_UPDATED`
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `CHECK_FAILED` | 400 | Save found problems: `errors: [{rows, message}]` (Hindi). Nothing written. |
+| `NOT_XLSX` | 400 | Not a real .xlsx file |
+| `FILE_TOO_LARGE` | 400 | Over 5 MB |
+| `BOOTH_NAME_INVALID` | 400 | Booth name empty, not Hindi, or over 300 characters |
+| `WARD_NOT_ALLOWED` | 400 | Move target is not a PS ward of the booth's PS / not a ZP ward |
+| `CATEGORY_TOO_LONG` | 400 | Reservation category over 50 characters |
+| `BALLOT_LOCKED` | 409 | The ward's ballot is locked |
+| `COUNTING_STARTED` | 409 | A counting entry exists |
+| `LOCK_REFUSED` | 409 | Wards without candidates: `wards` |
+| `LOCK_PLAN_CHANGED` | 409 | The wards changed since the preview |
+| `NOTHING_TO_LOCK` | 409 | Everything in the area is already locked |
+| `SEAT_TAKEN` | 409 | The post already has an (active) account |
+| `LIST_EMPTY` | 409 | "सूची तैयार है" on a ward without candidates |
+| `MASTER_DATA_BUSY` | 409 | A CLI script or another change holds the master-data lock |
+
+**Small fixes in this part**
+- `frontend/scripts/check-csp.mjs` uses `fileURLToPath`, so `npm run build` works on Windows too.
+- Close contests "अंतर %":
+  - 2 decimals below 1% (`0.03%`)
+  - `<0.01%` for tiny non-zero margins
+  - never `0%` for a non-zero margin
+  - One formatter (`formatMarginPercent`) feeds the screen and the CSV.
+
+### How to test manually (Part 13)
+1. `cd backend && npm run migrate`, then `npm run dev`; `cd frontend && npm run dev`. Log in as the DM.
+2. **Parties:** पार्टी सूची → choose a parties Excel → "2. जाँच करें".
+   - A duplicate short name shows "पंक्तियाँ …: छोटा नाम … एक से अधिक बार है".
+   - Fix the file → check → "4. सेव करें" → type a **wrong** password: "पासवर्ड गलत है", and nothing is
+     added.
+   - Then the right password: "सूची सेव हो गई".
+3. **Candidates:** उम्मीदवार सूची → अपलोड → choose a file with a repeated ballot number.
+   - The Hindi error has the row number, and "4. सेव करें" never appears.
+   - Fix it, check: the preview shows NOTA rows and निर्विरोध wards. Save with the password.
+4. **RO:** log in as a PS_RO → उम्मीदवार → open a ward.
+   - Change a name, delete a row so the numbers have a gap → "सूची सेव करें" shows the gap error.
+   - Fix it → saved → "सूची तैयार है" (password).
+   - Another PS's ward by URL shows "अनुमति नहीं".
+5. **Send back:** DM → उम्मीदवार जाँच → open the PS → "वापस भेजें" with a reason. The RO sees the reason
+   and status सूची बाकी.
+6. **Report:** DM → "रिपोर्ट (Excel) डाउनलोड करें" opens in Excel.
+7. **Lock:** "इस पंचायत समिति को लॉक करें" lists wards without candidates and refuses. When every ward has
+   candidates, type LOCK and the password.
+   - The RO's form is now read-only.
+   - The RO can enter a booth on the ward page.
+8. **RO accounts:** RO सूची → open a post.
+   - "पासवर्ड बदलें": the big box shows the password once; the old password no longer logs in, and the
+     RO's open browser is logged out.
+   - "RO बदलें": the old username no longer logs in; the new one does.
+   - "बंद करें" / "चालू करें" / "लॉक खोलें" (after 5 wrong logins) all work.
+9. **Booths:** बूथ / वार्ड → choose the PS → open a booth.
+   - Change the voters: the total is computed.
+   - On a booth with an entry, the voters are disabled.
+   - The name and move are disabled on a locked ward.
+10. **Audit:** `SELECT action, new_value FROM audit_log ORDER BY id DESC LIMIT 20;` lists every action
+    above, with no passwords.
+11. **DM still can't count:** as the DM, `POST /api/counting/entries` (curl, with the CSRF token) answers
+    403.
 
 ## Database users
 

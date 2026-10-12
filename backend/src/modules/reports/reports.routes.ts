@@ -230,7 +230,7 @@ export function csvRows(
           c.winner,
           c.runnerUp,
           c.margin,
-          c.marginPercent,
+          c.marginPercentText,
           c.totalValidVotes,
         ]),
       ];

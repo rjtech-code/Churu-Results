@@ -101,8 +101,18 @@ export interface E2eScreens {
   zpReady: { wardId: number; wardNo: number };
 }
 
+/** Part 13 (admin.spec): a PS whose candidate lists are still to be made, with its own RO. */
+export interface E2eAdmin {
+  psId: number;
+  psNameEnglish: string;
+  /** Replaced during the admin spec (no other spec uses this account). */
+  ro: string;
+  wards: { id: number; wardNo: number; boothId: number }[];
+}
+
 export interface E2eWorld {
   password: string;
+  admin: E2eAdmin;
   /** One active PS_RO per PS is allowed: ro = Churu (most specs), roOther = Rajgarh. */
   users: { ro: string; roOther: string; zp: string; dm: string };
   wards: Record<string, E2eWard>;
@@ -252,18 +262,39 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
     }
   }
   const screens = await seedScreens(app, server, { ps1, ps3, ward, lock }, users.zp);
+
+  // Part 13: Bidasar, two unlocked wards without candidates (the admin spec uploads them).
+  const ps4 = await insert(
+    app,
+    'INSERT INTO panchayat_samiti (district_id, name_english, name_hindi) SELECT district_id, ?, ? FROM panchayat_samiti WHERE id = ?',
+    ['BIDASAR PANCHAYAT SAMITI', 'बीदासर', ps1],
+  );
+  const adminWards: E2eAdmin['wards'] = [];
+  for (const wardNo of [1, 2]) {
+    const id = await ward('PS', ps4, wardNo);
+    adminWards.push({ id, wardNo, boothId: await booth(ps4, wardNo, id) });
+  }
+  const admin: E2eAdmin = {
+    psId: ps4,
+    psNameEnglish: 'BIDASAR PANCHAYAT SAMITI',
+    ro: 'e2e_ro_bidasar',
+    wards: adminWards,
+  };
+  await createUser(app, { username: admin.ro, role: 'PS_RO', psId: ps4, password: E2E_PASSWORD });
+
   // Written LAST: the running e2e server polls this setting and rebuilds its public snapshot within
   // ~2 s, so the TV screens show the finished data (the seed runs in another process, so the server
   // gets no change events). The default layout names all real PS; this district has three.
   const layout: ScreenLayout = {
     '1': ['CHURU PANCHAYAT SAMITI'],
-    '2': ['SARDARSHAHAR PANCHAYAT SAMITI', 'RAJGARH PANCHAYAT SAMITI'],
+    // Bidasar (Part 13 admin spec) last, so the screen-2 rotation specs still end at Rajgarh.
+    '2': ['SARDARSHAHAR PANCHAYAT SAMITI', 'RAJGARH PANCHAYAT SAMITI', 'BIDASAR PANCHAYAT SAMITI'],
   };
   await app.execute('UPDATE app_settings SET setting_value = ? WHERE setting_key = ?', [
     JSON.stringify(layout),
     SCREEN_LAYOUT_KEY,
   ]);
-  return { password: E2E_PASSWORD, users, wards, otherPsWard, screens };
+  return { password: E2E_PASSWORD, admin, users, wards, otherPsWard, screens };
 }
 
 type PartyKey = 'BJP' | 'INC' | 'RLP';

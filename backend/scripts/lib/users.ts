@@ -1,12 +1,9 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
-export type Role = 'PS_RO' | 'ZP_RO' | 'DM';
-export const ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM'];
+import type { Role } from '../../src/services/master-data/accounts.js';
 
-/** Exactly 15 logins in total: 13 PS_RO (one per PS), 1 ZP_RO, 1 DM. Disabled accounts count. */
-export const ROLE_LIMITS: Readonly<Record<Role, number>> = { PS_RO: 13, ZP_RO: 1, DM: 1 };
-
-export const USERNAME_PATTERN = /^[a-z0-9_]{4,30}$/;
+export { ROLES, ROLE_LIMITS, USERNAME_PATTERN } from '../../src/services/master-data/accounts.js';
+export type { Role } from '../../src/services/master-data/accounts.js';
 
 export interface UserRow {
   id: number;

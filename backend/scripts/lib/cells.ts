@@ -1,25 +1,24 @@
+// CLI adapters over the shared cell rules (src/services/master-data/cells.ts): same rules, the
+// problems go straight into the script's Report in English.
+import * as shared from '../../src/services/master-data/cells.js';
+import { IssueList } from '../../src/services/master-data/issues.js';
+import { reportIssues } from '../../src/services/master-data/issues-en.js';
 import type { Report } from './report.js';
 import type { SheetRow } from './xlsx.js';
 
+function withReport<T>(report: Report, check: (issues: IssueList) => T): T {
+  const issues = new IssueList();
+  const value = check(issues);
+  reportIssues(report, issues);
+  return value;
+}
+
 /** Required text cell. Reports an error and returns null when empty. */
 export function requireText(row: SheetRow, column: string, report: Report): string | null {
-  const value = row.cells[column] ?? null;
-  if (value === null) {
-    report.error(`"${column}" is empty`, row.rowNumber);
-    return null;
-  }
-  return String(value);
+  return withReport(report, (issues) => shared.requireText(row, column, issues));
 }
 
-export function optionalText(row: SheetRow, column: string): string | null {
-  const value = row.cells[column] ?? null;
-  return value === null ? null : String(value);
-}
-
-function toInteger(value: string | number): number | null {
-  if (typeof value === 'number') return Number.isSafeInteger(value) ? value : null;
-  return /^\d+$/.test(value) ? Number(value) : null;
-}
+export const optionalText = shared.optionalText;
 
 /** Whole number >= min (min is 1 for "positive", 0 for "non-negative"). */
 export function requireInt(
@@ -28,12 +27,7 @@ export function requireInt(
   report: Report,
   min: 0 | 1,
 ): number | null {
-  const value = row.cells[column] ?? null;
-  if (value === null) {
-    report.error(`"${column}" is empty`, row.rowNumber);
-    return null;
-  }
-  return checkInt(value, row, column, report, min);
+  return withReport(report, (issues) => shared.requireInt(row, column, issues, min));
 }
 
 /** Like requireInt, but an empty cell gives `fallback`. */
@@ -44,22 +38,5 @@ export function optionalInt(
   min: 0 | 1,
   fallback: number,
 ): number | null {
-  const value = row.cells[column] ?? null;
-  return value === null ? fallback : checkInt(value, row, column, report, min);
-}
-
-function checkInt(
-  value: string | number,
-  row: SheetRow,
-  column: string,
-  report: Report,
-  min: 0 | 1,
-): number | null {
-  const n = toInteger(value);
-  if (n === null || n < min) {
-    const rule = min === 1 ? 'a whole number greater than 0' : 'a whole number (0 or more)';
-    report.error(`"${column}" must be ${rule}, got "${String(value)}"`, row.rowNumber);
-    return null;
-  }
-  return n;
+  return withReport(report, (issues) => shared.optionalInt(row, column, issues, min, fallback));
 }

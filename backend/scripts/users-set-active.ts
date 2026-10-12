@@ -1,5 +1,6 @@
 // npm run users:disable -- --username <u> [--commit]
 // npm run users:enable  -- --username <u> [--commit]
+import { setAccountActive } from '../src/services/master-data/accounts.js';
 import { writeAudit } from './lib/audit.js';
 import { UsageError, isMainModule, parseCli, runCli } from './lib/cli.js';
 import { inTransaction } from './lib/db.js';
@@ -35,10 +36,7 @@ export async function runUsersSetActive(
           report.error(`"${username}" is already ${active ? 'enabled' : 'disabled'}.`);
           return { commit: false, value: undefined };
         }
-        await conn.execute('UPDATE users SET is_active = ? WHERE id = ?', [
-          active ? 1 : 0,
-          user.id,
-        ]);
+        await setAccountActive(conn, user.id, active);
         await writeAudit(conn, {
           action: active ? 'USER_ENABLE' : 'USER_DISABLE',
           entity: 'users',

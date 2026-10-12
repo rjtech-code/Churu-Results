@@ -1,15 +1,18 @@
 // npm run users:create -- --role <PS_RO|ZP_RO|DM> --username <u> [--ps <name>] --full-name "<name>" [--commit]
-import type { ResultSetHeader } from 'mysql2/promise';
+import {
+  accountIssueTextEn,
+  checkNewAccount,
+  insertAccount,
+} from '../src/services/master-data/accounts.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
-import { countOf, inTransaction } from './lib/db.js';
+import { inTransaction } from './lib/db.js';
 import { loadPanchayatSamitis } from './lib/lookups.js';
-import { generatePassword, hashPassword } from './lib/password.js';
 import { Report } from './lib/report.js';
 import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
 import { matchKey, normalizeText } from './lib/text.js';
-import { ROLES, ROLE_LIMITS, USERNAME_PATTERN, findUser, passwordBanner } from './lib/users.js';
+import { ROLES, USERNAME_PATTERN, passwordBanner } from './lib/users.js';
 import type { Role } from './lib/users.js';
 
 export interface CreateUserOptions {
@@ -50,8 +53,6 @@ export async function runUsersCreate(
   if (report.isOk()) {
     try {
       const result = await inTransaction<string | null>(ctx.pool, async (conn) => {
-        if (await findUser(conn, username)) report.error(`Username "${username}" already exists.`);
-
         let psId: number | null = null;
         let psName: string | null = null;
         if (role === 'PS_RO' && options.ps !== undefined) {
@@ -60,42 +61,23 @@ export async function runUsersCreate(
           else {
             psId = ps.id;
             psName = ps.name_english;
-            const forPs = await countOf(
-              conn,
-              "SELECT COUNT(*) AS n FROM users WHERE role = 'PS_RO' AND panchayat_samiti_id = ?",
-              [ps.id],
-            );
-            if (forPs > 0)
-              report.error(`${ps.name_english} already has a PS_RO account (one per PS).`);
           }
         }
-        const sameRole = await countOf(conn, 'SELECT COUNT(*) AS n FROM users WHERE role = ?', [
-          role,
-        ]);
-        if (sameRole >= ROLE_LIMITS[role]) {
-          report.error(
-            `There are already ${sameRole} ${role} account(s); the limit is ${ROLE_LIMITS[role]} (disabled accounts count).`,
-          );
-        }
+        for (const issue of await checkNewAccount(conn, { role, username, psId, psName }))
+          report.error(accountIssueTextEn(issue));
         report.line(
           `Account: ${username} — ${role}${psName === null ? '' : ` — ${psName}`} — ${fullName}`,
         );
         if (!report.isOk() || options.commit !== true) return { commit: false, value: null };
 
-        const newPassword = generatePassword();
-        const hash = await hashPassword(newPassword);
-        const [inserted] = await conn.execute<ResultSetHeader>(
-          `INSERT INTO users (username, full_name, password_hash, role, panchayat_samiti_id)
-           VALUES (?, ?, ?, ?, ?)`,
-          [username, fullName, hash, role, psId],
-        );
+        const inserted = await insertAccount(conn, { username, fullName, role, psId });
         await writeAudit(conn, {
           action: 'USER_CREATE',
           entity: 'users',
-          entityId: inserted.insertId,
+          entityId: inserted.id,
           newValue: { username, full_name: fullName, role, panchayat_samiti: psName },
         });
-        return { commit: true, value: newPassword };
+        return { commit: true, value: inserted.password };
       });
       committed = result.committed;
       password = result.committed ? result.value : null;

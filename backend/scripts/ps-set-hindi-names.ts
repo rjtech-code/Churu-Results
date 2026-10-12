@@ -11,10 +11,9 @@ import { resolveUserPath } from './lib/paths.js';
 import { Report } from './lib/report.js';
 import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
-import { matchKey, normalizeText } from './lib/text.js';
+import { hasDevanagari, matchKey, normalizeText } from './lib/text.js';
 
 const MAX_LEN = 200; // panchayat_samiti.name_hindi VARCHAR(200)
-const DEVANAGARI = /[ऀ-ॿ]/u;
 
 interface PsRow {
   id: number;
@@ -38,7 +37,7 @@ function parseNames(raw: unknown, report: Report): Map<string, { typed: string; 
     }
     const hindi = normalizeText(value);
     if (hindi === '') report.error(`"${typed}": the Hindi name is empty.`);
-    else if (!DEVANAGARI.test(hindi))
+    else if (!hasDevanagari(hindi))
       report.error(`"${typed}": "${hindi}" is not a Hindi (Devanagari) name.`);
     else if (hindi.length > MAX_LEN)
       report.error(`"${typed}": the Hindi name is longer than ${MAX_LEN} characters.`);

@@ -281,7 +281,7 @@ export function Close({ rows }: { rows: ScopeSections['close'] }) {
             <td>{r.winner}</td>
             <td>{r.runnerUp ?? '—'}</td>
             <td className="num">{num(r.margin)}</td>
-            <td className="num">{pct(r.marginPercent)}</td>
+            <td className="num">{r.marginPercentText}</td>
             <td className="num">{num(r.totalValidVotes)}</td>
           </tr>
         ))}

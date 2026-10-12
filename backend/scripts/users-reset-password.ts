@@ -1,8 +1,8 @@
 // npm run users:reset-password -- --username <u> [--commit]
+import { setNewPassword } from '../src/services/master-data/accounts.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
 import { inTransaction } from './lib/db.js';
-import { generatePassword, hashPassword } from './lib/password.js';
 import { Report } from './lib/report.js';
 import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
@@ -38,11 +38,7 @@ export async function runUsersResetPassword(
           report.warn('This account is DISABLED; run users:enable to allow login.');
         if (options.commit !== true) return { commit: false, value: null };
 
-        const newPassword = generatePassword();
-        await conn.execute(
-          'UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL WHERE id = ?',
-          [await hashPassword(newPassword), user.id],
-        );
+        const newPassword = await setNewPassword(conn, user.id);
         await writeAudit(conn, {
           action: 'USER_RESET_PASSWORD',
           entity: 'users',

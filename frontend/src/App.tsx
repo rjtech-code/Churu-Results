@@ -14,6 +14,18 @@ import { PostalPage } from './pages/PostalPage';
 import { NotAllowedPage, NotFoundPage } from './pages/SimplePages';
 import { ReportWardPage } from './pages/reports/ReportWardPage';
 import { ReportsHomePage } from './pages/reports/ReportsHomePage';
+import { BoothEditPage } from './pages/admin/BoothEditPage';
+import { BoothsPage } from './pages/admin/BoothsPage';
+import { CandidateAreaPage } from './pages/admin/CandidateAreaPage';
+import { CandidateCheckPage } from './pages/admin/CandidateCheckPage';
+import { CandidateUploadPage } from './pages/admin/CandidateUploadPage';
+import { CandidatesHomePage } from './pages/admin/CandidatesHomePage';
+import { PartiesPage } from './pages/admin/PartiesPage';
+import { UserSeatPage } from './pages/admin/UserSeatPage';
+import { UsersPage } from './pages/admin/UsersPage';
+import { WardCategoryPage } from './pages/admin/WardCategoryPage';
+import { RoCandidateWardPage } from './pages/candidates/RoCandidateWardPage';
+import { RoCandidateWardsPage } from './pages/candidates/RoCandidateWardsPage';
 import { WardDetailPage } from './pages/WardDetailPage';
 import { WardListPage } from './pages/WardListPage';
 
@@ -56,6 +68,9 @@ export const router = createBrowserRouter([
           { path: '/entries/:entryId/history', element: <HistoryPage kind="BOOTH" /> },
           { path: '/postal/:entryId/void', element: <EntryVoidPage kind="POSTAL" /> },
           { path: '/postal/:entryId/history', element: <HistoryPage kind="POSTAL" /> },
+          // Part 13: the RO's candidate lists.
+          { path: '/candidates', element: <RoCandidateWardsPage /> },
+          { path: '/candidates/:wardId', element: <RoCandidateWardPage /> },
         ],
       },
       {
@@ -65,6 +80,17 @@ export const router = createBrowserRouter([
           { path: '/reports', element: <ReportsHomePage /> },
           { path: '/reports/wards/:wardId', element: <ReportWardPage /> },
           { path: '/dm', element: <Navigate to="/reports" replace /> },
+          // Part 13: the DM's master-data tools (never votes, entries, declare or correction).
+          { path: '/admin/parties', element: <PartiesPage /> },
+          { path: '/admin/candidates', element: <CandidatesHomePage /> },
+          { path: '/admin/candidates/upload', element: <CandidateUploadPage /> },
+          { path: '/admin/candidates/check', element: <CandidateCheckPage /> },
+          { path: '/admin/candidates/check/:area', element: <CandidateAreaPage /> },
+          { path: '/admin/users', element: <UsersPage /> },
+          { path: '/admin/users/:seat', element: <UserSeatPage /> },
+          { path: '/admin/booths', element: <BoothsPage /> },
+          { path: '/admin/booths/:psId/:boothId', element: <BoothEditPage /> },
+          { path: '/admin/wards/:psId', element: <WardCategoryPage /> },
         ],
       },
       {

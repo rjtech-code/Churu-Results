@@ -118,7 +118,10 @@ export interface ScopeSections {
     winner: string;
     runnerUp: string | null;
     margin: number;
+    /** margin / valid votes × 100, to 4 decimals. */
     marginPercent: number;
+    /** The one display form (screen and CSV), e.g. "0.03%", "<0.01%", "1.2%". */
+    marginPercentText: string;
     totalValidVotes: number;
   }[];
   lottery: {
@@ -163,6 +166,19 @@ export function isCloseContest(margin: number, totalValidVotes: number): boolean
 
 const WINNER_STATUSES = new Set<PublicStatus>(['DECLARED', 'TIE_RESOLVED', 'UNOPPOSED']);
 const oneDecimal = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * "अंतर %" of a close contest, the ONE formatter for the screen and the CSV:
+ *   0 -> "0%"; non-zero below 0.01% -> "<0.01%"; below 1% -> 2 decimals ("0.03%");
+ *   otherwise 1 decimal ("1.2%"). A non-zero margin is never shown as "0%".
+ */
+export function formatMarginPercent(margin: number, validVotes: number): string {
+  if (margin === 0 || validVotes === 0) return '0%';
+  const pct = (margin * 100) / validVotes;
+  if (pct < 0.01) return '<0.01%';
+  if (pct < 1) return `${(Math.round(pct * 100) / 100).toFixed(2)}%`;
+  return `${oneDecimal(pct).toFixed(1)}%`;
+}
 
 interface WardInfo {
   meta: WardMeta;
@@ -320,7 +336,10 @@ export function buildReport(
             runnerUp: r.runnerUp?.nameHindi ?? null,
             margin: r.margin,
             marginPercent:
-              r.totalValidVotes === 0 ? 0 : oneDecimal((r.margin * 100) / r.totalValidVotes),
+              r.totalValidVotes === 0
+                ? 0
+                : Math.round((r.margin * 1_000_000) / r.totalValidVotes) / 10_000,
+            marginPercentText: formatMarginPercent(r.margin, r.totalValidVotes),
             totalValidVotes: r.totalValidVotes,
           },
         ];

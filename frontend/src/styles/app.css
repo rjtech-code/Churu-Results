@@ -78,6 +78,32 @@ a {
   font-size: 1.3rem;
   font-weight: 700;
 }
+/* Main menu (Part 13): at most 5 plain items, always visible, inside the blue header row. */
+.topbar .who {
+  min-width: 0; /* the name shrinks (wraps inside), the header row never grows a second row */
+}
+.mainnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+.mainnav .navitem {
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+.mainnav .navitem:hover {
+  border-color: #fff;
+}
+.mainnav .navitem.active {
+  background: #fff;
+  color: var(--brand);
+  border-color: #fff;
+}
 .page {
   padding: 0.6rem 1.2rem 1rem;
   max-width: 1500px;

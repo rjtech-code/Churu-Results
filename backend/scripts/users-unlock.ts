@@ -1,6 +1,7 @@
 // npm run users:unlock -- --username <u> --by "<name>" [--commit]
 // Clears a login lockout (locked_until and failed_login_count). Does not change the password.
 import type { RowDataPacket } from 'mysql2/promise';
+import { clearLoginLock } from '../src/services/master-data/accounts.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
 import { inTransaction } from './lib/db.js';
@@ -53,10 +54,7 @@ export async function runUsersUnlock(
             ? `"${username}" is LOCKED; the lock and ${failed} failed login(s) will be cleared.`
             : `"${username}" is not locked now; leftover values (failed logins: ${failed}${lockedUntil === null ? '' : ', an expired lock'}) will be cleared.`,
         );
-        await conn.execute(
-          'UPDATE users SET locked_until = NULL, failed_login_count = 0 WHERE id = ?',
-          [Number(user.id)],
-        );
+        await clearLoginLock(conn, Number(user.id));
         await writeAudit(conn, {
           action: 'USER_UNLOCKED',
           entity: 'users',

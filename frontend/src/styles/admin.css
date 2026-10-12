@@ -1,0 +1,220 @@
+/* Part 13: the DM's master-data tools and the RO's candidate lists. Same colours as the operator
+   dashboard (variables from app.css); large text; no horizontal scroll at 1366x768. */
+
+.page-hint {
+  font-size: 1.1rem;
+  margin: -0.3rem 0 1rem;
+  color: var(--muted);
+}
+.admin-section {
+  margin: 1.6rem 0;
+  padding-top: 0.4rem;
+  border-top: 2px solid #d5dbe5;
+}
+.main-action {
+  margin-top: 1.2rem;
+}
+.big-explain {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Numbered steps: 1 फ़ाइल चुनें → 2 जाँच → 3 पूर्वावलोकन → 4 सेव */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 1rem;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.step-arrow {
+  color: var(--muted);
+  font-weight: 700;
+}
+.step {
+  padding: 0.35rem 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+}
+.step-no {
+  font-weight: 700;
+}
+.step-current {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+.step-done {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* Problem lists: colour always with a symbol and words. */
+.issues {
+  padding: 0.6rem 1rem;
+  border-left: 6px solid;
+  margin: 0.8rem 0;
+}
+.issues h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+.issues ul {
+  margin: 0;
+  padding-left: 1.3rem;
+}
+.issues li {
+  margin: 0.25rem 0;
+}
+.issues-error {
+  background: var(--bad-bg);
+  color: var(--bad);
+  border-color: var(--bad);
+}
+.issues-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.issues:focus {
+  outline: 3px solid var(--focus);
+}
+.msg-inline-warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* List status badges (text always present). */
+.badge-list-pending {
+  background: #e7e7e7;
+  color: #222;
+}
+.badge-list-ready {
+  background: #dbe8ff;
+  color: #0b3d91;
+}
+.badge-list-locked {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+/* Task cards (उम्मीदवार सूची landing) */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  max-width: 60rem;
+}
+.task-card {
+  border: 2px solid var(--brand);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+}
+.task-card h2 {
+  margin-top: 0;
+}
+
+/* Forms */
+.form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2rem;
+}
+.form-grid .field {
+  min-width: 12rem;
+}
+input.wide {
+  width: min(30rem, 100%);
+}
+.cand-form input.wide {
+  width: 100%;
+  min-width: 14rem;
+}
+.cand-form td {
+  vertical-align: middle;
+}
+.password-dialog .field input,
+.password-dialog .field textarea {
+  width: 100%;
+}
+.password-dialog h2 {
+  margin-top: 0;
+}
+dialog.dialog .list {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: block;
+}
+.ward-preview h3 {
+  margin: 1rem 0 0.3rem;
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  font-size: 1.1rem;
+}
+.facts dt {
+  font-weight: 700;
+}
+.facts dd {
+  margin: 0;
+}
+.action-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* The one-time password box */
+.otp-box {
+  border: 4px solid var(--brand);
+  border-radius: 6px;
+  padding: 1rem 1.4rem;
+  max-width: 44rem;
+  margin: 1rem 0;
+}
+.otp-line {
+  font-size: 1.4rem;
+  margin: 0.4rem 0;
+}
+.otp-password {
+  font-family: 'Consolas', 'DejaVu Sans Mono', monospace;
+  font-size: 2.2rem;
+  letter-spacing: 0.08em;
+  background: #f2f5fa;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+}
+
+@media print {
+  .no-print,
+  .topbar,
+  .mainnav {
+    display: none !important;
+  }
+  /* "प्रिंट करें" on a new password prints only that box. */
+  body.print-otp * {
+    visibility: hidden;
+  }
+  body.print-otp .otp-box,
+  body.print-otp .otp-box * {
+    visibility: visible;
+  }
+  body.print-otp .otp-box {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  body.print-otp .otp-box .no-print {
+    display: none !important;
+  }
+}

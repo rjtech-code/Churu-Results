@@ -21,6 +21,13 @@ export interface E2eWard {
 }
 export interface E2eWorld {
   password: string;
+  /** Part 13: Bidasar, with two unlocked wards without candidates and its own RO. */
+  admin: {
+    psId: number;
+    psNameEnglish: string;
+    ro: string;
+    wards: { id: number; wardNo: number; boothId: number }[];
+  };
   users: { ro: string; roOther: string; zp: string; dm: string };
   wards: Record<'entry' | 'edit' | 'postal' | 'ready' | 'tie' | 'nota' | 'correction' | 'wide', E2eWard>;
   otherPsWard: number;

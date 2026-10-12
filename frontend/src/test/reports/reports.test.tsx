@@ -46,6 +46,7 @@ function sections(over: Partial<ScopeSections> = {}): ScopeSections {
         runnerUp: 'सोहन',
         margin: 99,
         marginPercent: 0.8,
+        marginPercentText: '0.83%',
         totalValidVotes: 12000,
       },
     ],

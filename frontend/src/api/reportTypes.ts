@@ -62,6 +62,8 @@ export interface ScopeSections {
     runnerUp: string | null;
     margin: number;
     marginPercent: number;
+    /** The one display form (same as the CSV), e.g. "0.03%", "<0.01%", "1.2%". */
+    marginPercentText: string;
     totalValidVotes: number;
   }[];
   lottery: {

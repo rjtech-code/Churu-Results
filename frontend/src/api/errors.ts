@@ -56,6 +56,21 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   ENTRY_NOT_IN_WARD: 'यह एंट्री इस वार्ड की नहीं है',
   DUPLICATE_CHANGE: 'एक ही एंट्री दो बार चुनी गई है',
   NO_CHANGE: 'कोई बदलाव नहीं — सुधार की ज़रूरत नहीं',
+  // Part 13: candidate lists, ballot lock, RO accounts, booths and wards
+  CHECK_FAILED: 'सूची में गलतियाँ हैं — नीचे दी गई गलतियाँ ठीक करें',
+  MASTER_DATA_BUSY: 'कोई और अभी सूची बदल रहा है, थोड़ी देर बाद फिर प्रयास करें',
+  NOT_XLSX: 'यह सही Excel (.xlsx) फ़ाइल नहीं है — सही फ़ाइल चुनें',
+  FILE_TOO_LARGE: 'फ़ाइल 5 MB से बड़ी है — सही फ़ाइल चुनें',
+  BALLOT_LOCKED: 'इस वार्ड की उम्मीदवार सूची लॉक है, अब बदलाव नहीं हो सकता',
+  COUNTING_STARTED: 'मतगणना शुरू हो चुकी है, अब बदलाव नहीं हो सकता',
+  LOCK_PLAN_CHANGED: 'इस बीच वार्डों की स्थिति बदल गई — पेज दोबारा खोलकर फिर से लॉक करें',
+  LOCK_REFUSED: 'कुछ वार्डों में उम्मीदवार नहीं हैं, इसलिए लॉक नहीं हुआ',
+  NOTHING_TO_LOCK: 'लॉक करने के लिए कोई वार्ड नहीं बचा',
+  SEAT_TAKEN: 'इस पद पर पहले से खाता है — "RO बदलें" का उपयोग करें',
+  LIST_EMPTY: 'सूची खाली है — पहले उम्मीदवार जोड़कर सेव करें',
+  BOOTH_NAME_INVALID: 'बूथ का नाम हिंदी में लिखें (300 अक्षरों तक)',
+  WARD_NOT_ALLOWED: 'यह वार्ड इस बूथ के लिए नहीं चुना जा सकता',
+  CATEGORY_TOO_LONG: 'आरक्षण वर्ग 50 अक्षरों से लंबा है',
 };
 
 /** Hindi text for any error (unknown codes: generic text + the code, so it can be reported). */

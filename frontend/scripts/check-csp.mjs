@@ -2,8 +2,10 @@
 // needs the internet: inline <script>/<style>, style="" attributes, data: URLs, external URLs.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const dist = new URL('../dist/', import.meta.url).pathname;
+// fileURLToPath (not URL.pathname): on Windows .pathname gives "/C:/..." and join() makes it "C:\C:\...".
+const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const problems = [];
 const html = readFileSync(join(dist, 'index.html'), 'utf8');
 if (/<script(?![^>]*\bsrc=)[^>]*>/i.test(html)) problems.push('index.html has an inline <script>');

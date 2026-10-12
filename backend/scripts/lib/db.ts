@@ -1,9 +1,10 @@
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { MASTER_DATA_LOCK } from '../../src/services/master-data/lock.js';
 
 /** Problems that stop a script outright (as opposed to data validation errors). */
 export class ScriptError extends Error {}
 
-const LOCK_NAME = 'churu_master_data';
+const LOCK_NAME = MASTER_DATA_LOCK;
 
 /**
  * Runs `work` in ONE transaction on one connection. It commits only when `work` returns
@@ -40,15 +41,7 @@ export async function inTransaction<T>(
   }
 }
 
-/** Runs a COUNT-style query (BIGINTs arrive as strings from the pool) and returns a number. */
-export async function countOf(
-  conn: PoolConnection | Pool,
-  sql: string,
-  params: (string | number)[] = [],
-): Promise<number> {
-  const [rows] = await conn.execute<RowDataPacket[]>(sql, params);
-  return Number(rows[0]?.n ?? 0);
-}
+export { countOf } from '../../src/services/master-data/db-count.js';
 
 /** Describes a database error for the operator (CLI only, never sent to web clients). */
 export function describeDbError(err: unknown): string {
