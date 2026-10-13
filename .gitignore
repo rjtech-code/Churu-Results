@@ -5,6 +5,7 @@ backups/
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.log
 backend/reports/
 frontend/test-results/

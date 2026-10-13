@@ -1,0 +1,41 @@
+# Production (VPS). Run:  docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Secrets come from .env.production (never committed). MySQL is not published to the host.
+name: churu
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    env_file: .env.production
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+05:30
+      - --log-bin-trust-function-creators=1
+      - --innodb-buffer-pool-size=256M
+    volumes:
+      - churu_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    mem_limit: 900m
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: 700m
+
+volumes:
+  churu_mysql_data:

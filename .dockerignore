@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+backend/reports
+backend/.env
+.env*
+.git
+frontend/screenshots
+frontend/e2e
+backups
+*.log
