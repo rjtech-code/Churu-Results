@@ -31,8 +31,8 @@ Counting day: 20 November 2026. This is election data for the government.
 - Each booth belongs to exactly one PS ward and one ZP ward. 9 ZP wards span more than one PS.
 - Each booth has two ballots: PS and ZP (`ballot_for` = 'PS' | 'ZP').
 - Exactly 15 logins: 13 `PS_RO` (one per PS), 1 `ZP_RO`, 1 `DM`. No other roles exist.
-- `PS_RO` can only touch PS ballots of booths in their own PS. `ZP_RO` can only touch ZP ballots (all PS). `DM` is read-only (reports only).
-- Setup work (imports, creating users) is done by CLI scripts on the server, never through a web login.
+- `PS_RO` can only touch PS ballots of booths in their own PS. `ZP_RO` can only touch ZP ballots (all PS). `DM`: reports, plus the Part 13 admin tools only (parties/candidate upload, lock, RO management, booth/ward details before counting). The DM can never enter votes, edit/void entries, declare or correct.
+- Setup work (imports, creating users) is done by CLI scripts on the server, or by the DM's admin pages (/api/admin) with password re-entry and audit.
 - Nobody enters data from EVMs directly. Counting officials approve a result sheet (parchi); the RO types it into the system.
 
 ## Correctness rules (non-negotiable)
