@@ -71,6 +71,13 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   BOOTH_NAME_INVALID: 'बूथ का नाम हिंदी में लिखें (300 अक्षरों तक)',
   WARD_NOT_ALLOWED: 'यह वार्ड इस बूथ के लिए नहीं चुना जा सकता',
   CATEGORY_TOO_LONG: 'आरक्षण वर्ग 50 अक्षरों से लंबा है',
+  // Part 13: a password the DM types for an RO
+  PASSWORD_TOO_SHORT: 'पासवर्ड कम से कम 10 अक्षर का हो',
+  PASSWORD_TOO_LONG: 'पासवर्ड 128 अक्षरों से लंबा नहीं हो सकता',
+  PASSWORD_NEEDS_LETTER_AND_DIGIT: 'पासवर्ड में कम से कम एक अक्षर और एक अंक हो',
+  PASSWORD_HAS_USERNAME: 'पासवर्ड में RO का यूज़रनेम नहीं होना चाहिए',
+  PASSWORD_TOO_COMMON: 'यह पासवर्ड बहुत आसान है, कोई दूसरा चुनें',
+  PASSWORD_MISMATCH: 'दोनों नए पासवर्ड एक जैसे नहीं हैं',
 };
 
 /** Hindi text for any error (unknown codes: generic text + the code, so it can be reported). */

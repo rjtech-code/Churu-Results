@@ -6,6 +6,7 @@ import { OneTimePassword, PageIntro } from '../../components/AdminParts';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
+import { chosenPasswordProblems, problemText } from '../../components/chosenPassword';
 import { seatState } from './UsersPage';
 import '../../styles/admin.css';
 
@@ -21,7 +22,7 @@ const ACTIONS: Record<Action, { label: string; explain: string; danger: boolean;
   },
   reset: {
     label: 'पासवर्ड बदलें',
-    explain: 'इस RO का नया पासवर्ड बनेगा; पुराना पासवर्ड काम नहीं करेगा और वह लॉगआउट होगा।',
+    explain: 'इस RO का पासवर्ड बदलेगा; पुराना पासवर्ड काम नहीं करेगा और वह लॉगआउट होगा।',
     danger: true,
     needsName: false,
   },
@@ -46,6 +47,14 @@ export function UserSeatPage() {
   const { data, error, reload } = useApiData(() => api<{ seats: Seat[] }>('GET', '/api/admin/users'), []);
   const [action, setAction] = useState<Action | null>(null);
   const [fullName, setFullName] = useState('');
+  // "पासवर्ड बदलें": generate (default, as before) or the DM types it. Never kept after an attempt.
+  const [pwMode, setPwMode] = useState<'auto' | 'manual'>('auto');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const clearChosen = () => {
+    setNewPw('');
+    setConfirmPw('');
+  };
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const current = data?.seats.find((s) => s.seat === seat) ?? null;
@@ -65,6 +74,17 @@ export function UserSeatPage() {
       setCredentials(
         await api<Credentials>('POST', `${base}/replace`, { fullName: fullName.trim(), password }),
       );
+    } else if (a === 'reset' && pwMode === 'manual') {
+      try {
+        await api('POST', `${base}/set-password`, {
+          newPassword: newPw,
+          confirmPassword: confirmPw,
+          password,
+        });
+      } finally {
+        clearChosen();
+      }
+      setDone('पासवर्ड बदल गया');
     } else if (a === 'reset') {
       setCredentials(await api<Credentials>('POST', `${base}/reset-password`, { password }));
     } else {
@@ -74,6 +94,10 @@ export function UserSeatPage() {
     setAction(null);
     reload();
   };
+
+  const pwProblems = chosenPasswordProblems(newPw, confirmPw, account?.username ?? '');
+  // "फिर से लिखें" not typed yet: don't shout "mismatch" before the second field is used.
+  const pwHints = confirmPw === '' ? pwProblems.filter((p) => p !== 'PASSWORD_MISMATCH') : pwProblems;
 
   const available: Action[] =
     account === null
@@ -129,6 +153,8 @@ export function UserSeatPage() {
                   onClick={() => {
                     setDone(null);
                     setFullName('');
+                    setPwMode('auto');
+                    clearChosen();
                     setAction(a);
                   }}
                 >
@@ -145,12 +171,84 @@ export function UserSeatPage() {
           explain={ACTIONS[action].explain}
           confirmLabel={ACTIONS[action].label}
           danger={ACTIONS[action].danger}
-          canConfirm={!ACTIONS[action].needsName || fullName.trim().length >= 2}
+          canConfirm={
+            (!ACTIONS[action].needsName || fullName.trim().length >= 2) &&
+            !(action === 'reset' && pwMode === 'manual' && pwProblems.length > 0)
+          }
           onConfirm={(password) => run(action, password)}
           onCancel={() => {
+            clearChosen();
             setAction(null);
           }}
         >
+          {action === 'reset' && (
+            <fieldset className="choice">
+              <legend>नया पासवर्ड कैसे बने?</legend>
+              <label className="radio">
+                <input
+                  type="radio"
+                  name="pw-mode"
+                  checked={pwMode === 'auto'}
+                  onChange={() => {
+                    setPwMode('auto');
+                    clearChosen();
+                  }}
+                />{' '}
+                अपने आप बनाएँ
+              </label>
+              <label className="radio">
+                <input
+                  type="radio"
+                  name="pw-mode"
+                  checked={pwMode === 'manual'}
+                  onChange={() => {
+                    setPwMode('manual');
+                  }}
+                />{' '}
+                खुद पासवर्ड लिखें
+              </label>
+            </fieldset>
+          )}
+          {action === 'reset' && pwMode === 'manual' && (
+            <>
+              <div className="field">
+                <label htmlFor="ro-new-password">नया पासवर्ड</label>
+                <input
+                  id="ro-new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  maxLength={128}
+                  value={newPw}
+                  onChange={(e) => {
+                    setNewPw(e.target.value);
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="ro-confirm-password">फिर से लिखें</label>
+                <input
+                  id="ro-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  maxLength={128}
+                  value={confirmPw}
+                  onChange={(e) => {
+                    setConfirmPw(e.target.value);
+                  }}
+                />
+              </div>
+              {newPw !== '' && pwHints.length > 0 && (
+                <ul className="pw-hints" data-testid="pw-hints">
+                  {pwHints.map((p) => (
+                    <li key={p}>✗ {problemText(p)}</li>
+                  ))}
+                </ul>
+              )}
+              {newPw !== '' && pwProblems.length === 0 && (
+                <p className="msg msg-ok">✓ पासवर्ड नियमों के अनुसार है</p>
+              )}
+            </>
+          )}
           {ACTIONS[action].needsName && (
             <div className="field">
               <label htmlFor="ro-full-name">नए RO का पूरा नाम</label>

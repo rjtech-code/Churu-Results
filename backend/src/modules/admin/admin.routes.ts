@@ -46,6 +46,7 @@ import {
   parseSeat,
   replaceAccount,
   resetAccountPassword,
+  setAccountPasswordManually,
   setRoActive,
   unlockAccount,
 } from './users.service.js';
@@ -132,6 +133,10 @@ const createBody = z
   })
   .strict();
 const replaceBody = z.object({ fullName, password }).strict();
+// Only sizes here; the password rules (with their own error codes) are in checkChosenPassword.
+const setPasswordBody = z
+  .object({ newPassword: z.string().max(200), confirmPassword: z.string().max(200), password })
+  .strict();
 const areaQuery = z.object({ area: areaText.optional() }).strict();
 const reportQuery = z.object({ scope: z.union([z.literal('ALL'), areaText]) }).strict();
 const boothQuery = z.object({ psId: idParam, wardNo: idParam.optional() }).strict();
@@ -234,6 +239,16 @@ export function adminRouter(pool: Pool, _config: AppConfig): Router {
     );
     noStore(res);
     res.json(out);
+  });
+  router.post('/users/:userId/set-password', async (req, res) => {
+    await setAccountPasswordManually(
+      pool,
+      actor(req),
+      id(req, 'userId'),
+      parse(setPasswordBody, req.body),
+    );
+    noStore(res);
+    res.json({ ok: true });
   });
   router.post('/users/:userId/disable', async (req, res) => {
     await setRoActive(pool, actor(req), id(req, 'userId'), false, parse(passwordOnly, req.body));

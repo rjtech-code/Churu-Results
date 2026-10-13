@@ -43,7 +43,7 @@ const DM_ADMIN_WRITE = new RegExp(
       `wards/${ID}/(?:send-back|category)`,
       'lock',
       'users/create',
-      `users/${ID}/(?:replace|reset-password|disable|enable|unlock)`,
+      `users/${ID}/(?:replace|reset-password|set-password|disable|enable|unlock)`,
       `booths/${ID}`,
       `booths/${ID}/move`,
     ].join('|') +

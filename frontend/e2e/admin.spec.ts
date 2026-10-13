@@ -192,6 +192,21 @@ test.describe(() => {
     await page.getByRole('button', { name: 'हो गया' }).click();
     await expect(page.getByTestId('otp-box')).toHaveCount(0);
 
+    // "खुद पासवर्ड लिखें": the DM types the password; it is never shown again.
+    const chosen = 'Kesar7Tila9mor';
+    await page.getByRole('button', { name: 'पासवर्ड बदलें' }).click();
+    const pw = page.getByRole('alertdialog');
+    await pw.getByLabel('खुद पासवर्ड लिखें').check();
+    await pw.getByLabel('नया पासवर्ड').fill('Churu2026!');
+    await expect(pw.getByTestId('pw-hints')).toContainText('यह पासवर्ड बहुत आसान है');
+    await pw.getByLabel('नया पासवर्ड').fill(chosen);
+    await pw.getByLabel('फिर से लिखें').fill(chosen);
+    await confirmWithPassword(page, 'पासवर्ड बदलें');
+    await expect(page.getByText('पासवर्ड बदल गया')).toBeVisible();
+    await expect(page.getByTestId('otp-box')).toHaveCount(0);
+    expect(await page.content()).not.toContain(chosen);
+    expect(await canLogin(a.ro, chosen)).toBe(200);
+
     await page.getByRole('button', { name: 'RO बदलें' }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('पुराना खाता बंद होगा');

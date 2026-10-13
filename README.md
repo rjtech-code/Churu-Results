@@ -1065,7 +1065,19 @@ declares or corrects.
     new one in the same transaction. The old account is kept so the audit history keeps the right
     person.
   - **Usernames** get a random suffix: `ro_<3 letters of the PS>_<4>` or `zp_ro_<4>`.
-  - **पासवर्ड बदलें and बंद करें** also end the RO's open sessions.
+  - **पासवर्ड बदलें** has two choices: "अपने आप बनाएँ" (default: random, shown once) or "खुद पासवर्ड
+    लिखें". A typed password must:
+    - be 10–128 characters, with at least one letter and one digit
+    - not contain the RO's username
+    - not be a common or weak password (a built-in list: password, admin, churu, churu2026, election,
+      chunav, 123456, qwerty, … also with capitals, letter swaps such as `P@ssw0rd`, and digits or
+      symbols added, e.g. `Churu2026!`, `Admin12345`)
+    - be typed twice the same
+
+    The page shows the same rules live in Hindi; the server decides. The rules are checked before the
+    DM's password and write nothing. On success: "पासवर्ड बदल गया" (the password is not shown again),
+    audit `RO_PASSWORD_SET_MANUAL` (without the password).
+  - **पासवर्ड बदलें (either way) and बंद करें** also clear the lockout and end the RO's open sessions.
   - **The DM's own account** is never managed here (CLI only).
 - **No overlap with the CLI:** web changes and CLI master-data scripts share the MySQL lock
   `churu_master_data`. While a script runs, a web change waits up to 5 s, then answers
@@ -1107,7 +1119,8 @@ declares or corrects.
 | GET | `/api/admin/users` | | the posts and their accounts |
 | POST | `/api/admin/users/create` | ✓ | `{seat: "PS:<id>"\|"ZP", fullName, password}` → `{username, password}` |
 | POST | `/api/admin/users/:id/replace` | ✓ | `{fullName, password}` → `{username, password}` |
-| POST | `/api/admin/users/:id/reset-password` | ✓ | → `{username, password}` |
+| POST | `/api/admin/users/:id/reset-password` | ✓ | new random password → `{username, password}` |
+| POST | `/api/admin/users/:id/set-password` | ✓ | the DM types it: `{newPassword, confirmPassword, password}` → `{ok}`; the password is never sent back |
 | POST | `/api/admin/users/:id/disable`, `enable`, `unlock` | ✓ | `{password}` |
 | GET | `/api/admin/booths?psId=<id>[&wardNo=<n>]`, `/api/admin/wards?psId=<id>` | | search |
 | POST | `/api/admin/booths/:id` | ✓ | `{nameHindi, votersMale, votersFemale, votersOther, reason, password}` |
@@ -1122,8 +1135,8 @@ declares or corrects.
 - **Parties and candidates:** `IMPORT_PARTIES`, `PARTY_ADDED`, `IMPORT_CANDIDATES`, `CANDIDATES_SAVED`,
   `CANDIDATES_READY`, `CANDIDATES_SENT_BACK`
 - **Ballots:** `BALLOT_LOCK`, `BALLOT_REPORT_DOWNLOADED`
-- **Accounts:** `USER_CREATE`, `USER_REPLACE`, `USER_RESET_PASSWORD`, `USER_DISABLE`, `USER_ENABLE`,
-  `USER_UNLOCKED`
+- **Accounts:** `USER_CREATE`, `USER_REPLACE`, `USER_RESET_PASSWORD`, `RO_PASSWORD_SET_MANUAL`,
+  `USER_DISABLE`, `USER_ENABLE`, `USER_UNLOCKED`
 - **Booths and wards:** `BOOTH_UPDATED`, `BOOTH_MOVED`, `WARD_CATEGORY_UPDATED`
 
 | Code | HTTP | Meaning |
@@ -1134,6 +1147,12 @@ declares or corrects.
 | `BOOTH_NAME_INVALID` | 400 | Booth name empty, not Hindi, or over 300 characters |
 | `WARD_NOT_ALLOWED` | 400 | Move target is not a PS ward of the booth's PS / not a ZP ward |
 | `CATEGORY_TOO_LONG` | 400 | Reservation category over 50 characters |
+| `PASSWORD_TOO_SHORT` | 400 | Typed RO password under 10 characters |
+| `PASSWORD_TOO_LONG` | 400 | Typed RO password over 128 characters |
+| `PASSWORD_NEEDS_LETTER_AND_DIGIT` | 400 | Typed RO password without a letter or a digit |
+| `PASSWORD_HAS_USERNAME` | 400 | Typed RO password contains the RO's username |
+| `PASSWORD_TOO_COMMON` | 400 | Typed RO password is common or weak |
+| `PASSWORD_MISMATCH` | 400 | The two typed passwords differ |
 | `BALLOT_LOCKED` | 409 | The ward's ballot is locked |
 | `COUNTING_STARTED` | 409 | A counting entry exists |
 | `LOCK_REFUSED` | 409 | Wards without candidates: `wards` |
@@ -1173,8 +1192,10 @@ declares or corrects.
    - The RO's form is now read-only.
    - The RO can enter a booth on the ward page.
 8. **RO accounts:** RO सूची → open a post.
-   - "पासवर्ड बदलें": the big box shows the password once; the old password no longer logs in, and the
-     RO's open browser is logged out.
+   - "पासवर्ड बदलें" → "अपने आप बनाएँ": the big box shows the password once; the old password no longer
+     logs in, and the RO's open browser is logged out.
+   - "पासवर्ड बदलें" → "खुद पासवर्ड लिखें": `Churu2026!` shows "यह पासवर्ड बहुत आसान है" and the button
+     stays off; a good password typed twice → "पासवर्ड बदल गया"; the RO logs in with it.
    - "RO बदलें": the old username no longer logs in; the new one does.
    - "बंद करें" / "चालू करें" / "लॉक खोलें" (after 5 wrong logins) all work.
 9. **Booths:** बूथ / वार्ड → choose the PS → open a booth.

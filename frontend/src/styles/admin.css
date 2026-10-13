@@ -218,3 +218,26 @@ dialog.dialog .list {
     display: none !important;
   }
 }
+
+/* "पासवर्ड बदलें": generate or type the RO's password */
+fieldset.choice {
+  border: 2px solid #d5dbe5;
+  border-radius: 4px;
+  margin: 0.6rem 0;
+  padding: 0.4rem 0.9rem;
+}
+fieldset.choice legend {
+  font-weight: 700;
+}
+fieldset.choice .radio {
+  display: block;
+  margin: 0.3rem 0;
+  font-size: 1.05rem;
+}
+.pw-hints {
+  color: var(--bad);
+  font-weight: 700;
+  margin: 0.3rem 0;
+  padding-left: 1.2rem;
+  list-style: none;
+}

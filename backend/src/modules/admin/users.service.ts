@@ -6,11 +6,13 @@ import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
 import {
+  checkChosenPassword,
   checkNewAccount,
   clearLoginLock,
   generateUsername,
   insertAccount,
   setAccountActive,
+  setChosenPassword,
   setNewPassword,
 } from '../../services/master-data/accounts.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
@@ -286,6 +288,54 @@ export async function resetAccountPassword(
       ip: who.ip,
     });
     return { username: account.username, password: newPassword };
+  });
+}
+
+/**
+ * "पासवर्ड बदलें" → "खुद पासवर्ड लिखें": the DM types the RO's new password. The rules are checked
+ * first (no password check, nothing written), then the DM's password, then one transaction: hash,
+ * lockout cleared, the RO's sessions ended, audit RO_PASSWORD_SET_MANUAL (never the password).
+ */
+export async function setAccountPasswordManually(
+  pool: Pool,
+  who: Actor,
+  userId: number,
+  body: { newPassword: string; confirmPassword: string; password: string },
+): Promise<void> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    'SELECT username, role FROM users WHERE id = ?',
+    [userId],
+  );
+  const target = rows[0];
+  if (!target) throw new ApiError(404, 'NOT_FOUND');
+  if (target.role === 'DM') throw new ApiError(403, 'FORBIDDEN');
+  const problem = checkChosenPassword(
+    body.newPassword,
+    body.confirmPassword,
+    String(target.username),
+  )[0];
+  if (problem !== undefined) throw new ApiError(400, problem);
+
+  await inUserWrite(pool, who, body.password, async (conn) => {
+    const account = await lockRoAccount(conn, userId);
+    // Checked again on the locked row (same rules, same answer as above).
+    const again = checkChosenPassword(body.newPassword, body.confirmPassword, account.username)[0];
+    if (again !== undefined) throw new ApiError(400, again);
+    await setChosenPassword(conn, account.id, body.newPassword);
+    await endSessions(conn, account.id);
+    await writeAudit(conn, {
+      userId: who.user.id,
+      action: 'RO_PASSWORD_SET_MANUAL',
+      entity: 'users',
+      entityId: account.id,
+      newValue: {
+        via: 'web',
+        username: account.username,
+        failed_login_count: 0,
+        locked_until: null,
+      },
+      ip: who.ip,
+    });
   });
 }
 

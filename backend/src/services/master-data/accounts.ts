@@ -95,6 +95,121 @@ export async function setNewPassword(conn: PoolConnection, userId: number): Prom
   return password;
 }
 
+/** Sets a password the DM chose (bcrypt cost 12); clears the failed-login count and any lockout. */
+export async function setChosenPassword(
+  conn: PoolConnection,
+  userId: number,
+  password: string,
+): Promise<void> {
+  await conn.execute(
+    'UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL WHERE id = ?',
+    [await hashPassword(password), userId],
+  );
+}
+
+// ---------------------------------------------------------------- DM-chosen passwords
+
+export const CHOSEN_PASSWORD_MIN = 10;
+export const CHOSEN_PASSWORD_MAX = 128;
+
+export type ChosenPasswordProblem =
+  | 'PASSWORD_TOO_SHORT'
+  | 'PASSWORD_TOO_LONG'
+  | 'PASSWORD_NEEDS_LETTER_AND_DIGIT'
+  | 'PASSWORD_HAS_USERNAME'
+  | 'PASSWORD_TOO_COMMON'
+  | 'PASSWORD_MISMATCH';
+
+/** Common / guessable words (lowercase). Checked after undoing simple variations, see below. */
+const WEAK_PASSWORDS = new Set([
+  'password',
+  'passwd',
+  'pass',
+  'admin',
+  'administrator',
+  'churu',
+  'churu2026',
+  'chunav',
+  'chunav2026',
+  'election',
+  'election2026',
+  'nirvachan',
+  'rajasthan',
+  'india',
+  'bharat',
+  'welcome',
+  'qwerty',
+  'qwertyuiop',
+  'asdf',
+  'asdfgh',
+  'abcd',
+  'abc',
+  'abcdef',
+  'letmein',
+  'test',
+  'user',
+  'login',
+  'dm',
+  'ro',
+  'iloveyou',
+  'secret',
+  '123456',
+  '1234567890',
+]);
+
+const LEET: Readonly<Record<string, string>> = {
+  '0': 'o',
+  '1': 'i',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '@': 'a',
+  $: 's',
+  '!': 'i',
+};
+
+/**
+ * True for a common password or a simple variation of one: any case, common letter swaps
+ * (0->o, 1->i, 3->e, 4->a, 5->s, @->a, $->s), and digits/symbols added before or after,
+ * e.g. "Churu2026!", "P@ssword123", "Admin12345".
+ */
+export function isWeakPassword(password: string): boolean {
+  const lower = password.toLowerCase();
+  const swap = (t: string) => t.replace(/[01345@$!]/g, (ch) => LEET[ch] ?? ch);
+  const lettersOnlyEdges = (t: string) => t.replace(/^[^a-z]+|[^a-z]+$/g, '');
+  // Digits and symbols added before or after the word, e.g. "2026Churu", "Admin12345!".
+  const core = lower.replace(/^[\d\W_]+|[\d\W_]+$/g, '');
+  const variants = [
+    lower,
+    lettersOnlyEdges(lower),
+    swap(core),
+    swap(lower),
+    lettersOnlyEdges(swap(lower)),
+  ];
+  return variants.some((v) => v !== '' && WEAK_PASSWORDS.has(v));
+}
+
+/**
+ * The rules for a password the DM types for an RO (the server decides; the page shows the same
+ * rules as hints). Returns every problem, in this order; empty = acceptable.
+ */
+export function checkChosenPassword(
+  password: string,
+  confirm: string,
+  username: string,
+): ChosenPasswordProblem[] {
+  const problems: ChosenPasswordProblem[] = [];
+  if (password.length < CHOSEN_PASSWORD_MIN) problems.push('PASSWORD_TOO_SHORT');
+  if (password.length > CHOSEN_PASSWORD_MAX) problems.push('PASSWORD_TOO_LONG');
+  if (!/\p{L}/u.test(password) || !/\p{Nd}/u.test(password))
+    problems.push('PASSWORD_NEEDS_LETTER_AND_DIGIT');
+  if (username !== '' && password.toLowerCase().includes(username.toLowerCase()))
+    problems.push('PASSWORD_HAS_USERNAME');
+  if (isWeakPassword(password)) problems.push('PASSWORD_TOO_COMMON');
+  if (password !== confirm) problems.push('PASSWORD_MISMATCH');
+  return problems;
+}
+
 export async function setAccountActive(
   conn: PoolConnection,
   userId: number,
