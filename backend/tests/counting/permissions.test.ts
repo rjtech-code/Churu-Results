@@ -36,7 +36,7 @@ describe('counting permissions', () => {
 
   it('PS_RO: ZP booth ballot of another PS -> 403; ZP postal -> 403', async () => {
     const ro = await clientFor(countingApp(pool), 'ro_ps1_x1');
-    // Part 14: own-PS ZP booth ballots are allowed (see combined.test.ts); other PS's are not.
+    // Part 14: own-PS ZP booth ballots are allowed (see zp-booths-ps-ro.test.ts); other PS's are not.
     expect((await ro.post('/entries', zW1Sheet(w, w.b3))).status).toBe(403);
     expect(
       (

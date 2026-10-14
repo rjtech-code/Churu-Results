@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { idParam, loadBooths, loadWard } from '../api/loaders';
-import { useRole } from '../auth/AuthContext';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime, wardShort } from '../components/format';
@@ -16,7 +15,6 @@ export function WardDetailPage() {
   const wardId = idParam(useParams().wardId);
   const location = useLocation();
   const state = (location.state ?? {}) as WardFlash;
-  const role = useRole();
   const { data, error } = useApiData(async () => {
     const [ward, booths] = await Promise.all([loadWard(wardId), loadBooths(wardId)]);
     return { ward, booths };
@@ -32,10 +30,7 @@ export function WardDetailPage() {
   const open =
     ward.ballotLocked && !ward.isUnopposed && ward.status !== 'DECLARED' && ward.status !== 'TIE_RESOLVED';
   const declared = ward.status === 'DECLARED' || ward.status === 'TIE_RESOLVED';
-  // Part 14: the PS desk types the whole parchi (PS + ZP) of a booth on one screen.
-  const combined = role === 'PS_RO' && ward.kind === 'PS';
-  const entryLink = (boothId: number) =>
-    combined ? `/booths/${boothId}/entry` : `/wards/${ward.id}/booths/${boothId}/entry`;
+  const entryLink = (boothId: number) => `/wards/${ward.id}/booths/${boothId}/entry`;
 
   return (
     <>
@@ -124,12 +119,6 @@ export function WardDetailPage() {
                       ref={highlighted ? highlightRef : undefined}
                     >
                       {highlighted ? 'अगला बूथ: एंट्री करें' : 'एंट्री करें'}
-                    </Link>
-                  )}
-                  {/* Also when the PS part is done or closed: the ZP part may still be open. */}
-                  {combined && (b.entered || !open) && (
-                    <Link className="btn btn-secondary" to={entryLink(b.boothId)}>
-                      पूरी पर्ची (पं.स. + जि.प.)
                     </Link>
                   )}
                   {b.entryId !== null && open && (

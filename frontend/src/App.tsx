@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { RequireRole } from './components/RequireRole';
 import { ScreenApp } from './screens/ScreenApp';
 import { BoothEntryPage } from './pages/BoothEntryPage';
-import { CombinedEntryPage } from './pages/CombinedEntryPage';
 import { CorrectionPage } from './pages/CorrectionPage';
 import { DeclarePage } from './pages/DeclarePage';
 import { EntryEditPage } from './pages/EntryEditPage';
@@ -27,6 +26,7 @@ import { UsersPage } from './pages/admin/UsersPage';
 import { WardCategoryPage } from './pages/admin/WardCategoryPage';
 import { RoCandidateWardPage } from './pages/candidates/RoCandidateWardPage';
 import { RoCandidateWardsPage } from './pages/candidates/RoCandidateWardsPage';
+import { ZpWardPage } from './pages/ZpWardPage';
 import { WardDetailPage } from './pages/WardDetailPage';
 import { WardListPage } from './pages/WardListPage';
 
@@ -59,8 +59,9 @@ export const router = createBrowserRouter([
           { path: '/wards', element: <WardListPage /> },
           { path: '/wards/:wardId', element: <WardDetailPage /> },
           { path: '/wards/:wardId/booths/:boothId/entry', element: <BoothEntryPage /> },
-          // Part 14: the PS desk's combined PS + ZP parchi (the server refuses anyone but that PS_RO).
-          { path: '/booths/:boothId/entry', element: <CombinedEntryPage /> },
+          // Part 14.1: the PS_RO's ZP tab (own-PS booths only; the server refuses anyone else).
+          { path: '/zp/:wardId', element: <ZpWardPage /> },
+          { path: '/zp/:wardId/booths/:boothId/entry', element: <BoothEntryPage psZp /> },
           { path: '/wards/:wardId/postal', element: <PostalPage /> },
           { path: '/wards/:wardId/postal/history', element: <StoryPage kind="POSTAL" /> },
           { path: '/wards/:wardId/booths/:boothId/history', element: <StoryPage kind="BOOTH" /> },

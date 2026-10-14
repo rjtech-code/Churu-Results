@@ -1,5 +1,5 @@
 import { ApiError, api } from './api';
-import type { BallotCandidate, BoothsResponse, CombinedBooth, WardItem } from './types';
+import type { BallotCandidate, BoothsResponse, PsZpWardBooths, PsZpWardItem, WardItem } from './types';
 
 export async function loadWards(): Promise<WardItem[]> {
   return (await api<{ wards: WardItem[] }>('GET', '/api/counting/wards')).wards;
@@ -26,9 +26,14 @@ export function idParam(value: string | undefined): number {
   return value !== undefined && /^[1-9]\d{0,14}$/.test(value) ? Number(value) : 0;
 }
 
-/** Part 14: a booth's PS and ZP sections for the PS_RO's combined entry screen. */
-export function loadCombined(boothId: number): Promise<CombinedBooth> {
-  return api<CombinedBooth>('GET', `/api/counting/booths/${boothId}/combined`);
+/** Part 14.1: the ZP wards that hold booths of the PS_RO's own PS (ZP tab). */
+export async function loadPsZpWards(): Promise<PsZpWardItem[]> {
+  return (await api<{ wards: PsZpWardItem[] }>('GET', '/api/counting/zp-wards')).wards;
+}
+
+/** Part 14.1: one ZP ward's own-PS booths and ballot, for the PS_RO. */
+export function loadPsZpWard(wardId: number): Promise<PsZpWardBooths> {
+  return api<PsZpWardBooths>('GET', `/api/counting/zp-wards/${wardId}/ps-booths`);
 }
 
 /** Where an entry's edit/void page gets its ballot and booth from, and where it goes back to. */
@@ -44,24 +49,21 @@ export interface EntryContext {
 
 /**
  * The normal case reads the entry's own ward. A PS_RO working on a ZP ballot of its own booth
- * (Part 14) may not read the ZP ward, so it uses the booth's combined view and goes back there.
+ * may not read the ZP ward, so it uses the own-PS ZP ward view and goes back to the ZP tab.
  */
 export async function loadEntryContext(
   entry: { kind: 'BOOTH' | 'POSTAL'; wardId: number; boothId?: number; ballotFor?: 'PS' | 'ZP' },
   role: string | null,
 ): Promise<EntryContext> {
-  if (role === 'PS_RO' && entry.kind === 'BOOTH' && entry.ballotFor === 'ZP' && entry.boothId !== undefined) {
-    const boothId = entry.boothId;
-    const combined = await loadCombined(boothId);
-    const zp = combined.sections[1];
-    if (zp.state === 'HIDDEN')
-      throw new ApiError(409, zp.hiddenReason === 'DECLARED' ? 'WARD_DECLARED' : 'FORBIDDEN', {});
+  if (role === 'PS_RO' && entry.kind === 'BOOTH' && entry.ballotFor === 'ZP') {
+    const { ward, booths, ballot } = await loadPsZpWard(entry.wardId);
+    if (ward.state === 'DECLARED') throw new ApiError(409, 'WARD_DECLARED', {});
     return {
-      ward: { id: zp.wardId, kind: 'ZP', wardNo: zp.wardNo },
-      ballot: zp.ballot,
-      booth: combined.booth,
-      backTo: `/booths/${boothId}/entry`,
-      backLabel: `बूथ ${combined.booth.boothNo} की पर्ची`,
+      ward: { id: ward.id, kind: 'ZP', wardNo: ward.wardNo },
+      ballot,
+      booth: booths.find((b) => b.boothId === entry.boothId) ?? null,
+      backTo: `/zp/${ward.id}`,
+      backLabel: `जिला परिषद वार्ड ${ward.wardNo}`,
       historyTo: null,
     };
   }

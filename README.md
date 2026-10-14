@@ -382,9 +382,8 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, roundNo, sheetTotal, votes:[{candidateId, votes}]}` |
 | PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
 | POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
-| GET | `/api/counting/booths/:boothId/combined` | Part 14, PS_RO of the booth's PS only: the booth's PS and ZP sections (`OPEN` / `SAVED` with the entry / `HIDDEN` with a reason). Never ward totals or leader. |
-| POST | `/api/counting/entries/combined/preview` | Same body and checks as the combined save; saves nothing; no ward totals. |
-| POST | `/api/counting/entries/combined` | Part 14, PS_RO: one booth's parchi `{boothId, roundNo, ps?: {sheetTotal, votes}, zp?: {sheetTotal, votes}}` (wards come from the booth). Both parts in ONE transaction: if either is refused, nothing is saved; the error names the `section`. |
+| GET | `/api/counting/zp-wards` | Part 14.1, PS_RO only: ZP wards that hold booths of its own PS, with own-PS `boothsEntered/boothsTotal` and a `state`. Never ward totals or leader. |
+| GET | `/api/counting/zp-wards/:wardId/ps-booths` | Part 14.1, PS_RO only: that ZP ward's booths of its own PS (404 unknown/non-ZP ward) and the ballot candidates. No totals, leader or postal. |
 
 **Part 14 — PS_RO and ZP booth entries.** A PS_RO may create/edit/void the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots). ZP postal, declare, lottery and correction stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward.
 | GET | `/api/counting/booths/:boothId/history?ballotFor=PS\|ZP` | The **whole story** of one booth ballot, oldest first: every entry ever made for it (the live one and every voided one, from `voided_entry`) with all their audit rows: created, updated, voided, re-created … Each event has `entryId` and `entryVoided`. Same permission as the entry. |
@@ -454,9 +453,6 @@ There is no "undo void": re-enter the booth with a normal create. The history en
 2. Check the ward: unopposed, ballot locked, declared.
 3. Lock the entry row (edit/void) and check its `row_version`.
 4. Write the entry and vote rows (and the archive), then the audit row, then commit.
-
-A combined PS + ZP save (Part 14) locks **both** ward rows first, in ascending ward id order, then
-checks and writes both parts. Every other write holds one ward lock only, so this cannot deadlock.
 
 Because entry writes and declare both lock the same ward row first:
 - an entry and a declaration can never overlap; whichever comes second sees the other's committed data

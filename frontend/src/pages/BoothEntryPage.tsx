@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
-import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
+import { idParam, loadBallot, loadBooths, loadPsZpWard, loadWard } from '../api/loaders';
 import type { EntryPreview } from '../api/types';
 import { getLastRound, setLastRound } from '../auth/lastRound';
 import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
@@ -14,12 +14,25 @@ import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import type { WardFlash } from './WardDetailPage';
 
-export function BoothEntryPage() {
+/** `psZp`: a PS_RO entering the ZP ballot of its own PS's booth (the ZP tab). */
+export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
   const params = useParams();
   const wardId = idParam(params.wardId);
   const boothId = idParam(params.boothId);
   const navigate = useNavigate();
   const { data, error: loadError } = useApiData(async () => {
+    if (psZp) {
+      const z = await loadPsZpWard(wardId);
+      if (z.ward.state === 'DECLARED') throw new ApiError(409, 'WARD_DECLARED', {});
+      const booth = z.booths.find((b) => b.boothId === boothId);
+      if (!booth) throw new ApiError(404, 'NOT_FOUND', {});
+      return {
+        ward: { kind: 'ZP' as const, wardNo: z.ward.wardNo },
+        booths: { booths: z.booths },
+        booth,
+        ballot: z.ballot,
+      };
+    }
     const [ward, booths, ballot] = await Promise.all([
       loadWard(wardId),
       loadBooths(wardId),
@@ -28,7 +41,8 @@ export function BoothEntryPage() {
     const booth = booths.booths.find((b) => b.boothId === boothId);
     if (!booth) throw new ApiError(404, 'NOT_FOUND', {});
     return { ward, booths, booth, ballot };
-  }, [wardId, boothId]);
+  }, [wardId, boothId, psZp]);
+  const wardPath = psZp ? `/zp/${wardId}` : `/wards/${wardId}`;
 
   const [values, setValues] = useState<SheetValues | null>(null);
   const [round, setRound] = useState(String(getLastRound()));
@@ -88,7 +102,7 @@ export function BoothEntryPage() {
         flash: `बूथ ${booth.boothNo} की एंट्री सेव हो गई`,
         highlightBoothId: next?.boothId ?? null,
       };
-      void navigate(`/wards/${wardId}`, { state });
+      void navigate(wardPath, { state });
     } catch (err) {
       setError(err);
       setStage('form'); // the error is shown next to "आगे", with every typed number kept
@@ -101,7 +115,10 @@ export function BoothEntryPage() {
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
       <p className="backlink">
-        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
+        <Link to={wardPath}>
+          ← {psZp ? 'जिला परिषद ' : ''}
+          {wardShort(ward)}
+        </Link>
       </p>
       <div className="sheet-header">
         <div className="big">
@@ -137,7 +154,7 @@ export function BoothEntryPage() {
               alreadyEntered ? (
                 <>
                   यह बूथ पहले ही दर्ज हो चुका है — दोबारा एंट्री नहीं हो सकती।{' '}
-                  <Link to={`/wards/${wardId}`}>वार्ड पर वापस जाएँ</Link>
+                  <Link to={wardPath}>वार्ड पर वापस जाएँ</Link>
                 </>
               ) : undefined
             }

@@ -10,12 +10,13 @@ import type { AuthUser } from '../../types/auth.js';
 import {
   boothEntryView,
   boothHistory,
-  combinedBooth,
   entryHistory,
   getBoothEntry,
   getPostalEntry,
   listBooths,
   listWards,
+  psZpWardBooths,
+  psZpWards,
   postalEntryView,
   postalHistory,
   wardBallot,
@@ -23,8 +24,6 @@ import {
 import { canReadWard } from '../../services/access.js';
 import {
   createBoothEntry,
-  createCombinedEntry,
-  previewCombinedEntry,
   createPostalEntry,
   previewBoothEntry,
   previewPostalEntry,
@@ -62,16 +61,6 @@ const boothCreate = z
 const boothUpdate = z
   .object({ rowVersion: id, roundNo, sheetTotal: count, votes, reason })
   .strict();
-const combinedSection = z.object({ sheetTotal: count, votes }).strict();
-const combinedCreate = z
-  .object({
-    boothId: id,
-    roundNo,
-    ps: combinedSection.optional(),
-    zp: combinedSection.optional(),
-  })
-  .strict()
-  .refine((b) => b.ps !== undefined || b.zp !== undefined, { message: 'ps or zp is required' });
 const voidBody = z.object({ rowVersion: id, reason }).strict();
 const historyQuery = z.object({ ballotFor: z.enum(['PS', 'ZP']) }).strict();
 const postalCreate = z
@@ -161,20 +150,12 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     });
   });
 
-  router.get('/booths/:boothId/combined', async (req, res) => {
-    res.json(await combinedBooth(pool, currentUser(req), param(req, 'boothId')));
+  // ---- PS_RO's ZP tab (Part 14.1): read-only, own-PS booths only, no ward totals
+  router.get('/zp-wards', async (req, res) => {
+    res.json({ wards: await psZpWards(pool, currentUser(req)) });
   });
-
-  // ---- combined PS + ZP sheet of one booth (PS_RO, Part 14): both parts or nothing
-  router.post('/entries/combined/preview', async (req, res) => {
-    res.json(await previewCombinedEntry(pool, ctx(req), parse(combinedCreate, req.body)));
-  });
-  router.post('/entries/combined', async (req, res) => {
-    const out = await createCombinedEntry(pool, ctx(req), parse(combinedCreate, req.body));
-    res.status(201).json({
-      entries: await Promise.all(out.entries.map((e) => boothEntryView(pool, e.entryId))),
-      warnings: out.warnings,
-    });
+  router.get('/zp-wards/:wardId/ps-booths', async (req, res) => {
+    res.json(await psZpWardBooths(pool, currentUser(req), param(req, 'wardId')));
   });
 
   // ---- booth entries

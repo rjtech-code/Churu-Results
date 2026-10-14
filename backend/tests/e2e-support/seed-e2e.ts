@@ -208,8 +208,8 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
   await candidates(otherPsWard);
   await lock(otherPsWard);
 
-  // Part 14 (entry-combined.spec): Churu PS ward 9 whose booths 21-22 vote for ZP ward 4, which
-  // is locked with its own candidates, so the PS RO's screen shows both parts of the parchi.
+  // Part 14 (entry-tabs.spec): Churu PS ward 9 whose booths 21-22 vote for ZP ward 4, which
+  // is locked with its own candidates, so the PS RO can enter both ballots of those booths.
   const combinedZp = await ward('ZP', null, 4);
   const zc = (pos: number, name: string, nota: boolean) =>
     insert(

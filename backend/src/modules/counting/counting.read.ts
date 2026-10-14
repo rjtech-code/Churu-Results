@@ -374,84 +374,94 @@ export async function postalHistory(pool: Pool, user: AuthUser, wardId: number) 
   );
 }
 
-// ---------------------------------------------------------------- Part 14: combined PS + ZP sheet
+// ---------------------------------------------------------------- Part 14.1: PS_RO's ZP tab
 
-export type CombinedHiddenReason = 'UNOPPOSED' | 'NO_CANDIDATES' | 'NOT_LOCKED' | 'DECLARED';
+export type PsZpWardState = 'OPEN' | 'DECLARED' | 'UNOPPOSED' | 'NO_CANDIDATES' | 'NOT_LOCKED';
+
+function requirePsRo(user: AuthUser): number {
+  if (user.role !== 'PS_RO' || user.panchayatSamitiId === null)
+    throw new ApiError(403, 'FORBIDDEN');
+  return user.panchayatSamitiId;
+}
+
+function zpWardState(r: RowDataPacket): PsZpWardState {
+  if (Number(r.is_unopposed) === 1) return 'UNOPPOSED';
+  if (Number(r.candidates) === 0) return 'NO_CANDIDATES';
+  if (Number(r.is_locked) !== 1) return 'NOT_LOCKED';
+  if (Number(r.declared) === 1) return 'DECLARED';
+  return 'OPEN';
+}
 
 /**
- * One booth's PS and ZP sections for the PS_RO's combined entry screen. Only this booth's own
- * entries and ballots — never ward totals, leader or other booths (a PS_RO never sees ZP totals).
+ * The ZP wards that contain booths of the PS_RO's own PS, with progress of this PS's booths only.
+ * Never ward totals, leader, postal or other Panchayat Samitis' numbers.
  */
-export async function combinedBooth(pool: Pool, user: AuthUser, boothId: number) {
+export async function psZpWards(pool: Pool, user: AuthUser) {
+  const psId = requirePsRo(user);
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT b.id, b.booth_no, b.name_hindi, b.registered_voters_total, b.ps_ward_id, b.zp_ward_id,
-            ps.name_hindi AS ps_name
-       FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id WHERE b.id = ?`,
-    [boothId],
+    `SELECT w.id, w.ward_no, w.is_locked, w.is_unopposed,
+            (SELECT COUNT(*) FROM candidate c WHERE c.ward_id = w.id) AS candidates,
+            EXISTS (SELECT 1 FROM ward_declarations d WHERE d.ward_id = w.id) AS declared,
+            COUNT(b.id) AS total, COUNT(e.id) AS entered
+       FROM booth b
+       JOIN ward w ON w.id = b.zp_ward_id
+       LEFT JOIN booth_entry e ON e.booth_id = b.id AND e.ballot_for = 'ZP'
+      WHERE b.panchayat_samiti_id = ?
+      GROUP BY w.id, w.ward_no, w.is_locked, w.is_unopposed
+      ORDER BY w.ward_no`,
+    [psId],
   );
-  const b = rows[0];
-  if (!b) throw new ApiError(404, 'NOT_FOUND');
-  // PS_RO of this booth's PS only (the combined screen is the PS desk's screen).
-  if (user.role !== 'PS_RO' || !(await canWriteBallot(pool, user, boothId, 'PS')))
-    throw new ApiError(403, 'FORBIDDEN');
+  return rows.map((r) => ({
+    id: Number(r.id),
+    wardNo: Number(r.ward_no),
+    state: zpWardState(r),
+    boothsEntered: Number(r.entered),
+    boothsTotal: Number(r.total),
+  }));
+}
 
-  const section = async (ballotFor: 'PS' | 'ZP', wardId: number) => {
-    const [w] = await pool.execute<RowDataPacket[]>(
-      `SELECT w.ward_no, w.is_locked, w.is_unopposed,
-              EXISTS (SELECT 1 FROM ward_declarations d WHERE d.ward_id = w.id) AS declared
-         FROM ward w WHERE w.id = ?`,
-      [wardId],
-    );
-    const ward = w[0];
-    if (!ward) throw new ApiError(404, 'NOT_FOUND');
-    const ballot = await readBallot(pool, wardId);
-    const hiddenReason: CombinedHiddenReason | null =
-      Number(ward.is_unopposed) === 1
-        ? 'UNOPPOSED'
-        : ballot.length === 0
-          ? 'NO_CANDIDATES'
-          : Number(ward.is_locked) !== 1
-            ? 'NOT_LOCKED'
-            : Number(ward.declared) === 1
-              ? 'DECLARED'
-              : null;
-    const [live] = await pool.execute<RowDataPacket[]>(
-      'SELECT id FROM booth_entry WHERE booth_id = ? AND ballot_for = ?',
-      [boothId, ballotFor],
-    );
-    const entryId = live[0] === undefined ? null : Number(live[0].id);
-    const visible = hiddenReason === null;
-    return {
-      ballotFor,
-      wardId,
-      wardNo: Number(ward.ward_no),
-      state: !visible ? ('HIDDEN' as const) : entryId === null ? ('OPEN' as const) : ('SAVED' as const),
-      hiddenReason,
-      ballot: visible
-        ? ballot.map((c) => ({
-            candidateId: c.id,
-            ballotPosition: c.ballotPosition,
-            nameHindi: c.nameHindi,
-            partyShortName: c.partyShortName,
-            isNota: c.isNota,
-          }))
-        : [],
-      entry: visible && entryId !== null ? await boothEntryView(pool, entryId) : null,
-    };
-  };
-
+/** One ZP ward as the PS_RO sees it: only this PS's booths, and the ballot (candidates only). */
+export async function psZpWardBooths(pool: Pool, user: AuthUser, wardId: number) {
+  const psId = requirePsRo(user);
+  const [wardRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT w.id, w.ward_no, w.is_locked, w.is_unopposed,
+            (SELECT COUNT(*) FROM candidate c WHERE c.ward_id = w.id) AS candidates,
+            EXISTS (SELECT 1 FROM ward_declarations d WHERE d.ward_id = w.id) AS declared
+       FROM ward w WHERE w.id = ? AND w.ward_type = 'ZP'`,
+    [wardId],
+  );
+  const ward = wardRows[0];
+  if (!ward) throw new ApiError(404, 'NOT_FOUND');
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT b.id, ps.name_hindi AS ps_name, b.booth_no, b.name_hindi, b.registered_voters_total,
+            e.id AS entry_id, e.round_no, e.entered_at
+       FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
+       LEFT JOIN booth_entry e ON e.booth_id = b.id AND e.ballot_for = 'ZP'
+      WHERE b.zp_ward_id = ? AND b.panchayat_samiti_id = ? ORDER BY b.booth_no`,
+    [wardId, psId],
+  );
+  if (rows.length === 0) throw new ApiError(403, 'FORBIDDEN');
+  const ballot = await readBallot(pool, wardId);
   return {
-    booth: {
-      boothId,
-      boothNo: Number(b.booth_no),
-      nameHindi: String(b.name_hindi),
-      panchayatSamiti: String(b.ps_name),
+    ward: { id: wardId, wardNo: Number(ward.ward_no), state: zpWardState(ward) },
+    booths: rows.map((r) => ({
+      boothId: Number(r.id),
+      panchayatSamiti: String(r.ps_name),
+      boothNo: Number(r.booth_no),
+      nameHindi: String(r.name_hindi),
       registeredVotersTotal:
-        b.registered_voters_total === null ? null : Number(b.registered_voters_total),
-    },
-    sections: [
-      await section('PS', Number(b.ps_ward_id)),
-      await section('ZP', Number(b.zp_ward_id)),
-    ],
+        r.registered_voters_total === null ? null : Number(r.registered_voters_total),
+      entered: r.entry_id !== null,
+      entryId: r.entry_id === null ? null : Number(r.entry_id),
+      roundNo: r.round_no === null ? null : Number(r.round_no),
+      enteredAt: (r.entered_at as Date | null) ?? null,
+    })),
+    ballot: ballot.map((c) => ({
+      candidateId: c.id,
+      ballotPosition: c.ballotPosition,
+      nameHindi: c.nameHindi,
+      partyShortName: c.partyShortName,
+      isNota: c.isNota,
+    })),
   };
 }

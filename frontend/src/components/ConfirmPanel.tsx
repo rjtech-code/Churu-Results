@@ -67,6 +67,7 @@ export function ConfirmPanel({
 
 /** The ward totals after this save, as the server previewed them. */
 export function WardAfter({ preview }: { preview: EntryPreview }) {
+  if (!preview.wardAfter) return null;
   return (
     <div>
       <h3>सेव के बाद वार्ड का कुल योग</h3>

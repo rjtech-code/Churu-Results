@@ -570,3 +570,9 @@ h1.compact {
   outline: 1px solid var(--warn);
   padding: 0 0.25rem;
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}

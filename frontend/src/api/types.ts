@@ -160,7 +160,8 @@ export interface EntryPreview {
       votes: number;
     }[];
   };
-  wardAfter: WardResult;
+  /** Absent for a PS_RO on a ZP ballot: the server never sends ZP ward totals to a PS_RO. */
+  wardAfter?: WardResult;
   warnings: string[];
 }
 
@@ -215,36 +216,19 @@ export interface StoryItem extends HistoryItem {
   entryVoided: boolean;
 }
 
-/** Part 14: one section (PS or ZP) of a booth's combined parchi, as the PS_RO sees it. */
-export interface CombinedSection {
-  ballotFor: 'PS' | 'ZP';
-  wardId: number;
+/** Part 14.1: a ZP ward on the PS_RO's ZP tab — progress of this PS's booths only. */
+export type PsZpWardState = 'OPEN' | 'DECLARED' | 'UNOPPOSED' | 'NO_CANDIDATES' | 'NOT_LOCKED';
+
+export interface PsZpWardItem {
+  id: number;
   wardNo: number;
-  state: 'OPEN' | 'SAVED' | 'HIDDEN';
-  hiddenReason: 'UNOPPOSED' | 'NO_CANDIDATES' | 'NOT_LOCKED' | 'DECLARED' | null;
+  state: PsZpWardState;
+  boothsEntered: number;
+  boothsTotal: number;
+}
+
+export interface PsZpWardBooths {
+  ward: { id: number; wardNo: number; state: PsZpWardState };
+  booths: BoothItem[];
   ballot: BallotCandidate[];
-  entry: BoothEntryView | null;
-}
-
-export interface CombinedBooth {
-  booth: {
-    boothId: number;
-    boothNo: number;
-    nameHindi: string;
-    panchayatSamiti: string;
-    registeredVotersTotal: number | null;
-  };
-  sections: [CombinedSection, CombinedSection];
-}
-
-export interface CombinedPreview {
-  roundNo: number;
-  sections: {
-    ballotFor: 'PS' | 'ZP';
-    wardId: number;
-    sheetTotal: number;
-    sum: number;
-    votes: EntryPreview['summary']['votes'];
-  }[];
-  warnings: string[];
 }
