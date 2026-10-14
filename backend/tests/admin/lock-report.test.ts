@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { Express } from 'express';
-import type { Pool, RowDataPacket } from 'mysql2/promise';
+import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Response } from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
@@ -134,6 +134,53 @@ describe('DM ballot lock', () => {
 
     // Locked: the RO can no longer change it, and a second lock has nothing to do.
     expect((await preview(area)).toLock).toEqual([]);
+  });
+
+  it('locks a PS whose ward ids are not in ward-number order; a real change is still refused', async () => {
+    // Live data: ward ids do not follow ward numbers (ward 3 was inserted before ward 2).
+    // Only this PS has candidates; the ZP wards stay empty.
+    const addWard = async (no: number) => {
+      const [r] = await pool.execute<ResultSetHeader>(
+        "INSERT INTO ward (ward_type, district_id, panchayat_samiti_id, ward_no) SELECT 'PS', district_id, id, ? FROM panchayat_samiti WHERE id = ?",
+        [no, w.ps2],
+      );
+      await pool.execute(
+        "INSERT INTO candidate (ward_id, ballot_position, name_hindi, gender, is_nota) VALUES (?, 1, 'गीता', 'F', 0)",
+        [r.insertId],
+      );
+      await pool.execute(
+        'UPDATE ward SET candidates_ready_at = NOW(3), candidates_ready_by = ? WHERE id = ?',
+        [w.users.ro2, r.insertId],
+      );
+      return r.insertId;
+    };
+    const w3 = await addWard(3);
+    const w2 = await addWard(2);
+    const area = `PS:${w.ps2}`;
+    const p = await preview(area);
+    expect(p).toMatchObject({ canLock: true, noCandidates: [], notReady: [] });
+    expect(p.toLock.map((x) => x.id)).toEqual([w2, w3]);
+
+    // A ward added after the preview is a real change: refused, nothing locked.
+    const w4 = await addWard(4);
+    const changed = await dm.post('/api/admin/lock', {
+      area,
+      confirmText: 'LOCK',
+      expectedWardIds: p.toLock.map((x) => x.id),
+      password: PASSWORD,
+    });
+    expect(changed.body).toEqual({ error: 'LOCK_PLAN_CHANGED' });
+    expect(await lockedIds()).not.toContain(w2);
+
+    // Fresh preview, sent exactly as the dialog sends it (preview order): locks.
+    const again = await preview(area);
+    const ok = await dm.post('/api/admin/lock', {
+      area,
+      confirmText: 'LOCK',
+      expectedWardIds: again.toLock.map((x) => x.id),
+      password: PASSWORD,
+    });
+    expect([ok.status, ok.body]).toEqual([200, { locked: [w3, w2, w4].sort((a, b) => a - b) }]);
   });
 
   it('candidate status per area', async () => {

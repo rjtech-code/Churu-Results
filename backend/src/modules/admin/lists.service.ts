@@ -216,7 +216,8 @@ export async function lockArea(
         before.toLock.map((w) => w.id),
       );
       const plan = await planLock(conn, inArea(body.area));
-      const ids = plan.toLock.map((w) => w.id);
+      // Compare as sets: the plan lists wards by ward number, which need not follow id order.
+      const ids = plan.toLock.map((w) => w.id).sort((a, b) => a - b);
       const expected = [...new Set(body.expectedWardIds)].sort((a, b) => a - b);
       if (ids.join(',') !== expected.join(',')) throw new ApiError(409, 'LOCK_PLAN_CHANGED');
       if (plan.noCandidates.length > 0)
