@@ -61,6 +61,7 @@ export async function runCli(
   const ctx: ScriptContext = {
     pool,
     reportsDir: DEFAULT_REPORTS_DIR,
+    roPasswordKey: Buffer.from(env.RO_PASSWORD_KEY, 'base64'),
     out: (text) => {
       console.log(text);
     },

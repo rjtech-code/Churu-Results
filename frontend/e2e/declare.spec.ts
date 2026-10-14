@@ -8,11 +8,11 @@ test('declare a ready ward (a wrong password is refused first)', async ({ page }
   await page.getByRole('link', { name: 'घोषणा करें' }).click();
   await expect(page.getByTestId('declare-winner')).toContainText('विजेता: अमर सिंह · अंतर: 102');
   await expect(page.getByTestId('total-valid')).toHaveText('519');
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill('wrong-password-123');
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill('wrong-password-123');
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
-  await expect(page.getByRole('alert')).toContainText('पासवर्ड गलत है');
-  await expect(page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)')).toHaveValue(''); // not kept
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await expect(page.getByRole('alert')).toContainText('Incorrect password. कृपया पुनः प्रयास करें।');
+  await expect(page.getByLabel('RO Password (सत्यापन हेतु)')).toHaveValue(''); // not kept
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByText('वार्ड घोषित: विजेता अमर सिंह, अंतर 102')).toBeVisible();
   await page.getByRole('link', { name: 'वार्ड पर वापस' }).click();
@@ -25,16 +25,16 @@ test('a tied ward needs the lottery result', async ({ page }) => {
   await page.goto(`/wards/${w.id}/declare`);
   await expect(page.getByText('शीर्ष पर बराबरी — लॉटरी आवश्यक')).toBeVisible();
   // the tallest declare form (lottery + password) still fits on one screen
-  await expect(page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByLabel('RO Password (सत्यापन हेतु)')).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole('button', { name: 'घोषणा की पुष्टि करें' })).toBeInViewport({ ratio: 1 });
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByRole('alert')).toContainText('लॉटरी');
   await page.getByRole('radio', { name: /भरत कुमार/ }).check();
   await page.getByLabel('लॉटरी किसने कराई (3–100 अक्षर)').fill('रिटर्निंग अधिकारी');
   await page.getByLabel('लॉटरी का विवरण (10–500 अक्षर)').fill('दोनों उम्मीदवारों के सामने पर्ची निकाली गई');
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByText('वार्ड घोषित: विजेता भरत कुमार, अंतर 0 (लॉटरी से)')).toBeVisible();
 });
@@ -43,11 +43,11 @@ test('NOTA highest: the acknowledgement checkbox is required', async ({ page }) 
   const w = world().wards.nota;
   await page.goto(`/wards/${w.id}/declare`);
   await expect(page.getByText('नोटा को सबसे अधिक मत (401)')).toBeVisible();
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByRole('alert')).toContainText('नोटा');
   await page.getByRole('checkbox', { name: /मैंने नोटा के सर्वाधिक मत देख लिए हैं/ }).check();
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'घोषणा की पुष्टि करें' }).click();
   await expect(page.getByText('वार्ड घोषित: विजेता भरत कुमार, अंतर 20')).toBeVisible();
 });

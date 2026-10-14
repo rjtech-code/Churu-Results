@@ -53,6 +53,7 @@ Counting day: 20 November 2026. This is election data for the government.
 ## Security rules (non-negotiable)
 - Only parameterized SQL via execute(). query() is allowed only for fixed SQL text with no user input (e.g. transaction control like START TRANSACTION). Never build SQL from user input (including column/table names).
 - Authorization is checked on the server for every request, including ownership (which PS/ballot the user may touch). Hiding a button is not security.
+- Passwords are bcrypt-only, with ONE approved exception: PS_RO/ZP_RO accounts also keep an AES-256-GCM encrypted copy (`users.password_enc`, key `RO_PASSWORD_KEY` from env) so the DM can view it after re-entering their own password (audit-logged, never logged in clear). The DM account never has a copy; login uses the bcrypt hash only.
 - Session cookie: HttpOnly, SameSite=Strict, Secure in production. Regenerate session on login, destroy on logout, idle timeout 30 min.
 - Login: rate limit + account lockout after repeated failures. Generic error message ("galat username ya password").
 - CSRF protection on every state-changing request.

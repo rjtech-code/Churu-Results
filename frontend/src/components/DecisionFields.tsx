@@ -1,4 +1,5 @@
 import type { WardResult, WouldStore } from '../api/types';
+import { ReauthPasswordField } from './ReauthPasswordField';
 
 export interface Decision {
   lotteryWinner: number | null;
@@ -160,14 +161,11 @@ export function DecisionFields({
           </label>
         </div>
       )}
-      <label htmlFor="reauth-password">अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)</label>
-      <input
+      <ReauthPasswordField
         id="reauth-password"
-        type="password"
-        autoComplete="current-password"
         value={value.password}
-        onChange={(e) => {
-          onChange({ ...value, password: e.target.value });
+        onChange={(password) => {
+          onChange({ ...value, password });
         }}
       />
     </div>

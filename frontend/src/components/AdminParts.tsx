@@ -1,7 +1,7 @@
 // Small building blocks of the Part 13 pages (DM tools and the RO's candidate lists): one heading
 // and one line of instruction per page, numbered steps, Hindi problem lists, status badges, and the
 // one-time password box.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { LIST_STATUS_HINDI } from '../api/adminTypes';
 import type { Issue, ListStatus } from '../api/adminTypes';
@@ -104,6 +104,17 @@ export function OneTimePassword({
     window.print();
     document.body.classList.remove('print-otp');
   };
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard
+      .writeText(password)
+      .then(() => {
+        setCopied(true);
+      })
+      .catch(() => {
+        setCopied(false);
+      });
+  };
   const groups = password.match(/.{1,4}/g) ?? [password];
   return (
     <section className="otp-box" aria-label="नया पासवर्ड" data-testid="otp-box">
@@ -120,6 +131,9 @@ export function OneTimePassword({
         ! यह पासवर्ड दोबारा नहीं दिखेगा। इसे अभी लिखें या प्रिंट करें और अधिकारी को स्वयं दें।
       </p>
       <div className="actions no-print">
+        <button type="button" className="btn btn-secondary" onClick={copy}>
+          {copied ? 'कॉपी हो गया ✓' : 'कॉपी करें'}
+        </button>
         <button type="button" className="btn btn-secondary" onClick={print}>
           प्रिंट करें
         </button>

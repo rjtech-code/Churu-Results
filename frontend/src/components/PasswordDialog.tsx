@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
 import { ErrorBox } from './ErrorBox';
 import { Modal } from './Modal';
+import { ReauthPasswordField } from './ReauthPasswordField';
 
 /**
  * Confirmation box for a sensitive action: one sentence saying what will happen, optional extra
@@ -60,16 +61,7 @@ export function PasswordDialog({
         <p className="big-explain">{explain}</p>
         {children}
         <div className="field">
-          <label htmlFor="confirm-password">अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)</label>
-          <input
-            id="confirm-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
-          />
+          <ReauthPasswordField id="confirm-password" value={password} onChange={setPassword} />
         </div>
         <ErrorBox error={error} />
         <div className="actions">

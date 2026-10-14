@@ -12,6 +12,8 @@ import {
 import type { AppConfig } from '../../src/config/app-config.js';
 import type { Role } from '../../src/types/auth.js';
 
+/** A fixed AES key for tests only. */
+export const TEST_RO_PASSWORD_KEY = Buffer.alloc(32, 7);
 export const TEST_ORIGIN = 'http://localhost:5173';
 
 /** Real production defaults except where a test overrides them. */
@@ -19,6 +21,7 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
     production: false,
     sessionSecret: 'test-session-secret-that-is-long-enough-1234',
+    roPasswordKey: TEST_RO_PASSWORD_KEY,
     appOrigin: TEST_ORIGIN,
     sessionIdleMs: 30 * 60_000,
     sessionAbsoluteMs: 14 * 3_600_000,

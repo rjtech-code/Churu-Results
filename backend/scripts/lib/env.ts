@@ -7,4 +7,5 @@ export const scriptEnvSchema = appEnvSchema.pick({
   DB_NAME: true,
   DB_APP_USER: true,
   DB_APP_PASSWORD: true,
+  RO_PASSWORD_KEY: true,
 });

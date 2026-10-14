@@ -38,7 +38,7 @@ export async function runUsersResetPassword(
           report.warn('This account is DISABLED; run users:enable to allow login.');
         if (options.commit !== true) return { commit: false, value: null };
 
-        const newPassword = await setNewPassword(conn, user.id);
+        const newPassword = await setNewPassword(conn, user.id, ctx.roPasswordKey);
         await writeAudit(conn, {
           action: 'USER_RESET_PASSWORD',
           entity: 'users',

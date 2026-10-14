@@ -783,7 +783,7 @@ process.
 | `INVALID_CREDENTIALS` | 401 | गलत यूज़रनेम या पासवर्ड |
 | `UNAUTHENTICATED` | 401 | कृपया दोबारा लॉगिन करें (→ login page) |
 | `SESSION_EXPIRED` | 401 | सत्र समाप्त, दोबारा लॉगिन करें (→ login page) |
-| `REAUTH_FAILED` | 401 | पासवर्ड गलत है |
+| `REAUTH_FAILED` | 401 | Incorrect password. कृपया पुनः प्रयास करें। |
 | `CSRF_FAILED` | 403 | सुरक्षा जाँच विफल, पेज दोबारा खोलें (after one automatic retry) |
 | `ORIGIN_REJECTED` | 403 | यह पेज गलत पते से खुला है, सही पते से खोलें |
 | `FORBIDDEN` | 403 | आपको यह काम करने की अनुमति नहीं है (ward/entry pages: "अनुमति नहीं") |
@@ -1174,7 +1174,7 @@ declares or corrects.
 1. `cd backend && npm run migrate`, then `npm run dev`; `cd frontend && npm run dev`. Log in as the DM.
 2. **Parties:** पार्टी सूची → choose a parties Excel → "2. जाँच करें".
    - A duplicate short name shows "पंक्तियाँ …: छोटा नाम … एक से अधिक बार है".
-   - Fix the file → check → "4. सेव करें" → type a **wrong** password: "पासवर्ड गलत है", and nothing is
+   - Fix the file → check → "4. सेव करें" → type a **wrong** password: "Incorrect password. कृपया पुनः प्रयास करें।", and nothing is
      added.
    - Then the right password: "सूची सेव हो गई".
 3. **Candidates:** उम्मीदवार सूची → अपलोड → choose a file with a repeated ballot number.

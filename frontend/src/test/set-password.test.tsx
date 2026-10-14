@@ -31,6 +31,14 @@ vi.mock('../api/api', async (importOriginal) => {
             },
           ],
         });
+      if (path.endsWith('/generate-password')) return Promise.resolve({ password: 'Gen7ratedPass2xyz' });
+      if (path.endsWith('/view-password'))
+        return Promise.resolve({ username: 'ro_bid_k7m2', password: 'Current4Pass8abc' });
+      if (path.endsWith('/update-credentials'))
+        return Promise.resolve({
+          username: (body as { username: string }).username,
+          password: (body as { newPassword?: string }).newPassword ?? null,
+        });
       return Promise.resolve({ ok: true });
     }),
   };
@@ -64,42 +72,64 @@ beforeEach(() => {
   calls.length = 0;
 });
 
-describe('पासवर्ड बदलें: generate or type', () => {
-  it('"अपने आप बनाएँ" is the default; "खुद पासवर्ड लिखें" shows the fields and live Hindi rules', async () => {
+describe('बदलें: one form for username and password', () => {
+  const open = async () => {
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'पासवर्ड बदलें' }));
-    expect(screen.getByLabelText<HTMLInputElement>('अपने आप बनाएँ').checked).toBe(true);
-    expect(screen.queryByLabelText('नया पासवर्ड')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'बदलें' }));
+  };
+  const dmPassword = () => screen.getByLabelText('Admin Password (सत्यापन हेतु)');
+  const save = () => screen.getByRole<HTMLButtonElement>('button', { name: 'सेव करें' });
 
-    await userEvent.click(screen.getByLabelText('खुद पासवर्ड लिखें'));
-    const confirm = screen.getAllByRole('button', { name: 'पासवर्ड बदलें' }).at(-1) as HTMLButtonElement;
-    await userEvent.type(screen.getByLabelText('नया पासवर्ड'), 'Churu2026!');
+  it('typing a password shows the live Hindi rules; "सेव करें" waits for a change and valid rules', async () => {
+    await open();
+    expect(screen.getByLabelText<HTMLInputElement>('यूज़रनेम').value).toBe('ro_bid_k7m2');
+    expect(save().disabled).toBe(true); // nothing changed yet
+    await userEvent.type(screen.getByLabelText(/^पासवर्ड/), 'Churu2026!');
     expect(screen.getByTestId('pw-hints').textContent).toContain('यह पासवर्ड बहुत आसान है');
-    expect(screen.getByTestId('pw-hints').textContent).not.toContain('एक जैसे नहीं'); // second field empty
-    expect(confirm.disabled).toBe(true);
-
-    await userEvent.clear(screen.getByLabelText('नया पासवर्ड'));
-    await userEvent.type(screen.getByLabelText('नया पासवर्ड'), 'Kesar7Tila9mor');
-    await userEvent.type(screen.getByLabelText('फिर से लिखें'), 'Kesar7Tila9moX');
-    expect(screen.getByTestId('pw-hints').textContent).toContain('दोनों नए पासवर्ड एक जैसे नहीं हैं');
-    expect(confirm.disabled).toBe(true);
-
-    await userEvent.clear(screen.getByLabelText('फिर से लिखें'));
-    await userEvent.type(screen.getByLabelText('फिर से लिखें'), 'Kesar7Tila9mor');
+    expect(save().disabled).toBe(true);
+    await userEvent.clear(screen.getByLabelText(/^पासवर्ड/));
+    await userEvent.type(screen.getByLabelText(/^पासवर्ड/), 'Kesar7Tila9mor');
     expect(screen.getByText('✓ पासवर्ड नियमों के अनुसार है')).toBeTruthy();
-    await userEvent.type(screen.getByLabelText('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)'), 'dm-pass');
-    expect(confirm.disabled).toBe(false);
-    await userEvent.click(confirm);
+    expect(save().disabled).toBe(false);
+  });
 
-    expect(await screen.findByText('✓ पासवर्ड बदल गया')).toBeTruthy();
+  it('saves username + typed password in ONE call and then shows the password with "कॉपी करें"', async () => {
+    await open();
+    await userEvent.clear(screen.getByLabelText('यूज़रनेम'));
+    await userEvent.type(screen.getByLabelText('यूज़रनेम'), 'ro_bid_new');
+    await userEvent.type(screen.getByLabelText(/^पासवर्ड/), 'Kesar7Tila9mor');
+    await userEvent.type(dmPassword(), 'dm-pass');
+    await userEvent.click(save());
+
+    expect(await screen.findByTestId('otp-box')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'कॉपी करें' })).toBeTruthy();
     expect(calls.find((c) => c.method === 'POST')).toEqual({
       method: 'POST',
-      path: '/api/admin/users/9/set-password',
-      body: { newPassword: 'Kesar7Tila9mor', confirmPassword: 'Kesar7Tila9mor', password: 'dm-pass' },
+      path: '/api/admin/users/9/update-credentials',
+      body: { username: 'ro_bid_new', newPassword: 'Kesar7Tila9mor', password: 'dm-pass' },
     });
-    // Never shown again.
-    expect(document.body.textContent).not.toContain('Kesar7Tila9mor');
-    expect(screen.queryByTestId('otp-box')).toBeNull();
+  });
+
+  it('"अपने आप बनाएं" fills a generated password; "देखें" asks the DM password and fills the current one', async () => {
+    await open();
+    await userEvent.click(screen.getByRole('button', { name: 'अपने आप बनाएं' }));
+    expect(screen.getByLabelText<HTMLInputElement>(/^पासवर्ड/).value).toBe('Gen7ratedPass2xyz');
+    expect(calls.at(-1)?.path).toBe('/api/admin/users/generate-password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'देखें' }));
+    expect(await screen.findByText('✗ अपना पासवर्ड लिखें')).toBeTruthy();
+    await userEvent.type(dmPassword(), 'dm-pass');
+    await userEvent.click(screen.getByRole('button', { name: 'देखें' }));
+    await vi.waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>(/^पासवर्ड/).value).toBe('Current4Pass8abc');
+    });
+    expect(calls.at(-1)).toEqual({
+      method: 'POST',
+      path: '/api/admin/users/9/view-password',
+      body: { password: 'dm-pass' },
+    });
+    // The viewed password is not a change: saving stays disabled until something changes.
+    expect(save().disabled).toBe(true);
   });
 });
 

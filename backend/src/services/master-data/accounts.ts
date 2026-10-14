@@ -6,6 +6,7 @@
 import { randomInt } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 import { countOf } from './db-count.js';
+import { encryptPassword } from './password-vault.js';
 import { generatePassword, hashPassword } from './passwords.js';
 
 export type Role = 'PS_RO' | 'ZP_RO' | 'DM';
@@ -75,22 +76,37 @@ export async function checkNewAccount(
 export async function insertAccount(
   conn: PoolConnection,
   account: { username: string; fullName: string; role: Role; psId: number | null },
+  vaultKey: Buffer,
 ): Promise<{ id: number; password: string }> {
   const password = generatePassword();
+  // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM.
+  const copy = account.role === 'DM' ? null : encryptPassword(password, vaultKey);
   const [inserted] = await conn.execute<ResultSetHeader>(
-    `INSERT INTO users (username, full_name, password_hash, role, panchayat_samiti_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    [account.username, account.fullName, await hashPassword(password), account.role, account.psId],
+    `INSERT INTO users (username, full_name, password_hash, password_enc, role, panchayat_samiti_id)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      account.username,
+      account.fullName,
+      await hashPassword(password),
+      copy,
+      account.role,
+      account.psId,
+    ],
   );
   return { id: inserted.insertId, password };
 }
 
 /** New random password; clears the failed-login count and any lockout. Returns it once. */
-export async function setNewPassword(conn: PoolConnection, userId: number): Promise<string> {
+export async function setNewPassword(
+  conn: PoolConnection,
+  userId: number,
+  vaultKey: Buffer,
+): Promise<string> {
   const password = generatePassword();
   await conn.execute(
-    'UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL WHERE id = ?',
-    [await hashPassword(password), userId],
+    `UPDATE users SET password_hash = ?, password_enc = IF(role = 'DM', NULL, ?),
+       failed_login_count = 0, locked_until = NULL WHERE id = ?`,
+    [await hashPassword(password), encryptPassword(password, vaultKey), userId],
   );
   return password;
 }
@@ -100,10 +116,12 @@ export async function setChosenPassword(
   conn: PoolConnection,
   userId: number,
   password: string,
+  vaultKey: Buffer,
 ): Promise<void> {
   await conn.execute(
-    'UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL WHERE id = ?',
-    [await hashPassword(password), userId],
+    `UPDATE users SET password_hash = ?, password_enc = IF(role = 'DM', NULL, ?),
+       failed_login_count = 0, locked_until = NULL WHERE id = ?`,
+    [await hashPassword(password), encryptPassword(password, vaultKey), userId],
   );
 }
 

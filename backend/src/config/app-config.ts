@@ -11,6 +11,8 @@ export interface RateLimitConfig {
 export interface AppConfig {
   production: boolean;
   sessionSecret: string;
+  /** AES-256 key (32 bytes) for the encrypted RO password copies. */
+  roPasswordKey: Buffer;
   appOrigin: string;
   sessionIdleMs: number;
   sessionAbsoluteMs: number;
@@ -62,6 +64,7 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
   return {
     production: env.NODE_ENV === 'production',
     sessionSecret: env.SESSION_SECRET,
+    roPasswordKey: Buffer.from(env.RO_PASSWORD_KEY, 'base64'),
     appOrigin: env.APP_ORIGIN,
     sessionIdleMs: env.SESSION_IDLE_MINUTES * 60_000,
     sessionAbsoluteMs: env.SESSION_ABSOLUTE_HOURS * 3_600_000,

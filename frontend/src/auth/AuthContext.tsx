@@ -91,3 +91,8 @@ export function useAuth(): AuthState {
   if (!ctx) throw new Error('useAuth outside AuthProvider');
   return ctx;
 }
+
+/** The logged-in role, or null when there is no provider or nobody is logged in (never throws). */
+export function useRole(): Me['role'] | null {
+  return useContext(AuthContext)?.user?.role ?? null;
+}

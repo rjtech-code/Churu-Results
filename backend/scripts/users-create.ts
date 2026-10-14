@@ -70,7 +70,11 @@ export async function runUsersCreate(
         );
         if (!report.isOk() || options.commit !== true) return { commit: false, value: null };
 
-        const inserted = await insertAccount(conn, { username, fullName, role, psId });
+        const inserted = await insertAccount(
+          conn,
+          { username, fullName, role, psId },
+          ctx.roPasswordKey,
+        );
         await writeAudit(conn, {
           action: 'USER_CREATE',
           entity: 'users',

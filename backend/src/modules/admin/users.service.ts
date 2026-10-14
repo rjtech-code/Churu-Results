@@ -1,20 +1,22 @@
 // DM "RO सूची": the 13 PS_RO seats and the ZP_RO seat. Create (empty seat only, the usual limits),
-// replace (the one exception to "disabled accounts count"), new password, disable/enable, unlock.
-// A new password is returned ONCE to the DM's screen; it is never stored, logged or audited.
+// replace (the one exception to "disabled accounts count"), change username/password, view the
+// current password, disable/enable, unlock. Passwords are never logged or audited. The only copy
+// besides the bcrypt hash is the AES-256-GCM one (password-vault.ts) that "view" decrypts.
 // The DM's own account is never managed here (CLI only).
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
 import {
+  USERNAME_PATTERN,
   checkChosenPassword,
   checkNewAccount,
   clearLoginLock,
   generateUsername,
   insertAccount,
   setAccountActive,
-  setChosenPassword,
-  setNewPassword,
 } from '../../services/master-data/accounts.js';
+import { hashPassword, generatePassword } from '../../services/master-data/passwords.js';
+import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
 import { loadPanchayatSamitis } from '../../services/master-data/lookups.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
@@ -180,6 +182,7 @@ export async function createSeatAccount(
   pool: Pool,
   who: Actor,
   body: { seat: Seat; fullName: string; password: string },
+  vaultKey: Buffer,
 ): Promise<NewCredentials> {
   const ps = await seatPs(pool, body.seat);
   return inUserWrite(pool, who, body.password, async (conn) => {
@@ -192,12 +195,16 @@ export async function createSeatAccount(
       psName: ps?.name_english ?? null,
     });
     if (issues.length > 0) throw new ApiError(409, 'SEAT_TAKEN');
-    const created = await insertAccount(conn, {
-      username,
-      fullName: body.fullName,
-      role,
-      psId: ps?.id ?? null,
-    });
+    const created = await insertAccount(
+      conn,
+      {
+        username,
+        fullName: body.fullName,
+        role,
+        psId: ps?.id ?? null,
+      },
+      vaultKey,
+    );
     await writeAudit(conn, {
       userId: who.user.id,
       action: 'USER_CREATE',
@@ -222,6 +229,7 @@ export async function replaceAccount(
   who: Actor,
   userId: number,
   body: { fullName: string; password: string },
+  vaultKey: Buffer,
 ): Promise<NewCredentials> {
   return inUserWrite(pool, who, body.password, async (conn) => {
     const old = await lockRoAccount(conn, userId);
@@ -232,12 +240,16 @@ export async function replaceAccount(
     if (old.isActive) await setAccountActive(conn, old.id, false);
     await endSessions(conn, old.id);
     const username = await freeUsername(conn, seat, ps?.name_english ?? null);
-    const created = await insertAccount(conn, {
-      username,
-      fullName: body.fullName,
-      role: seat.role,
-      psId: ps?.id ?? null,
-    });
+    const created = await insertAccount(
+      conn,
+      {
+        username,
+        fullName: body.fullName,
+        role: seat.role,
+        psId: ps?.id ?? null,
+      },
+      vaultKey,
+    );
     await writeAudit(conn, {
       userId: who.user.id,
       action: 'USER_REPLACE',
@@ -263,80 +275,141 @@ export async function replaceAccount(
   });
 }
 
-/** "पासवर्ड बदलें": new random password; clears the lockout; ends the RO's open sessions. */
-export async function resetAccountPassword(
+/** password is null only after a rename of an account that has no readable password copy. */
+export interface SavedCredentials {
+  username: string;
+  password: string | null;
+}
+
+export interface ViewedPassword {
+  username: string;
+  password: string;
+}
+
+/**
+ * "देखें": shows the RO's current password. DM only, needs the DM's password, audit
+ * RO_PASSWORD_VIEWED (who/which account, never the password). 409 NO_COPY when the account has no
+ * readable encrypted copy (older accounts): the DM sets a new password instead.
+ */
+export async function viewAccountPassword(
   pool: Pool,
   who: Actor,
   userId: number,
   body: { password: string },
-): Promise<NewCredentials> {
+  vaultKey: Buffer,
+): Promise<ViewedPassword> {
   return inUserWrite(pool, who, body.password, async (conn) => {
     const account = await lockRoAccount(conn, userId);
-    const newPassword = await setNewPassword(conn, account.id);
-    await endSessions(conn, account.id);
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      'SELECT password_enc FROM users WHERE id = ?',
+      [account.id],
+    );
+    const blob: unknown = rows[0]?.password_enc;
+    if (!Buffer.isBuffer(blob)) throw new ApiError(409, 'NO_COPY');
+    let password: string;
+    try {
+      password = decryptPassword(blob, vaultKey);
+    } catch {
+      throw new ApiError(409, 'NO_COPY');
+    }
     await writeAudit(conn, {
       userId: who.user.id,
-      action: 'USER_RESET_PASSWORD',
+      action: 'RO_PASSWORD_VIEWED',
       entity: 'users',
       entityId: account.id,
-      newValue: {
-        via: 'web',
-        username: account.username,
-        failed_login_count: 0,
-        locked_until: null,
-      },
+      newValue: { via: 'web', username: account.username },
       ip: who.ip,
     });
-    return { username: account.username, password: newPassword };
+    return { username: account.username, password };
   });
 }
 
+/** A new strong, easy-to-read password for the form's "अपने आप बनाएं" (nothing is saved). */
+export function suggestPassword(): string {
+  return generatePassword();
+}
+
 /**
- * "पासवर्ड बदलें" → "खुद पासवर्ड लिखें": the DM types the RO's new password. The rules are checked
- * first (no password check, nothing written), then the DM's password, then one transaction: hash,
- * lockout cleared, the RO's sessions ended, audit RO_PASSWORD_SET_MANUAL (never the password).
+ * "बदलें": one form changes the username and/or the password of an RO. Rules checked first (nothing
+ * written), then the DM's password, then ONE transaction: username unique, bcrypt hash + encrypted
+ * copy, lockout cleared, the RO's sessions ended, one audit row (RO_CREDENTIALS_CHANGED, no password).
  */
-export async function setAccountPasswordManually(
+export async function updateCredentials(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { newPassword: string; confirmPassword: string; password: string },
-): Promise<void> {
-  const [rows] = await pool.execute<RowDataPacket[]>(
-    'SELECT username, role FROM users WHERE id = ?',
-    [userId],
-  );
-  const target = rows[0];
-  if (!target) throw new ApiError(404, 'NOT_FOUND');
-  if (target.role === 'DM') throw new ApiError(403, 'FORBIDDEN');
-  const problem = checkChosenPassword(
-    body.newPassword,
-    body.confirmPassword,
-    String(target.username),
-  )[0];
-  if (problem !== undefined) throw new ApiError(400, problem);
+  body: { username: string; newPassword?: string | undefined; password: string },
+  vaultKey: Buffer,
+): Promise<SavedCredentials> {
+  if (!USERNAME_PATTERN.test(body.username)) throw new ApiError(400, 'USERNAME_INVALID');
+  const [rows] = await pool.execute<RowDataPacket[]>('SELECT role FROM users WHERE id = ?', [
+    userId,
+  ]);
+  if (!rows[0]) throw new ApiError(404, 'NOT_FOUND');
+  if (rows[0].role === 'DM') throw new ApiError(403, 'FORBIDDEN');
+  const chosen = body.newPassword;
+  if (chosen !== undefined) {
+    const problem = checkChosenPassword(chosen, chosen, body.username)[0];
+    if (problem !== undefined) throw new ApiError(400, problem);
+  }
 
-  await inUserWrite(pool, who, body.password, async (conn) => {
+  return inUserWrite(pool, who, body.password, async (conn) => {
     const account = await lockRoAccount(conn, userId);
-    // Checked again on the locked row (same rules, same answer as above).
-    const again = checkChosenPassword(body.newPassword, body.confirmPassword, account.username)[0];
-    if (again !== undefined) throw new ApiError(400, again);
-    await setChosenPassword(conn, account.id, body.newPassword);
+    const renamed = body.username !== account.username;
+    if (!renamed && chosen === undefined) throw new ApiError(409, 'NO_CHANGE');
+    if (renamed) {
+      const [taken] = await conn.execute<RowDataPacket[]>(
+        'SELECT id FROM users WHERE username = ? AND id <> ?',
+        [body.username, account.id],
+      );
+      if (taken.length > 0) throw new ApiError(409, 'USERNAME_TAKEN');
+    }
+    if (chosen !== undefined) {
+      await conn.execute(
+        'UPDATE users SET username = ?, password_hash = ?, password_enc = ? WHERE id = ?',
+        [body.username, await hashPassword(chosen), encryptPassword(chosen, vaultKey), account.id],
+      );
+    } else {
+      await conn.execute('UPDATE users SET username = ? WHERE id = ?', [body.username, account.id]);
+    }
+    await clearLoginLock(conn, account.id);
     await endSessions(conn, account.id);
     await writeAudit(conn, {
       userId: who.user.id,
-      action: 'RO_PASSWORD_SET_MANUAL',
+      action: 'RO_CREDENTIALS_CHANGED',
       entity: 'users',
       entityId: account.id,
+      oldValue: { username: account.username },
       newValue: {
         via: 'web',
-        username: account.username,
+        username: body.username,
+        username_changed: renamed,
+        password_changed: chosen !== undefined,
         failed_login_count: 0,
         locked_until: null,
       },
       ip: who.ip,
     });
+    return {
+      username: body.username,
+      password: chosen ?? (await currentPassword(conn, account.id, vaultKey)),
+    };
   });
+}
+
+/** The saved password again (for the "copy" screen after a rename without a password change). */
+async function currentPassword(conn: PoolConnection, userId: number, vaultKey: Buffer) {
+  const [rows] = await conn.execute<RowDataPacket[]>(
+    'SELECT password_enc FROM users WHERE id = ?',
+    [userId],
+  );
+  const blob: unknown = rows[0]?.password_enc;
+  if (!Buffer.isBuffer(blob)) return null;
+  try {
+    return decryptPassword(blob, vaultKey);
+  } catch {
+    return null;
+  }
 }
 
 /** "बंद करें" / "चालू करें". Enabling needs a free seat (one active login per seat). */

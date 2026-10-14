@@ -19,7 +19,7 @@ test('a correction creates declaration version 2', async ({ page }) => {
   await page.getByRole('button', { name: 'पूर्वावलोकन' }).click();
   await expect(page.getByRole('heading', { name: '3. पुष्टि — नया संस्करण 2' })).toBeVisible();
   await expect(page.getByText('विजेता: अमर सिंह · अंतर: 143')).toBeVisible();
-  await page.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await page.getByLabel('RO Password (सत्यापन हेतु)').fill(world().password);
   await page.getByRole('button', { name: 'संशोधन की पुष्टि करें' }).click();
   await expect(versions.locator('tbody tr')).toHaveCount(2);
 });

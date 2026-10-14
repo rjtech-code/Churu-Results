@@ -22,6 +22,7 @@ nano .env.production
 - Har secret ke liye ek baar yeh command chalao aur value paste karo:
   `openssl rand -base64 36 | tr -d '/+='`
   (SESSION_SECRET, DB_APP_PASSWORD, DB_MIGRATION_PASSWORD, MYSQL_ROOT_PASSWORD — sab alag alag.)
+- `RO_PASSWORD_KEY` alag command se banta hai: `openssl rand -base64 32`. Isse RO ke passwords ki encrypted copy banti hai (DM "देखें" ke liye). Is key ko `.env.production` ke saath backup mein rakho; kho gayi to purane passwords dikhenge nahi (DM naya set kar sakta hai). Baad mein change mat karo.
 - `TRUST_PROXY=1` rehne do.
 
 ## 3. Build aur start

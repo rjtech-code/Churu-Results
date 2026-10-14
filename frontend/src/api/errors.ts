@@ -17,7 +17,7 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   CSRF_FAILED: 'सुरक्षा जाँच विफल, पेज दोबारा खोलें',
   ORIGIN_REJECTED: 'यह पेज गलत पते से खुला है, सही पते से खोलें',
   FORBIDDEN: 'आपको यह काम करने की अनुमति नहीं है',
-  REAUTH_FAILED: 'पासवर्ड गलत है',
+  REAUTH_FAILED: 'Incorrect password. कृपया पुनः प्रयास करें।',
   // General
   VALIDATION_FAILED: 'भरी गई जानकारी सही नहीं है, कृपया जाँचें',
   NOT_FOUND: 'जानकारी नहीं मिली',
@@ -77,6 +77,9 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   PASSWORD_NEEDS_LETTER_AND_DIGIT: 'पासवर्ड में कम से कम एक अक्षर और एक अंक हो',
   PASSWORD_HAS_USERNAME: 'पासवर्ड में RO का यूज़रनेम नहीं होना चाहिए',
   PASSWORD_TOO_COMMON: 'यह पासवर्ड बहुत आसान है, कोई दूसरा चुनें',
+  NO_COPY: 'पासवर्ड उपलब्ध नहीं — नया पासवर्ड सेट करें',
+  USERNAME_INVALID: 'यूज़रनेम 4-30 अक्षर का हो: केवल छोटे अंग्रेज़ी अक्षर, अंक और _',
+  USERNAME_TAKEN: 'यह यूज़रनेम पहले से किसी के पास है',
   PASSWORD_MISMATCH: 'दोनों नए पासवर्ड एक जैसे नहीं हैं',
 };
 

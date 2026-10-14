@@ -7,6 +7,8 @@ import type { Report } from './report.js';
 export interface ScriptContext {
   pool: Pool;
   reportsDir: string;
+  /** AES key for the encrypted RO password copies (users:create, users:reset-password). */
+  roPasswordKey: Buffer;
   /** Terminal output. */
   out: (text: string) => void;
   /** Asks a question on the terminal and returns the typed answer. */

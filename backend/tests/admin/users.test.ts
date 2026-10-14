@@ -148,28 +148,37 @@ describe('DM RO management', () => {
     expect(create.body).toEqual({ error: 'SEAT_TAKEN' });
   });
 
-  it('reset password: new password works, old does not, sessions end, lockout cleared', async () => {
+  it('change password: new password works, old does not, sessions end, lockout cleared', async () => {
     await pool.execute(
       'UPDATE users SET failed_login_count = 3, locked_until = NOW(3) + INTERVAL 10 MINUTE WHERE id = ?',
       [w.users.zp],
     );
-    const res = await dm.post(`/api/admin/users/${w.users.zp}/reset-password`, {
+    const suggested = await dm.post('/api/admin/users/generate-password', {});
+    expect(suggested.status).toBe(200);
+    const generated = (suggested.body as { password: string }).password;
+    expect(generated).toMatch(/^[A-Za-z2-9]{16}$/);
+    const res = await dm.post(`/api/admin/users/${w.users.zp}/update-credentials`, {
+      username: 'zp_ro_x3',
+      newPassword: generated,
       password: PASSWORD,
     });
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
-    const out = res.body as Credentials;
-    expect(out.username).toBe('zp_ro_x3');
+    expect(res.body).toEqual({ username: 'zp_ro_x3', password: generated });
     expect(await user(w.users.zp)).toMatchObject({ failed_login_count: 0, locked_until: null });
     expect(await loginStatus('zp_ro_x3', PASSWORD)).toBe(401);
-    expect(await loginStatus('zp_ro_x3', out.password)).toBe(200);
-    expect(await auditText()).not.toContain(out.password);
+    expect(await loginStatus('zp_ro_x3', generated)).toBe(200);
+    expect(await auditText()).not.toContain(generated);
   });
 
-  it('a running session of the RO ends on password reset', async () => {
+  it('a running session of the RO ends on a credentials change', async () => {
     const ro = await apiClient(app, 'ro_ps2_x2');
     expect((await ro.get('/api/candidates/wards')).status).toBe(200);
-    await dm.post(`/api/admin/users/${w.users.ro2}/reset-password`, { password: PASSWORD });
+    await dm.post(`/api/admin/users/${w.users.ro2}/update-credentials`, {
+      username: 'ro_ps2_x2',
+      newPassword: 'Kesar7Tila9mor',
+      password: PASSWORD,
+    });
     expect((await ro.get('/api/candidates/wards')).status).toBe(401);
   });
 
@@ -205,8 +214,11 @@ describe('DM RO management', () => {
     for (const action of ['USER_DISABLE', 'USER_ENABLE', 'USER_UNLOCKED'])
       expect((await auditOf(pool, action)).length).toBe(1);
 
-    for (const path of ['disable', 'reset-password', 'unlock']) {
-      const res = await dm.post(`/api/admin/users/${w.users.dm}/${path}`, { password: PASSWORD });
+    for (const path of ['disable', 'view-password', 'update-credentials', 'unlock']) {
+      const res = await dm.post(`/api/admin/users/${w.users.dm}/${path}`, {
+        ...(path === 'update-credentials' ? { username: 'dm_renamed' } : {}),
+        password: PASSWORD,
+      });
       expect([path, res.status]).toEqual([path, 403]);
     }
     const replaceDm = await dm.post(`/api/admin/users/${w.users.dm}/replace`, {
@@ -220,7 +232,11 @@ describe('DM RO management', () => {
     const before = JSON.parse(await masterSnapshot(pool)) as unknown[][];
     for (const [path, body] of [
       [`/api/admin/users/${w.users.ro1}/replace`, { fullName: 'कोई', password: 'bad' }],
-      [`/api/admin/users/${w.users.ro1}/reset-password`, { password: 'bad' }],
+      [
+        `/api/admin/users/${w.users.ro1}/update-credentials`,
+        { username: 'ro_new_name', newPassword: 'Kesar7Tila9mor', password: 'bad' },
+      ],
+      [`/api/admin/users/${w.users.ro1}/view-password`, { password: 'bad' }],
       [`/api/admin/users/${w.users.ro1}/disable`, { password: 'bad' }],
     ] as const) {
       const res = await dm.post(path, body);
@@ -237,10 +253,13 @@ describe('DM RO management', () => {
   });
 });
 
-describe('DM sets an RO password manually', () => {
+describe('DM types an RO password in the one form', () => {
   const GOOD = 'Kesar7Tila9mor';
   const setPassword = (userId: number, body: Record<string, string>) =>
-    dm.post(`/api/admin/users/${userId}/set-password`, body);
+    dm.post(`/api/admin/users/${userId}/update-credentials`, {
+      username: userId === w.users.ro2 ? 'ro_ps2_x2' : 'ro_other',
+      ...body,
+    });
 
   it('the chosen password works, the old one stops, sessions end, lockout cleared, audit without it', async () => {
     const ro = await apiClient(app, 'ro_ps2_x2');
@@ -249,24 +268,21 @@ describe('DM sets an RO password manually', () => {
       'UPDATE users SET failed_login_count = 2, locked_until = NOW(3) + INTERVAL 5 MINUTE WHERE id = ?',
       [w.users.ro2],
     );
-    const res = await setPassword(w.users.ro2, {
-      newPassword: GOOD,
-      confirmPassword: GOOD,
-      password: PASSWORD,
-    });
-    expect([res.status, res.body]).toEqual([200, { ok: true }]);
+    const res = await setPassword(w.users.ro2, { newPassword: GOOD, password: PASSWORD });
+    expect([res.status, res.body]).toEqual([200, { username: 'ro_ps2_x2', password: GOOD }]);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(JSON.stringify(res.body)).not.toContain(GOOD);
     expect(await user(w.users.ro2)).toMatchObject({ failed_login_count: 0, locked_until: null });
     expect(String((await user(w.users.ro2))?.password_hash)).toMatch(/^\$2b\$12\$/);
     expect((await ro.get('/api/candidates/wards')).status).toBe(401);
     expect(await loginStatus('ro_ps2_x2', PASSWORD)).toBe(401);
     expect(await loginStatus('ro_ps2_x2', GOOD)).toBe(200);
-    const [audit] = await auditOf(pool, 'RO_PASSWORD_SET_MANUAL');
+    const [audit] = await auditOf(pool, 'RO_CREDENTIALS_CHANGED');
     expect([audit?.user_id, Number(audit?.entity_id)]).toEqual([w.users.dm, w.users.ro2]);
     expect(audit?.new_value).toEqual({
       via: 'web',
       username: 'ro_ps2_x2',
+      username_changed: false,
+      password_changed: true,
       failed_login_count: 0,
       locked_until: null,
     });
@@ -275,7 +291,7 @@ describe('DM sets an RO password manually', () => {
 
   it('each rule is refused with its own code, and nothing changes', async () => {
     const before = await masterSnapshot(pool);
-    for (const [newPassword, confirmPassword, code] of [
+    for (const [newPassword, , code] of [
       ['Ab3short', 'Ab3short', 'PASSWORD_TOO_SHORT'],
       [`A1${'x'.repeat(130)}`, `A1${'x'.repeat(130)}`, 'PASSWORD_TOO_LONG'],
       ['onlyletterspassphrase', 'onlyletterspassphrase', 'PASSWORD_NEEDS_LETTER_AND_DIGIT'],
@@ -284,18 +300,13 @@ describe('DM sets an RO password manually', () => {
       ['Churu2026!', 'Churu2026!', 'PASSWORD_TOO_COMMON'],
       ['P@ssword123', 'P@ssword123', 'PASSWORD_TOO_COMMON'],
       ['Admin12345', 'Admin12345', 'PASSWORD_TOO_COMMON'],
-      [GOOD, `${GOOD}x`, 'PASSWORD_MISMATCH'],
     ] as const) {
-      const res = await setPassword(w.users.ro2, {
-        newPassword,
-        confirmPassword,
-        password: PASSWORD,
-      });
+      const res = await setPassword(w.users.ro2, { newPassword, password: PASSWORD });
       expect([newPassword, res.status, res.body]).toEqual([newPassword, 400, { error: code }]);
     }
     // Rules are checked before the DM's password: nothing written, no re-auth counted.
     expect(await masterSnapshot(pool)).toBe(before);
-    expect((await auditOf(pool, 'RO_PASSWORD_SET_MANUAL')).length).toBe(0);
+    expect((await auditOf(pool, 'RO_CREDENTIALS_CHANGED')).length).toBe(0);
     expect(await loginStatus('ro_ps2_x2', PASSWORD)).toBe(200);
   });
 
@@ -303,24 +314,18 @@ describe('DM sets an RO password manually', () => {
     const hash = (await user(w.users.ro2))?.password_hash as unknown;
     const res = await setPassword(w.users.ro2, {
       newPassword: GOOD,
-      confirmPassword: GOOD,
       password: 'wrong-dm-password',
     });
     expect([res.status, res.body]).toEqual([401, { error: 'REAUTH_FAILED' }]);
     expect((await user(w.users.ro2))?.password_hash).toBe(hash);
-    expect((await auditOf(pool, 'RO_PASSWORD_SET_MANUAL')).length).toBe(0);
+    expect((await auditOf(pool, 'RO_CREDENTIALS_CHANGED')).length).toBe(0);
     expect(await loginStatus('ro_ps2_x2', GOOD)).toBe(401);
   });
 
-  it('never for the DM account; an unknown user is 404; the auto-generated reset still works', async () => {
-    const body = { newPassword: GOOD, confirmPassword: GOOD, password: PASSWORD };
+  it('never for the DM account; an unknown user is 404', async () => {
+    const body = { newPassword: GOOD, password: PASSWORD };
     expect((await setPassword(w.users.dm, body)).status).toBe(403);
     expect((await setPassword(999_999, body)).status).toBe(404);
-    const auto = await dm.post(`/api/admin/users/${w.users.ro2}/reset-password`, {
-      password: PASSWORD,
-    });
-    expect(auto.status).toBe(200);
-    expect((auto.body as { password: string }).password).toMatch(/^[A-Za-z2-9]{16}$/);
   });
 
   it('the rules as a pure function, and the exact allow-list path', () => {
@@ -343,8 +348,8 @@ describe('DM sets an RO password manually', () => {
     for (const ok of [GOOD, 'Ramgarh2026x', 'नीलकमल7तालाब3'])
       expect([ok, isWeakPassword(ok)]).toEqual([ok, false]);
     expect(checkChosenPassword('नीलकमल7तालाब3', 'नीलकमल7तालाब3', 'ro_x')).toEqual([]);
-    expect(dmWriteAllowed('POST', '/api/admin/users/5/set-password')).toBe(true);
-    expect(dmWriteAllowed('PUT', '/api/admin/users/5/set-password')).toBe(false);
-    expect(dmWriteAllowed('POST', '/api/admin/users/5/set-password/x')).toBe(false);
+    expect(dmWriteAllowed('POST', '/api/admin/users/5/update-credentials')).toBe(true);
+    expect(dmWriteAllowed('PUT', '/api/admin/users/5/update-credentials')).toBe(false);
+    expect(dmWriteAllowed('POST', '/api/admin/users/5/update-credentials/x')).toBe(false);
   });
 });

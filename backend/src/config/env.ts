@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { parseVaultKey } from '../services/master-data/password-vault.js';
 
 // Every environment variable is validated here. On failure we report only the variable NAME
 // and what kind of problem it has; values are never printed (they may be secrets).
@@ -36,6 +37,12 @@ const trustProxy = z
     v === 'false' ? false : v === 'loopback' ? 'loopback' : Number(v),
   );
 
+/** AES-256 key for the RO password copies: base64 of exactly 32 bytes (openssl rand -base64 32). */
+const roPasswordKey = nonEmpty.refine(
+  (v) => parseVaultKey(v) !== null,
+  'must be base64 of exactly 32 bytes (generate: openssl rand -base64 32)',
+);
+
 export const appEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']),
   PORT: port,
@@ -46,6 +53,7 @@ export const appEnvSchema = z.object({
   APP_ORIGIN: origin,
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(1).max(120).default(30),
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(14),
+  RO_PASSWORD_KEY: roPasswordKey,
   TRUST_PROXY: trustProxy.default(false),
   /** Rule 7 (booth total <= registered voters) needs voter counts. Default: true in production. */
   REQUIRE_VOTER_COUNTS: z

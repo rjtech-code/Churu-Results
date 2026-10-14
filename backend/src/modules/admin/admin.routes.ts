@@ -45,10 +45,11 @@ import {
   listSeats,
   parseSeat,
   replaceAccount,
-  resetAccountPassword,
-  setAccountPasswordManually,
   setRoActive,
   unlockAccount,
+  suggestPassword,
+  updateCredentials,
+  viewAccountPassword,
 } from './users.service.js';
 
 /** The upload routes: the only bodies above 100 kb (parsed here, after the DM role check). */
@@ -133,9 +134,13 @@ const createBody = z
   })
   .strict();
 const replaceBody = z.object({ fullName, password }).strict();
-// Only sizes here; the password rules (with their own error codes) are in checkChosenPassword.
-const setPasswordBody = z
-  .object({ newPassword: z.string().max(200), confirmPassword: z.string().max(200), password })
+// Only sizes here; the username and password rules (with their own error codes) are in the service.
+const credentialsBody = z
+  .object({
+    username: z.string().max(60),
+    newPassword: z.string().max(200).optional(),
+    password,
+  })
   .strict();
 const areaQuery = z.object({ area: areaText.optional() }).strict();
 const reportQuery = z.object({ scope: z.union([z.literal('ALL'), areaText]) }).strict();
@@ -151,7 +156,7 @@ function sendXlsx(res: Response, data: Buffer, name: string): void {
   res.send(data);
 }
 
-export function adminRouter(pool: Pool, _config: AppConfig): Router {
+export function adminRouter(pool: Pool, config: AppConfig): Router {
   const router = Router();
   router.use(requireRole('DM'));
   // Only after the role check: a large upload body is read only for a logged-in DM.
@@ -216,7 +221,12 @@ export function adminRouter(pool: Pool, _config: AppConfig): Router {
     res.json({ seats: await listSeats(pool) });
   });
   router.post('/users/create', async (req, res) => {
-    const out = await createSeatAccount(pool, actor(req), parse(createBody, req.body));
+    const out = await createSeatAccount(
+      pool,
+      actor(req),
+      parse(createBody, req.body),
+      config.roPasswordKey,
+    );
     noStore(res);
     res.status(201).json(out);
   });
@@ -226,29 +236,36 @@ export function adminRouter(pool: Pool, _config: AppConfig): Router {
       actor(req),
       id(req, 'userId'),
       parse(replaceBody, req.body),
+      config.roPasswordKey,
     );
     noStore(res);
     res.status(201).json(out);
   });
-  router.post('/users/:userId/reset-password', async (req, res) => {
-    const out = await resetAccountPassword(
+  router.post('/users/generate-password', (_req, res) => {
+    noStore(res);
+    res.json({ password: suggestPassword() });
+  });
+  router.post('/users/:userId/view-password', async (req, res) => {
+    const out = await viewAccountPassword(
       pool,
       actor(req),
       id(req, 'userId'),
       parse(passwordOnly, req.body),
+      config.roPasswordKey,
     );
     noStore(res);
     res.json(out);
   });
-  router.post('/users/:userId/set-password', async (req, res) => {
-    await setAccountPasswordManually(
+  router.post('/users/:userId/update-credentials', async (req, res) => {
+    const out = await updateCredentials(
       pool,
       actor(req),
       id(req, 'userId'),
-      parse(setPasswordBody, req.body),
+      parse(credentialsBody, req.body),
+      config.roPasswordKey,
     );
     noStore(res);
-    res.json({ ok: true });
+    res.json(out);
   });
   router.post('/users/:userId/disable', async (req, res) => {
     await setRoActive(pool, actor(req), id(req, 'userId'), false, parse(passwordOnly, req.body));

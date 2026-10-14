@@ -6,6 +6,7 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { runImportCandidates } from '../../scripts/import-candidates.js';
 import { runImportGeography } from '../../scripts/import-geography.js';
 import { runImportParties } from '../../scripts/import-parties.js';
+import { TEST_RO_PASSWORD_KEY } from '../auth/helpers.js';
 import type { ScriptContext } from '../../scripts/lib/run.js';
 import { createTestAppPool, createTestMigrationPool, insert, resetData } from '../helpers/db.js';
 
@@ -41,6 +42,7 @@ export function makeCtx(h: Harness, answer = ''): { ctx: ScriptContext; output: 
   const ctx: ScriptContext = {
     pool: h.app,
     reportsDir: join(h.dir, 'reports'),
+    roPasswordKey: TEST_RO_PASSWORD_KEY,
     out: (text) => output.push(text),
     confirm: (question) => {
       output.push(question);

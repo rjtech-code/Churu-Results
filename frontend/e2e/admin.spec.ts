@@ -38,7 +38,7 @@ test.beforeAll(async () => {
 
 async function confirmWithPassword(page: Page, button: string) {
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel('अपना पासवर्ड दोबारा लिखें (पुष्टि के लिए)').fill(world().password);
+  await dialog.getByLabel('Admin Password (सत्यापन हेतु)').fill(world().password);
   await dialog.getByRole('button', { name: button }).click();
 }
 

@@ -47,7 +47,9 @@ function adminEndpoints(): [string, string][] {
     ['GET', '/api/admin/users'],
     ['POST', '/api/admin/users/create'],
     ['POST', `/api/admin/users/${w.users.ro1}/replace`],
-    ['POST', `/api/admin/users/${w.users.ro1}/reset-password`],
+    ['POST', `/api/admin/users/${w.users.ro1}/update-credentials`],
+    ['POST', `/api/admin/users/${w.users.ro1}/view-password`],
+    ['POST', '/api/admin/users/generate-password'],
     ['POST', `/api/admin/users/${w.users.ro1}/disable`],
     ['POST', `/api/admin/users/${w.users.ro1}/enable`],
     ['POST', `/api/admin/users/${w.users.ro1}/unlock`],
@@ -178,7 +180,7 @@ describe('the DM can still never count, declare or correct', () => {
 
   it('the allow-list is exact: near-miss paths and other methods are refused', () => {
     expect(dmWriteAllowed('POST', '/api/admin/lock')).toBe(true);
-    expect(dmWriteAllowed('POST', '/api/admin/users/12/reset-password')).toBe(true);
+    expect(dmWriteAllowed('POST', '/api/admin/users/12/view-password')).toBe(true);
     expect(dmWriteAllowed('POST', '/api/admin/booths/3/move')).toBe(true);
     for (const [method, path] of [
       ['PUT', '/api/admin/lock'],

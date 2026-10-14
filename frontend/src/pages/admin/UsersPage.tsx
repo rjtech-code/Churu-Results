@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Seat } from '../../api/adminTypes';
+import type { Credentials, Seat } from '../../api/adminTypes';
 import { api } from '../../api/api';
-import { PageIntro } from '../../components/AdminParts';
-import { ErrorBox } from '../../components/ErrorBox';
+import { OneTimePassword, PageIntro } from '../../components/AdminParts';
+import { CredentialsDialog } from '../../components/CredentialsDialog';
+import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
@@ -15,11 +17,40 @@ export function seatState(seat: Seat): string {
 
 /** DM "RO सूची": the 13 Panchayat Samiti posts and the Zila Parishad post. */
 export function UsersPage() {
-  const { data, error } = useApiData(() => api<{ seats: Seat[] }>('GET', '/api/admin/users'), []);
+  const { data, error, reload } = useApiData(() => api<{ seats: Seat[] }>('GET', '/api/admin/users'), []);
+  const [editing, setEditing] = useState<Seat | null>(null);
+  const [credentials, setCredentials] = useState<Credentials | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   return (
     <>
       <PageIntro title="RO सूची" hint="यहाँ RO के खाते देखें। किसी पद का खाता बदलने के लिए 'खोलें' दबाएँ।" />
       <ErrorBox error={error} />
+      <SuccessBox text={done} />
+      {credentials && (
+        <OneTimePassword
+          username={credentials.username}
+          password={credentials.password}
+          onDone={() => {
+            setCredentials(null);
+          }}
+        />
+      )}
+      {editing?.account && (
+        <CredentialsDialog
+          userId={editing.account.id}
+          currentUsername={editing.account.username}
+          title={`${editing.label} — बदलें`}
+          onSaved={(saved) => {
+            setEditing(null);
+            if (saved.password === null) setDone('यूज़रनेम बदल गया');
+            else setCredentials({ username: saved.username, password: saved.password });
+            reload();
+          }}
+          onCancel={() => {
+            setEditing(null);
+          }}
+        />
+      )}
       {data === null ? (
         <p className="loading">लोड हो रहा है…</p>
       ) : (
@@ -42,7 +73,20 @@ export function UsersPage() {
                 <td>{s.account?.username ?? '—'}</td>
                 <td>{seatState(s)}</td>
                 <td>{s.account?.lastLoginAt ? formatDateTime(s.account.lastLoginAt) : '—'}</td>
-                <td>
+                <td className="actions">
+                  {s.account && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setDone(null);
+                        setCredentials(null);
+                        setEditing(s);
+                      }}
+                    >
+                      बदलें
+                    </button>
+                  )}
                   <Link className="btn btn-secondary" to={`/admin/users/${encodeURIComponent(s.seat)}`}>
                     खोलें
                   </Link>

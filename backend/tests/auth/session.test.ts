@@ -16,6 +16,7 @@ import {
   sessionIdFrom,
   sessionSetCookie,
   sleep,
+  TEST_RO_PASSWORD_KEY,
 } from './helpers.js';
 
 let app: Pool;
@@ -133,6 +134,7 @@ describe('sessions', () => {
       {
         pool: app,
         reportsDir: join(await mkdtemp(join(tmpdir(), 'churu-auth-')), 'reports'),
+        roPasswordKey: TEST_RO_PASSWORD_KEY,
         out: () => undefined,
         confirm: () => Promise.resolve(''),
         now: () => new Date(),
