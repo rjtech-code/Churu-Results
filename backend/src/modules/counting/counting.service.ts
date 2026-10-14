@@ -188,6 +188,49 @@ export async function previewBoothEntry(
   });
 }
 
+/** Inserts an already checked booth sheet: entry row, vote rows, ENTRY_CREATED audit row. */
+async function insertBoothEntry(
+  conn: PoolConnection,
+  ctx: WriteContext,
+  body: BoothCreateBody,
+  candidates: readonly BallotCandidate[],
+): Promise<number> {
+  let entryId: number;
+  try {
+    const [inserted] = await conn.execute<ResultSetHeader>(
+      `INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [body.boothId, body.ballotFor, body.wardId, body.roundNo, body.sheetTotal, ctx.user.id],
+    );
+    entryId = inserted.insertId;
+  } catch (err) {
+    if (isDuplicateKey(err)) throw new ApiError(409, 'ALREADY_ENTERED'); // the UNIQUE key backstop
+    throw err;
+  }
+  for (const v of namedVotes(candidates, body.votes)) {
+    await conn.execute(
+      'INSERT INTO booth_entry_vote (entry_id, ward_id, candidate_id, votes) VALUES (?, ?, ?, ?)',
+      [entryId, body.wardId, v.candidateId, v.votes],
+    );
+  }
+  await writeAudit(conn, {
+    userId: ctx.user.id,
+    action: 'ENTRY_CREATED',
+    entity: 'booth_entry',
+    entityId: entryId,
+    newValue: {
+      ward_id: body.wardId,
+      booth_id: body.boothId,
+      ballot_for: body.ballotFor,
+      round_no: body.roundNo,
+      sheet_total: body.sheetTotal,
+      votes: plainVotes(body.votes),
+    },
+    ip: ctx.ip,
+  });
+  return entryId;
+}
+
 export async function createBoothEntry(
   pool: Pool,
   ctx: WriteContext,
@@ -196,42 +239,138 @@ export async function createBoothEntry(
   const booth = await authorizeBooth(pool, ctx, body);
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const { candidates, warnings } = await checkBoothCreate(conn, ctx, body, booth, true);
-    let entryId: number;
-    try {
-      const [inserted] = await conn.execute<ResultSetHeader>(
-        `INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [body.boothId, body.ballotFor, body.wardId, body.roundNo, body.sheetTotal, ctx.user.id],
-      );
-      entryId = inserted.insertId;
-    } catch (err) {
-      if (isDuplicateKey(err)) throw new ApiError(409, 'ALREADY_ENTERED'); // the UNIQUE key backstop
-      throw err;
-    }
-    for (const v of namedVotes(candidates, body.votes)) {
-      await conn.execute(
-        'INSERT INTO booth_entry_vote (entry_id, ward_id, candidate_id, votes) VALUES (?, ?, ?, ?)',
-        [entryId, body.wardId, v.candidateId, v.votes],
-      );
-    }
-    await writeAudit(conn, {
-      userId: ctx.user.id,
-      action: 'ENTRY_CREATED',
-      entity: 'booth_entry',
-      entityId: entryId,
-      newValue: {
-        ward_id: body.wardId,
-        booth_id: body.boothId,
-        ballot_for: body.ballotFor,
-        round_no: body.roundNo,
-        sheet_total: body.sheetTotal,
-        votes: plainVotes(body.votes),
-      },
-      ip: ctx.ip,
-    });
+    const entryId = await insertBoothEntry(conn, ctx, body, candidates);
     return { entryId, wardId: body.wardId, warnings };
   });
   emitWardChanged(outcome.wardId); // only after a successful commit
+  return outcome;
+}
+
+// ============================================================== combined PS + ZP sheet (Part 14)
+
+/** One section of the combined parchi. The ward comes from the booth, never from the client. */
+export interface CombinedSection {
+  sheetTotal: number;
+  votes: SheetVote[];
+}
+export interface CombinedCreateBody {
+  boothId: number;
+  roundNo: number;
+  ps?: CombinedSection | undefined;
+  zp?: CombinedSection | undefined;
+}
+
+/** The per-ballot create bodies of a combined sheet, after permission checks (PS_RO only). */
+async function authorizeCombined(
+  pool: Pool,
+  ctx: WriteContext,
+  body: CombinedCreateBody,
+): Promise<{ booth: BoothRow; parts: BoothCreateBody[] }> {
+  if (ctx.user.role !== 'PS_RO') throw new ApiError(403, 'FORBIDDEN');
+  const booth = await readBooth(pool, body.boothId);
+  const parts: BoothCreateBody[] = [];
+  for (const [ballotFor, section] of [
+    ['PS', body.ps],
+    ['ZP', body.zp],
+  ] as const) {
+    if (section === undefined) continue;
+    if (!(await canWriteBallot(pool, ctx.user, body.boothId, ballotFor)))
+      throw new ApiError(403, 'FORBIDDEN');
+    parts.push({
+      wardId: ballotFor === 'PS' ? booth.psWardId : booth.zpWardId,
+      boothId: body.boothId,
+      ballotFor,
+      roundNo: body.roundNo,
+      sheetTotal: section.sheetTotal,
+      votes: section.votes,
+    });
+  }
+  if (parts.length === 0) throw new ApiError(400, 'VALIDATION_FAILED');
+  return { booth, parts };
+}
+
+/**
+ * Locks every ward of the sheet in ascending id order (two combined writes can never deadlock;
+ * other writes hold one ward lock only), then runs the normal create checks for each part.
+ */
+async function checkCombined(
+  conn: PoolConnection,
+  ctx: WriteContext,
+  parts: readonly BoothCreateBody[],
+  booth: BoothRow,
+  lock: boolean,
+) {
+  if (lock) {
+    for (const wardId of [...new Set(parts.map((p) => p.wardId))].sort((a, b) => a - b))
+      await readWard(conn, wardId, true);
+  }
+  const checked: { part: BoothCreateBody; candidates: BallotCandidate[]; warnings: string[] }[] =
+    [];
+  for (const part of parts) {
+    try {
+      checked.push({ part, ...(await checkBoothCreate(conn, ctx, part, booth, lock)) });
+    } catch (err) {
+      // Tell the screen which part of the parchi was refused (nothing is saved either way).
+      if (err instanceof ApiError)
+        throw new ApiError(err.status, err.code, { ...err.details, section: part.ballotFor });
+      throw err;
+    }
+  }
+  return checked;
+}
+
+export interface CombinedPreview {
+  sections: {
+    ballotFor: BallotFor;
+    wardId: number;
+    sheetTotal: number;
+    sum: number;
+    votes: PreviewSummary['summary']['votes'];
+  }[];
+  roundNo: number;
+  warnings: string[];
+}
+
+/** Same checks as the save, in a read-only snapshot. No ward totals (a PS_RO never sees ZP totals). */
+export async function previewCombinedEntry(
+  pool: Pool,
+  ctx: WriteContext,
+  body: CombinedCreateBody,
+): Promise<CombinedPreview> {
+  const { booth, parts } = await authorizeCombined(pool, ctx, body);
+  return withReadOnlySnapshot(pool, async (conn) => {
+    const checked = await checkCombined(conn, ctx, parts, booth, false);
+    return {
+      roundNo: body.roundNo,
+      sections: checked.map(({ part, candidates }) => ({
+        ballotFor: part.ballotFor,
+        wardId: part.wardId,
+        sheetTotal: part.sheetTotal,
+        sum: sheetSum(part.votes),
+        votes: namedVotes(candidates, part.votes),
+      })),
+      warnings: [...new Set(checked.flatMap((c) => c.warnings))],
+    };
+  });
+}
+
+/** Saves the PS and/or ZP part of one booth sheet in ONE transaction: both or nothing. */
+export async function createCombinedEntry(
+  pool: Pool,
+  ctx: WriteContext,
+  body: CombinedCreateBody,
+): Promise<{ entries: { ballotFor: BallotFor; entryId: number; wardId: number }[]; warnings: string[] }> {
+  const { booth, parts } = await authorizeCombined(pool, ctx, body);
+  const outcome = await withWriteTransaction(pool, async (conn) => {
+    const checked = await checkCombined(conn, ctx, parts, booth, true);
+    const entries = [];
+    for (const { part, candidates } of checked) {
+      const entryId = await insertBoothEntry(conn, ctx, part, candidates);
+      entries.push({ ballotFor: part.ballotFor, entryId, wardId: part.wardId });
+    }
+    return { entries, warnings: [...new Set(checked.flatMap((c) => c.warnings))] };
+  });
+  for (const e of outcome.entries) emitWardChanged(e.wardId); // only after a successful commit
   return outcome;
 }
 

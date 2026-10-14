@@ -60,6 +60,11 @@ export function WardListPage() {
                 </td>
                 <td className="numcell">
                   {w.boothsEntered}/{w.boothsTotal}
+                  {w.kind === 'ZP' && w.boothsByPs.length > 0 && (
+                    <div className="small muted" data-testid="booths-by-ps">
+                      {w.boothsByPs.map((p) => `${p.psName} ${p.entered}/${p.total}`).join(', ')}
+                    </div>
+                  )}
                 </td>
                 <td>{w.isUnopposed ? '—' : w.postalEntered ? '✓ दर्ज' : 'बाकी'}</td>
                 <td>

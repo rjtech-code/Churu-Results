@@ -36,9 +36,10 @@ test.beforeAll(async () => {
   await saveLogin(world().admin.ro, BIDASAR_STATE);
 });
 
-async function confirmWithPassword(page: Page, button: string) {
+async function confirmWithPassword(page: Page, button: string, role: 'DM' | 'RO' = 'DM') {
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel('Admin Password (सत्यापन हेतु)').fill(world().password);
+  const label = role === 'RO' ? 'RO Password (सत्यापन हेतु)' : 'Admin Password (सत्यापन हेतु)';
+  await dialog.getByLabel(label).fill(world().password);
   await dialog.getByRole('button', { name: button }).click();
 }
 
@@ -101,7 +102,7 @@ test.describe(() => {
     await page.getByRole('button', { name: 'सूची सेव करें' }).click();
     await expect(page.getByText('सूची सेव हो गई')).toBeVisible();
     await page.getByRole('button', { name: 'सूची तैयार है' }).click();
-    await confirmWithPassword(page, 'हाँ, सूची तैयार है');
+    await confirmWithPassword(page, 'हाँ, सूची तैयार है', 'RO');
     await expect(page.getByText('सूची तैयार बता दी गई')).toBeVisible();
     await expect(page.getByLabel('पंक्ति 2 नाम')).toHaveValue('सीता देवी');
   });
@@ -182,29 +183,32 @@ test.describe(() => {
       .getByRole('link', { name: 'खोलें' })
       .click();
 
-    await page.getByRole('button', { name: 'पासवर्ड बदलें' }).click();
-    await confirmWithPassword(page, 'पासवर्ड बदलें');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('RO खाता');
+
+    // Part 13.3: ONE "बदलें" form. "अपने आप बनाएं" fills a strong password, then "सेव करें".
+    await page.getByRole('button', { name: 'बदलें', exact: true }).click();
+    const form = page.getByRole('alertdialog');
+    await form.getByRole('button', { name: 'अपने आप बनाएं' }).click();
+    await expect(form.getByLabel('पासवर्ड (खाली छोड़ें तो पासवर्ड वही रहेगा)')).toHaveValue(/^[A-Za-z2-9]{12,}$/);
+    await confirmWithPassword(page, 'सेव करें');
     await expect(page.getByText('यह पासवर्ड दोबारा नहीं दिखेगा', { exact: false })).toBeVisible();
     await expect(page.getByTestId('otp-username')).toHaveText(a.ro);
     const reset = (await page.getByTestId('otp-password').getAttribute('data-password')) ?? '';
-    expect(reset).toMatch(/^[A-Za-z2-9]{16}$/);
+    expect(reset).toMatch(/^[A-Za-z2-9]{12,}$/);
     expect(await canLogin(a.ro, reset)).toBe(200); // old password refused: covered by the backend tests
     await page.getByRole('button', { name: 'हो गया' }).click();
     await expect(page.getByTestId('otp-box')).toHaveCount(0);
 
-    // "खुद पासवर्ड लिखें": the DM types the password; it is never shown again.
+    // The DM types a password of their own; weak ones are refused with hints.
     const chosen = 'Kesar7Tila9mor';
-    await page.getByRole('button', { name: 'पासवर्ड बदलें' }).click();
+    await page.getByRole('button', { name: 'बदलें', exact: true }).click();
     const pw = page.getByRole('alertdialog');
-    await pw.getByLabel('खुद पासवर्ड लिखें').check();
-    await pw.getByLabel('नया पासवर्ड').fill('Churu2026!');
+    const field = pw.getByLabel('पासवर्ड (खाली छोड़ें तो पासवर्ड वही रहेगा)');
+    await field.fill('Churu2026!');
     await expect(pw.getByTestId('pw-hints')).toContainText('यह पासवर्ड बहुत आसान है');
-    await pw.getByLabel('नया पासवर्ड').fill(chosen);
-    await pw.getByLabel('फिर से लिखें').fill(chosen);
-    await confirmWithPassword(page, 'पासवर्ड बदलें');
-    await expect(page.getByText('पासवर्ड बदल गया')).toBeVisible();
-    await expect(page.getByTestId('otp-box')).toHaveCount(0);
-    expect(await page.content()).not.toContain(chosen);
+    await field.fill(chosen);
+    await confirmWithPassword(page, 'सेव करें');
+    await page.getByRole('button', { name: 'हो गया' }).click();
     expect(await canLogin(a.ro, chosen)).toBe(200);
 
     await page.getByRole('button', { name: 'RO बदलें' }).click();

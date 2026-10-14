@@ -197,14 +197,16 @@ describe('booth ballot history: GET /booths/:boothId/history?ballotFor=', () => 
     expect([res.status, res.body]).toEqual([200, { history: [] }]);
   });
 
-  it('same permissions as the entry: other PS 403, PS_RO on a ZP ballot 403, ZP_RO on PS 403', async () => {
+  it('same permissions as the entry: other PS 403 (PS and ZP ballot), ZP_RO on PS 403', async () => {
     const app = countingApp(pool);
     const ro1 = await clientFor(app, 'ro_ps1_x1');
     await ro1.post('/entries', psW1Sheet(w, w.b1));
     const ro2 = await clientFor(app, 'ro_ps2_x2');
     const zp = await clientFor(app, 'zp_ro_x3');
     expect((await ro2.get(`/booths/${w.b1}/history?ballotFor=PS`)).status).toBe(403);
-    expect((await ro1.get(`/booths/${w.b1}/history?ballotFor=ZP`)).status).toBe(403);
+    // Part 14: a PS_RO may work on (and read) its own PS booths' ZP ballot, never another PS's.
+    expect((await ro2.get(`/booths/${w.b1}/history?ballotFor=ZP`)).status).toBe(403);
+    expect((await ro1.get(`/booths/${w.b1}/history?ballotFor=ZP`)).status).toBe(200);
     expect((await zp.get(`/booths/${w.b1}/history?ballotFor=PS`)).status).toBe(403);
   });
 

@@ -2,7 +2,8 @@ import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import type { Role } from '../types/auth.js';
 
 // Server-side authorization rules (CLAUDE.md): hiding a button is not security.
-//   PS_RO: only PS ballots / PS wards of their own Panchayat Samiti.
+//   PS_RO: PS and ZP booth ballots of booths in their own Panchayat Samiti (one parchi carries
+//          both); ward-level work (postal, declare, correction) only on PS wards of their own PS.
 //   ZP_RO: only ZP ballots / ZP wards (any Panchayat Samiti).
 //   DM:    read-only, may read every ward, never writes.
 
@@ -30,11 +31,7 @@ export function ballotWriteAllowed(
 ): boolean {
   switch (user.role) {
     case 'PS_RO':
-      return (
-        ballotFor === 'PS' &&
-        user.panchayatSamitiId !== null &&
-        user.panchayatSamitiId === boothPsId
-      );
+      return user.panchayatSamitiId !== null && user.panchayatSamitiId === boothPsId;
     case 'ZP_RO':
       return ballotFor === 'ZP';
     case 'DM':

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { RequireRole } from './components/RequireRole';
 import { ScreenApp } from './screens/ScreenApp';
 import { BoothEntryPage } from './pages/BoothEntryPage';
+import { CombinedEntryPage } from './pages/CombinedEntryPage';
 import { CorrectionPage } from './pages/CorrectionPage';
 import { DeclarePage } from './pages/DeclarePage';
 import { EntryEditPage } from './pages/EntryEditPage';
@@ -58,6 +59,8 @@ export const router = createBrowserRouter([
           { path: '/wards', element: <WardListPage /> },
           { path: '/wards/:wardId', element: <WardDetailPage /> },
           { path: '/wards/:wardId/booths/:boothId/entry', element: <BoothEntryPage /> },
+          // Part 14: the PS desk's combined PS + ZP parchi (the server refuses anyone but that PS_RO).
+          { path: '/booths/:boothId/entry', element: <CombinedEntryPage /> },
           { path: '/wards/:wardId/postal', element: <PostalPage /> },
           { path: '/wards/:wardId/postal/history', element: <StoryPage kind="POSTAL" /> },
           { path: '/wards/:wardId/booths/:boothId/history', element: <StoryPage kind="BOOTH" /> },

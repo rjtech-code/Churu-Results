@@ -31,6 +31,8 @@ export interface WardItem {
   boothsEntered: number;
   boothsTotal: number;
   postalEntered: boolean;
+  /** ZP wards (ZP_RO): booths entered per Panchayat Samiti. Empty for PS wards. */
+  boothsByPs: { psId: number; psName: string; entered: number; total: number }[];
 }
 
 export interface BoothItem {
@@ -211,4 +213,38 @@ export interface HistoryItem {
 export interface StoryItem extends HistoryItem {
   entryId: number;
   entryVoided: boolean;
+}
+
+/** Part 14: one section (PS or ZP) of a booth's combined parchi, as the PS_RO sees it. */
+export interface CombinedSection {
+  ballotFor: 'PS' | 'ZP';
+  wardId: number;
+  wardNo: number;
+  state: 'OPEN' | 'SAVED' | 'HIDDEN';
+  hiddenReason: 'UNOPPOSED' | 'NO_CANDIDATES' | 'NOT_LOCKED' | 'DECLARED' | null;
+  ballot: BallotCandidate[];
+  entry: BoothEntryView | null;
+}
+
+export interface CombinedBooth {
+  booth: {
+    boothId: number;
+    boothNo: number;
+    nameHindi: string;
+    panchayatSamiti: string;
+    registeredVotersTotal: number | null;
+  };
+  sections: [CombinedSection, CombinedSection];
+}
+
+export interface CombinedPreview {
+  roundNo: number;
+  sections: {
+    ballotFor: 'PS' | 'ZP';
+    wardId: number;
+    sheetTotal: number;
+    sum: number;
+    votes: EntryPreview['summary']['votes'];
+  }[];
+  warnings: string[];
 }

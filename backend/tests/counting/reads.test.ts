@@ -56,6 +56,7 @@ describe('counting reads', () => {
       boothsEntered: 1,
       boothsTotal: 3,
       postalEntered: false,
+      boothsByPs: [], // Part 14: filled for ZP wards (ZP_RO) only
     });
     expect(wards.find((x) => x.status === 'NO_CANDIDATES')).toMatchObject({
       boothsTotal: 0,

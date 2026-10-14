@@ -72,7 +72,7 @@ describe('canWriteBallot', () => {
   // [user, booth, ballot, expected]
   const cases: [keyof ReturnType<typeof users>, 'boothOwn' | 'boothOther', BallotFor, boolean][] = [
     ['psRo', 'boothOwn', 'PS', true],
-    ['psRo', 'boothOwn', 'ZP', false],
+    ['psRo', 'boothOwn', 'ZP', true], // Part 14: one parchi carries both ballots
     ['psRo', 'boothOther', 'PS', false],
     ['psRo', 'boothOther', 'ZP', false],
     ['zpRo', 'boothOwn', 'PS', false],

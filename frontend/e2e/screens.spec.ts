@@ -23,8 +23,8 @@ test('/screen/1 works with no login and no cookies, never calls /api/auth, shows
     if (r.url().includes('/api/auth')) auth.push(r.url());
   });
   await page.goto('/screen/1');
-  await expect(page.getByTestId('page-title')).toHaveText('चूरू पंचायत समिति');
-  await expect(page.getByTestId('progress')).toHaveText(/^घोषित \d+ \/ 8$/);
+  await expect(page.getByTestId('page-title')).toHaveText('चूरू पंचायत समिति 1/2');
+  await expect(page.getByTestId('progress')).toHaveText(/^घोषित \d+ \/ 9$/);
   await expect(page.locator('.tv-header')).toContainText('चूरू पंचायत चुनाव 2026 — परिणाम');
   await expect(page.locator('.tv-header')).toContainText('स्क्रीन 1');
   await expect(page.locator('.tv-header')).toContainText('लाइव');

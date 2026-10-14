@@ -1,6 +1,7 @@
 // Moved to src/services/master-data/xlsx.ts (shared by the CLI and the web, Part 13).
 export {
   readSheet,
+  readNamedSheet,
   readSheetFromBuffer,
   toCell,
   writeSheet,

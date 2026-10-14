@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
-import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
+import { idParam, loadEntryContext } from '../api/loaders';
+import { useRole } from '../auth/AuthContext';
 import type { BoothEntryView } from '../api/types';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
@@ -10,7 +11,6 @@ import { ReasonField, emptyReason, reasonProblem, reasonText } from '../componen
 import type { ReasonValue } from '../components/ReasonField';
 import { NO_CHANGE_TEXT, VoteSheet, checkSheet, sameAsSaved, sheetValues } from '../components/VoteSheet';
 import type { SheetValues } from '../components/VoteSheet';
-import { wardShort } from '../components/format';
 import { SplitLayout } from '../components/SplitLayout';
 import { useApiData } from '../components/useApiData';
 import type { WardFlash } from './WardDetailPage';
@@ -20,23 +20,20 @@ export const STALE_TEXT = 'किसी और ने इसे बदल दि
 export function EntryEditPage() {
   const entryId = idParam(useParams().entryId);
   const navigate = useNavigate();
+  const role = useRole();
   const { data, error: loadError } = useApiData(async () => {
     const { entry } = await api<{ entry: BoothEntryView }>('GET', `/api/counting/entries/${entryId}`);
-    const [ward, booths, ballot] = await Promise.all([
-      loadWard(entry.wardId),
-      loadBooths(entry.wardId),
-      loadBallot(entry.wardId),
-    ]);
-    const booth = booths.booths.find((b) => b.boothId === entry.boothId);
+    const ctx = await loadEntryContext(entry, role);
     return {
       entry,
-      ward,
-      ballot,
-      boothNo: booth?.boothNo ?? 0,
-      boothName: booth?.nameHindi ?? '',
-      registered: booth?.registeredVotersTotal ?? null,
+      ctx,
+      ward: ctx.ward,
+      ballot: ctx.ballot,
+      boothNo: ctx.booth?.boothNo ?? 0,
+      boothName: ctx.booth?.nameHindi ?? '',
+      registered: ctx.booth?.registeredVotersTotal ?? null,
     };
-  }, [entryId]);
+  }, [entryId, role]);
   const [values, setValues] = useState<SheetValues | null>(null);
   const [round, setRound] = useState<string | null>(null);
   const [reason, setReason] = useState<ReasonValue>(emptyReason);
@@ -95,7 +92,7 @@ export function EntryEditPage() {
       });
       allowLeave.current = true;
       const state: WardFlash = { flash: `बूथ ${data.boothNo} की एंट्री सुधार दी गई` };
-      void navigate(`/wards/${ward.id}`, { state });
+      void navigate(data.ctx.backTo, { state });
     } catch (err) {
       setError(err);
       setStage('form'); // the error is shown next to "आगे", with every typed number kept
@@ -109,8 +106,13 @@ export function EntryEditPage() {
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
       <p className="backlink">
-        <Link to={`/wards/${ward.id}`}>← {wardShort(ward)}</Link> ·{' '}
-        <Link to={`/wards/${ward.id}/booths/${entry.boothId}/history`}>इस बूथ का पूरा इतिहास</Link>
+        <Link to={data.ctx.backTo}>← {data.ctx.backLabel}</Link>
+        {data.ctx.historyTo !== null && (
+          <>
+            {' '}
+            · <Link to={data.ctx.historyTo}>इस बूथ का पूरा इतिहास</Link>
+          </>
+        )}
       </p>
       <div className="sheet-header">
         <div className="big">

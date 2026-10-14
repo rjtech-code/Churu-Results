@@ -118,6 +118,18 @@ export interface E2eWorld {
   wards: Record<string, E2eWard>;
   otherPsWard: number;
   screens: E2eScreens;
+  combined: E2eCombined;
+}
+
+/** Part 14: a PS ward whose booths' ZP ward is open too (the PS RO's combined parchi). */
+export interface E2eCombined {
+  psWardId: number;
+  psWardNo: number;
+  zpWardId: number;
+  zpWardNo: number;
+  booths: Record<number, number>; // booth no -> booth id
+  ps: { A: number; B: number; NOTA: number };
+  zp: { A: number; B: number; NOTA: number };
 }
 
 async function migrate(): Promise<void> {
@@ -195,6 +207,43 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
   await booth(ps2, 1, otherPsWard);
   await candidates(otherPsWard);
   await lock(otherPsWard);
+
+  // Part 14 (entry-combined.spec): Churu PS ward 9 whose booths 21-22 vote for ZP ward 4, which
+  // is locked with its own candidates, so the PS RO's screen shows both parts of the parchi.
+  const combinedZp = await ward('ZP', null, 4);
+  const zc = (pos: number, name: string, nota: boolean) =>
+    insert(
+      app,
+      'INSERT INTO candidate (ward_id, ballot_position, name_hindi, gender, is_nota) VALUES (?, ?, ?, ?, ?)',
+      [combinedZp, pos, name, nota ? null : 'F', nota ? 1 : 0],
+    );
+  const zpCandidates = {
+    A: await zc(1, 'गीता देवी', false),
+    B: await zc(2, 'राधा देवी', false),
+    NOTA: await zc(3, 'नोटा', true),
+  };
+  await lock(combinedZp);
+  const combinedPs = await ward('PS', ps1, 9);
+  const combinedBooths: Record<number, number> = {};
+  for (const no of [21, 22]) {
+    combinedBooths[no] = await insert(
+      app,
+      `INSERT INTO booth (panchayat_samiti_id, booth_no, name_hindi, ps_ward_id, zp_ward_id, registered_voters_total)
+       VALUES (?, ?, ?, ?, ?, 1000)`,
+      [ps1, no, `राजकीय विद्यालय ${no}`, combinedPs, combinedZp],
+    );
+  }
+  const { more: _unused, ...psCandidates } = await candidates(combinedPs);
+  await lock(combinedPs);
+  const combined: E2eCombined = {
+    psWardId: combinedPs,
+    psWardNo: 9,
+    zpWardId: combinedZp,
+    zpWardNo: 4,
+    booths: combinedBooths,
+    ps: psCandidates,
+    zp: zpCandidates,
+  };
 
   const users = {
     ro: 'e2e_ro_churu',
@@ -294,7 +343,7 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
     JSON.stringify(layout),
     SCREEN_LAYOUT_KEY,
   ]);
-  return { password: E2E_PASSWORD, admin, users, wards, otherPsWard, screens };
+  return { password: E2E_PASSWORD, admin, users, wards, otherPsWard, screens, combined };
 }
 
 type PartyKey = 'BJP' | 'INC' | 'RLP';

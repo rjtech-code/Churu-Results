@@ -10,6 +10,7 @@ import type { AuthUser } from '../../types/auth.js';
 import {
   boothEntryView,
   boothHistory,
+  combinedBooth,
   entryHistory,
   getBoothEntry,
   getPostalEntry,
@@ -19,8 +20,11 @@ import {
   postalHistory,
   wardBallot,
 } from './counting.read.js';
+import { canReadWard } from '../../services/access.js';
 import {
   createBoothEntry,
+  createCombinedEntry,
+  previewCombinedEntry,
   createPostalEntry,
   previewBoothEntry,
   previewPostalEntry,
@@ -58,6 +62,16 @@ const boothCreate = z
 const boothUpdate = z
   .object({ rowVersion: id, roundNo, sheetTotal: count, votes, reason })
   .strict();
+const combinedSection = z.object({ sheetTotal: count, votes }).strict();
+const combinedCreate = z
+  .object({
+    boothId: id,
+    roundNo,
+    ps: combinedSection.optional(),
+    zp: combinedSection.optional(),
+  })
+  .strict()
+  .refine((b) => b.ps !== undefined || b.zp !== undefined, { message: 'ps or zp is required' });
 const voidBody = z.object({ rowVersion: id, reason }).strict();
 const historyQuery = z.object({ ballotFor: z.enum(['PS', 'ZP']) }).strict();
 const postalCreate = z
@@ -104,6 +118,13 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     requireVoterCounts: config.requireVoterCounts,
   });
 
+  /**
+   * The ward's result, or null when this user may not read that ward: a PS_RO entering ZP booth
+   * sheets of its own PS (Part 14) never sees ZP ward totals or the leader.
+   */
+  const wardResultFor = async (req: Request, wardId: number) =>
+    (await canReadWard(pool, currentUser(req), wardId)) ? await loadWardResult(pool, wardId) : null;
+
   // ---- reads
   router.get('/wards', async (req, res) => {
     res.json({ wards: await listWards(pool, currentUser(req)) });
@@ -140,15 +161,37 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     });
   });
 
+  router.get('/booths/:boothId/combined', async (req, res) => {
+    res.json(await combinedBooth(pool, currentUser(req), param(req, 'boothId')));
+  });
+
+  // ---- combined PS + ZP sheet of one booth (PS_RO, Part 14): both parts or nothing
+  router.post('/entries/combined/preview', async (req, res) => {
+    res.json(await previewCombinedEntry(pool, ctx(req), parse(combinedCreate, req.body)));
+  });
+  router.post('/entries/combined', async (req, res) => {
+    const out = await createCombinedEntry(pool, ctx(req), parse(combinedCreate, req.body));
+    res.status(201).json({
+      entries: await Promise.all(out.entries.map((e) => boothEntryView(pool, e.entryId))),
+      warnings: out.warnings,
+    });
+  });
+
   // ---- booth entries
   router.post('/entries/preview', async (req, res) => {
-    res.json(await previewBoothEntry(pool, ctx(req), parse(boothCreate, req.body)));
+    const body = parse(boothCreate, req.body);
+    const preview = await previewBoothEntry(pool, ctx(req), body);
+    res.json(
+      (await canReadWard(pool, currentUser(req), body.wardId))
+        ? preview
+        : { summary: preview.summary, warnings: preview.warnings },
+    );
   });
   router.post('/entries', async (req, res) => {
     const out = await createBoothEntry(pool, ctx(req), parse(boothCreate, req.body));
     res.status(201).json({
       entry: await boothEntryView(pool, out.entryId),
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
       warnings: out.warnings,
     });
   });
@@ -161,7 +204,7 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     );
     res.json({
       entry: await boothEntryView(pool, out.entryId),
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
       warnings: out.warnings,
     });
   });
@@ -174,7 +217,7 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     );
     res.json({
       voided: { archiveId: out.archiveId, entryId: out.entryId },
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
     });
   });
 
@@ -193,7 +236,7 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     );
     res.status(201).json({
       entry: await postalEntryView(pool, out.entryId),
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
       warnings: out.warnings,
     });
   });
@@ -206,7 +249,7 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     );
     res.json({
       entry: await postalEntryView(pool, out.entryId),
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
       warnings: out.warnings,
     });
   });
@@ -219,7 +262,7 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
     );
     res.json({
       voided: { archiveId: out.archiveId, entryId: out.entryId },
-      wardResult: await loadWardResult(pool, out.wardId),
+      wardResult: await wardResultFor(req, out.wardId),
     });
   });
 

@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
-import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
+import { idParam, loadEntryContext } from '../api/loaders';
+import { useRole } from '../auth/AuthContext';
 import type { BallotCandidate, BoothEntryView, PostalEntryView } from '../api/types';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { Modal } from '../components/Modal';
 import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
 import type { ReasonValue } from '../components/ReasonField';
-import { wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 import type { WardFlash } from './WardDetailPage';
@@ -18,16 +18,12 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
   const entryId = idParam(useParams().entryId);
   const navigate = useNavigate();
   const base = kind === 'BOOTH' ? '/api/counting/entries' : '/api/counting/postal';
+  const role = useRole();
   const { data, error: loadError } = useApiData(async () => {
     const { entry } = await api<{ entry: BoothEntryView | PostalEntryView }>('GET', `${base}/${entryId}`);
-    const [ward, booths, ballot] = await Promise.all([
-      loadWard(entry.wardId),
-      loadBooths(entry.wardId),
-      loadBallot(entry.wardId),
-    ]);
-    const booth = entry.kind === 'BOOTH' ? booths.booths.find((b) => b.boothId === entry.boothId) : undefined;
-    return { entry, ward, ballot, booth };
-  }, [entryId, base]);
+    const ctx = await loadEntryContext(entry, role);
+    return { entry, ctx, ballot: ctx.ballot, booth: ctx.booth ?? undefined };
+  }, [entryId, base, role]);
   const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -35,7 +31,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
 
   if (loadError) return <ErrorBox error={loadError} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;
-  const { entry, ward, ballot, booth } = data;
+  const { entry, ctx, ballot, booth } = data;
   const what = kind === 'BOOTH' ? `बूथ ${booth?.boothNo ?? ''} — ${booth?.nameHindi ?? ''}` : 'डाक मत';
 
   const onVoid = async () => {
@@ -47,7 +43,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
         reason: reasonText(reason),
       });
       const state: WardFlash = { flash: `${what} की एंट्री रद्द कर दी गई — अब दोबारा दर्ज की जा सकती है` };
-      void navigate(`/wards/${ward.id}`, { state });
+      void navigate(ctx.backTo, { state });
     } catch (err) {
       setError(err);
       setAsking(false);
@@ -58,7 +54,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
   return (
     <>
       <p className="backlink">
-        <Link to={`/wards/${ward.id}`}>← {wardShort(ward)}</Link>
+        <Link to={ctx.backTo}>← {ctx.backLabel}</Link>
       </p>
       <h1>{kind === 'BOOTH' ? 'एंट्री रद्द करें' : 'डाक मत रद्द करें'}</h1>
       {error instanceof ApiError && error.code === 'STALE_VERSION' ? (

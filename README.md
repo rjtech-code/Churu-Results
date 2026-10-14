@@ -161,7 +161,12 @@ Send it to the officials. They fill `voters_male`, `voters_female`, `voters_othe
 and `voters_total`, where total = male + female + other. Every booth must be present exactly once.
 ```bash
 npm run import:voters -- --file <filled.xlsx>               # dry run, then add --commit
+npm run import:voters -- --file ../docs/polling-stations.xlsx  # Part 14: sheet Sheet1_withvoters, SUM(Total_Elector) per booth
 ```
+Or straight from the polling-station workbook (Part 14): when the file has a sheet
+`Sheet1_withvoters`, registered voters = SUM(`Total_Elector`) per (`PanchayatSamiti`,
+`PollingStationNumber`); male/female stay empty. Refused unless there are exactly 1,359 booths, all
+matching the database, and the grand total is 1,248,368 and equals SUM(`Sheet3.Voters`).
 
 ### 4. Candidates
 Copy `docs/templates/candidates-template.xlsx` and **delete the two EXAMPLE rows**; any row containing
@@ -377,6 +382,11 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, roundNo, sheetTotal, votes:[{candidateId, votes}]}` |
 | PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
 | POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
+| GET | `/api/counting/booths/:boothId/combined` | Part 14, PS_RO of the booth's PS only: the booth's PS and ZP sections (`OPEN` / `SAVED` with the entry / `HIDDEN` with a reason). Never ward totals or leader. |
+| POST | `/api/counting/entries/combined/preview` | Same body and checks as the combined save; saves nothing; no ward totals. |
+| POST | `/api/counting/entries/combined` | Part 14, PS_RO: one booth's parchi `{boothId, roundNo, ps?: {sheetTotal, votes}, zp?: {sheetTotal, votes}}` (wards come from the booth). Both parts in ONE transaction: if either is refused, nothing is saved; the error names the `section`. |
+
+**Part 14 — PS_RO and ZP booth entries.** A PS_RO may create/edit/void the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots). ZP postal, declare, lottery and correction stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward.
 | GET | `/api/counting/booths/:boothId/history?ballotFor=PS\|ZP` | The **whole story** of one booth ballot, oldest first: every entry ever made for it (the live one and every voided one, from `voided_entry`) with all their audit rows: created, updated, voided, re-created … Each event has `entryId` and `entryVoided`. Same permission as the entry. |
 | GET | `/api/counting/postal/:entryId` and `.../history` | Postal entry, and its history |
 | GET | `/api/counting/wards/:wardId/postal/history` | The whole story of the ward's postal ballots (live + every voided postal entry), oldest first. Same permission as the postal entry. |
@@ -444,6 +454,9 @@ There is no "undo void": re-enter the booth with a normal create. The history en
 2. Check the ward: unopposed, ballot locked, declared.
 3. Lock the entry row (edit/void) and check its `row_version`.
 4. Write the entry and vote rows (and the archive), then the audit row, then commit.
+
+A combined PS + ZP save (Part 14) locks **both** ward rows first, in ascending ward id order, then
+checks and writes both parts. Every other write holds one ward lock only, so this cannot deadlock.
 
 Because entry writes and declare both lock the same ward row first:
 - an entry and a declaration can never overlap; whichever comes second sees the other's committed data

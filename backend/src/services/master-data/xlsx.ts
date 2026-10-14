@@ -65,6 +65,31 @@ export async function readSheet(
   return pickSheet(workbook, required, optional);
 }
 
+/**
+ * Reads the worksheet with exactly this name (header row 1, columns by name like readSheet).
+ * Returns null when the workbook has no such sheet, so callers can tell formats apart.
+ */
+export async function readNamedSheet(
+  file: string,
+  sheetName: string,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): Promise<ReadSheetResult | null> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.readFile(file);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Cannot read "${file}" as an .xlsx file: ${err instanceof Error ? err.message : String(err)}`,
+      failure: { kind: 'UNREADABLE' },
+    };
+  }
+  const sheet = workbook.getWorksheet(sheetName);
+  if (sheet === undefined) return null;
+  return pickSheet(workbook, required, optional, [sheet]);
+}
+
 /** English text (CLI/logs only; the web shows the Hindi text for failure.kind). */
 const UNREADABLE_UPLOAD = 'Cannot read the file as an .xlsx file.';
 
@@ -88,10 +113,11 @@ function pickSheet(
   workbook: ExcelJS.Workbook,
   required: readonly string[],
   optional: readonly string[],
+  sheets: readonly ExcelJS.Worksheet[] = workbook.worksheets,
 ): ReadSheetResult {
   const problems: string[] = [];
   let missingColumns: string[] = [...required];
-  for (const sheet of workbook.worksheets) {
+  for (const sheet of sheets) {
     const positions = new Map<string, number[]>();
     sheet.getRow(1).eachCell((cell, col) => {
       const text = toCell(cell.value);
