@@ -172,6 +172,8 @@ export interface SheetSpec {
   name: string;
   headers: readonly string[];
   rows: readonly (readonly Cell[])[];
+  /** Excel filter dropdowns on the header row. */
+  autoFilter?: boolean;
 }
 
 function buildWorkbook(sheets: readonly SheetSpec[]): ExcelJS.Workbook {
@@ -181,6 +183,11 @@ function buildWorkbook(sheets: readonly SheetSpec[]): ExcelJS.Workbook {
     const sheet = workbook.addWorksheet(spec.name, { views: [{ state: 'frozen', ySplit: 1 }] });
     sheet.addRow([...spec.headers]);
     sheet.getRow(1).font = { bold: true };
+    if (spec.autoFilter === true)
+      sheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: spec.headers.length },
+      };
     for (const row of spec.rows) sheet.addRow([...row]);
     spec.headers.forEach((header, i) => {
       const width = Math.min(

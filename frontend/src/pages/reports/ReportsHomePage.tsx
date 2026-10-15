@@ -17,6 +17,7 @@ import {
   Turnout,
   Women,
 } from './Sections';
+import { CANDIDATES_CSV_URL, CANDIDATES_XLSX_URL } from './reportFormat';
 import '../../styles/reports.css';
 
 export const REFRESH_MS = 30_000;
@@ -123,6 +124,21 @@ export function ReportsView({
         <Panel id="turnout" title="मतदान प्रतिशत" section="turnout" scope={scope}>
           <Turnout t={s.turnout} />
         </Panel>
+        <section
+          className="rp-panel no-print"
+          aria-labelledby="candidates-title"
+          data-testid="section-candidates"
+        >
+          <header className="rp-panel-head">
+            <h2 id="candidates-title">कुल उम्मीदवार सूची</h2>
+            <a className="btn btn-secondary rp-csv" href={CANDIDATES_CSV_URL} download>
+              CSV डाउनलोड
+            </a>
+            <a className="btn btn-secondary rp-csv" href={CANDIDATES_XLSX_URL} download>
+              Excel डाउनलोड
+            </a>
+          </header>
+        </section>
         <Panel id="close" title="नज़दीकी मुकाबले" section="close-contests" scope={scope} wide>
           <Close rows={s.close} />
         </Panel>

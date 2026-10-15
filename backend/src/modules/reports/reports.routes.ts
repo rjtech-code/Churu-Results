@@ -10,6 +10,8 @@ import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
 import { buildReport } from '../../services/reports.js';
 import type { ReportSummary, ScopeSections } from '../../services/reports.js';
+import { writeSheetToBuffer } from '../../services/master-data/xlsx.js';
+import { CANDIDATE_LIST_HEADERS, candidateListRows } from './candidates-list.js';
 import { istStampForFile, toCsv } from './csv.js';
 import type { Cell } from './csv.js';
 import { readReportData } from './reports.data.js';
@@ -336,6 +338,56 @@ export function reportsRouter(pool: Pool, config: AppConfig): Router {
       .set({
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${file}"`,
+        'Cache-Control': 'no-store',
+      })
+      .send(body);
+  });
+
+  const exportCandidates = async (req: Request, kind: 'csv' | 'xlsx') => {
+    const rows = await candidateListRows(pool);
+    const body =
+      kind === 'csv'
+        ? toCsv([[...CANDIDATE_LIST_HEADERS], ...rows])
+        : await writeSheetToBuffer([
+            {
+              name: 'उम्मीदवार सूची',
+              headers: CANDIDATE_LIST_HEADERS,
+              rows,
+              autoFilter: true,
+            },
+          ]);
+    await writeAudit(pool, {
+      userId: currentUserId(req),
+      action: 'REPORT_EXPORTED',
+      entity: 'report',
+      entityId: null,
+      newValue: { section: 'candidates', format: kind },
+      ip: req.ip ?? null,
+    });
+    return body;
+  };
+
+  router.get('/candidates.csv', async (req, res) => {
+    parse(z.object({}).strict(), req.query);
+    const body = await exportCandidates(req, 'csv');
+    res
+      .status(200)
+      .set({
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="candidates-${istStampForFile(new Date())}-IST.csv"`,
+        'Cache-Control': 'no-store',
+      })
+      .send(body);
+  });
+
+  router.get('/candidates.xlsx', async (req, res) => {
+    parse(z.object({}).strict(), req.query);
+    const body = await exportCandidates(req, 'xlsx');
+    res
+      .status(200)
+      .set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="candidates-${istStampForFile(new Date())}-IST.xlsx"`,
         'Cache-Control': 'no-store',
       })
       .send(body);

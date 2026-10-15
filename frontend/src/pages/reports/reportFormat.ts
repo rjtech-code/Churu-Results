@@ -29,3 +29,6 @@ export const GENDER: Record<string, string> = { F: 'महिला', M: 'पु
 export function csvUrl(section: string, scope: string): string {
   return `/api/reports/export.csv?section=${encodeURIComponent(section)}&scope=${encodeURIComponent(scope)}`;
 }
+
+export const CANDIDATES_CSV_URL = '/api/reports/candidates.csv';
+export const CANDIDATES_XLSX_URL = '/api/reports/candidates.xlsx';
