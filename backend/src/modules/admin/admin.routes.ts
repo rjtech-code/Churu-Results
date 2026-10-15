@@ -8,7 +8,11 @@ import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/errors.js';
-import { MAX_FULL_NAME_LENGTH } from '../../services/master-data/accounts.js';
+import {
+  MAX_FULL_NAME_LENGTH,
+  PHONE_ERROR,
+  normalizePhone,
+} from '../../services/master-data/accounts.js';
 import { loadParties } from '../../services/master-data/parties.js';
 import { TEMPLATE_NAMES, templateSheets } from '../../services/master-data/templates.js';
 import type { TemplateName } from '../../services/master-data/templates.js';
@@ -45,6 +49,7 @@ import {
   listSeats,
   parseSeat,
   replaceAccount,
+  setAccountPhone,
   setRoActive,
   unlockAccount,
   suggestPassword,
@@ -71,6 +76,17 @@ const fullName = z
   .string()
   .transform(normalizeText)
   .pipe(z.string().min(2).max(MAX_FULL_NAME_LENGTH));
+const phone = z
+  .string()
+  .max(40)
+  .transform((t, ctx) => {
+    const clean = normalizePhone(t);
+    if (clean === null) {
+      ctx.addIssue({ code: 'custom', message: PHONE_ERROR });
+      return z.NEVER;
+    }
+    return clean;
+  });
 const areaText = z
   .string()
   .max(20)
@@ -130,15 +146,18 @@ const createBody = z
         return seat;
       }),
     fullName,
+    phone,
     password,
   })
   .strict();
-const replaceBody = z.object({ fullName, password }).strict();
+const replaceBody = z.object({ fullName, phone, password }).strict();
+const phoneBody = z.object({ phone, password }).strict();
 // Only sizes here; the username and password rules (with their own error codes) are in the service.
 const credentialsBody = z
   .object({
     username: z.string().max(60),
     newPassword: z.string().max(200).optional(),
+    phone: phone.optional(),
     password,
   })
   .strict();
@@ -266,6 +285,10 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     );
     noStore(res);
     res.json(out);
+  });
+  router.post('/users/:userId/phone', async (req, res) => {
+    await setAccountPhone(pool, actor(req), id(req, 'userId'), parse(phoneBody, req.body));
+    res.json({ ok: true });
   });
   router.post('/users/:userId/disable', async (req, res) => {
     await setRoActive(pool, actor(req), id(req, 'userId'), false, parse(passwordOnly, req.body));

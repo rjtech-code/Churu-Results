@@ -13,6 +13,7 @@ import {
   clearLoginLock,
   generateUsername,
   insertAccount,
+  phoneLast4,
   setAccountActive,
 } from '../../services/master-data/accounts.js';
 import { hashPassword, generatePassword } from '../../services/master-data/passwords.js';
@@ -36,6 +37,7 @@ interface AccountRow {
   id: number;
   username: string;
   fullName: string | null;
+  phone: string | null;
   role: 'PS_RO' | 'ZP_RO' | 'DM';
   psId: number | null;
   isActive: boolean;
@@ -44,7 +46,7 @@ interface AccountRow {
   failedLogins: number;
 }
 
-const ACCOUNT_COLUMNS = `id, username, full_name, role, panchayat_samiti_id, is_active, last_login_at,
+const ACCOUNT_COLUMNS = `id, username, full_name, phone, role, panchayat_samiti_id, is_active, last_login_at,
   failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW(3)) AS locked_now`;
 
 function toAccount(r: RowDataPacket): AccountRow {
@@ -52,6 +54,7 @@ function toAccount(r: RowDataPacket): AccountRow {
     id: Number(r.id),
     username: String(r.username),
     fullName: r.full_name === null ? null : String(r.full_name),
+    phone: r.phone === null ? null : String(r.phone),
     role: r.role as AccountRow['role'],
     psId: r.panchayat_samiti_id === null ? null : Number(r.panchayat_samiti_id),
     isActive: Number(r.is_active) === 1,
@@ -65,6 +68,7 @@ const publicAccount = (a: AccountRow) => ({
   id: a.id,
   username: a.username,
   fullName: a.fullName,
+  phone: a.phone,
   isActive: a.isActive,
   lastLoginAt: a.lastLoginAt,
   locked: a.lockedNow,
@@ -181,7 +185,7 @@ export interface NewCredentials {
 export async function createSeatAccount(
   pool: Pool,
   who: Actor,
-  body: { seat: Seat; fullName: string; password: string },
+  body: { seat: Seat; fullName: string; phone: string; password: string },
   vaultKey: Buffer,
 ): Promise<NewCredentials> {
   const ps = await seatPs(pool, body.seat);
@@ -202,6 +206,7 @@ export async function createSeatAccount(
         fullName: body.fullName,
         role,
         psId: ps?.id ?? null,
+        phone: body.phone,
       },
       vaultKey,
     );
@@ -214,6 +219,7 @@ export async function createSeatAccount(
         via: 'web',
         username,
         full_name: body.fullName,
+        phone_last4: phoneLast4(body.phone),
         role,
         panchayat_samiti: ps?.name_english ?? null,
       },
@@ -228,7 +234,7 @@ export async function replaceAccount(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { fullName: string; password: string },
+  body: { fullName: string; phone: string; password: string },
   vaultKey: Buffer,
 ): Promise<NewCredentials> {
   return inUserWrite(pool, who, body.password, async (conn) => {
@@ -247,6 +253,7 @@ export async function replaceAccount(
         fullName: body.fullName,
         role: seat.role,
         psId: ps?.id ?? null,
+        phone: body.phone,
       },
       vaultKey,
     );
@@ -265,6 +272,7 @@ export async function replaceAccount(
         id: created.id,
         username,
         full_name: body.fullName,
+        phone_last4: phoneLast4(body.phone),
         role: seat.role,
         panchayat_samiti: ps?.name_english ?? null,
         old_account_disabled: true,
@@ -279,6 +287,8 @@ export async function replaceAccount(
 export interface SavedCredentials {
   username: string;
   password: string | null;
+  /** Present (false) only when just the mobile number changed: the login and the RO's session stay. */
+  credentialsChanged?: false;
 }
 
 export interface ViewedPassword {
@@ -338,7 +348,12 @@ export async function updateCredentials(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { username: string; newPassword?: string | undefined; password: string },
+  body: {
+    username: string;
+    newPassword?: string | undefined;
+    phone?: string | undefined;
+    password: string;
+  },
   vaultKey: Buffer,
 ): Promise<SavedCredentials> {
   if (!USERNAME_PATTERN.test(body.username)) throw new ApiError(400, 'USERNAME_INVALID');
@@ -356,7 +371,9 @@ export async function updateCredentials(
   return inUserWrite(pool, who, body.password, async (conn) => {
     const account = await lockRoAccount(conn, userId);
     const renamed = body.username !== account.username;
-    if (!renamed && chosen === undefined) throw new ApiError(409, 'NO_CHANGE');
+    const phoneChanged = body.phone !== undefined && body.phone !== account.phone;
+    const loginChanged = renamed || chosen !== undefined;
+    if (!loginChanged && !phoneChanged) throw new ApiError(409, 'NO_CHANGE');
     if (renamed) {
       const [taken] = await conn.execute<RowDataPacket[]>(
         'SELECT id FROM users WHERE username = ? AND id <> ?',
@@ -364,35 +381,51 @@ export async function updateCredentials(
       );
       if (taken.length > 0) throw new ApiError(409, 'USERNAME_TAKEN');
     }
-    if (chosen !== undefined) {
-      await conn.execute(
-        'UPDATE users SET username = ?, password_hash = ?, password_enc = ? WHERE id = ?',
-        [body.username, await hashPassword(chosen), encryptPassword(chosen, vaultKey), account.id],
-      );
-    } else {
-      await conn.execute('UPDATE users SET username = ? WHERE id = ?', [body.username, account.id]);
+    if (loginChanged) {
+      if (chosen !== undefined) {
+        await conn.execute(
+          'UPDATE users SET username = ?, password_hash = ?, password_enc = ? WHERE id = ?',
+          [
+            body.username,
+            await hashPassword(chosen),
+            encryptPassword(chosen, vaultKey),
+            account.id,
+          ],
+        );
+      } else {
+        await conn.execute('UPDATE users SET username = ? WHERE id = ?', [
+          body.username,
+          account.id,
+        ]);
+      }
+      await clearLoginLock(conn, account.id);
+      await endSessions(conn, account.id);
+      await writeAudit(conn, {
+        userId: who.user.id,
+        action: 'RO_CREDENTIALS_CHANGED',
+        entity: 'users',
+        entityId: account.id,
+        oldValue: { username: account.username },
+        newValue: {
+          via: 'web',
+          username: body.username,
+          username_changed: renamed,
+          password_changed: chosen !== undefined,
+          failed_login_count: 0,
+          locked_until: null,
+        },
+        ip: who.ip,
+      });
     }
-    await clearLoginLock(conn, account.id);
-    await endSessions(conn, account.id);
-    await writeAudit(conn, {
-      userId: who.user.id,
-      action: 'RO_CREDENTIALS_CHANGED',
-      entity: 'users',
-      entityId: account.id,
-      oldValue: { username: account.username },
-      newValue: {
-        via: 'web',
-        username: body.username,
-        username_changed: renamed,
-        password_changed: chosen !== undefined,
-        failed_login_count: 0,
-        locked_until: null,
-      },
-      ip: who.ip,
-    });
+    if (phoneChanged && body.phone !== undefined) {
+      await writeAccountPhone(conn, who, account, body.phone);
+    }
     return {
       username: body.username,
-      password: chosen ?? (await currentPassword(conn, account.id, vaultKey)),
+      password: loginChanged
+        ? (chosen ?? (await currentPassword(conn, account.id, vaultKey)))
+        : null,
+      ...(loginChanged ? {} : { credentialsChanged: false as const }),
     };
   });
 }
@@ -410,6 +443,39 @@ async function currentPassword(conn: PoolConnection, userId: number, vaultKey: B
   } catch {
     return null;
   }
+}
+
+/** Saves the number and audits it (only the last 4 digits are logged). */
+async function writeAccountPhone(
+  conn: PoolConnection,
+  who: Actor,
+  account: AccountRow,
+  phone: string,
+): Promise<void> {
+  await conn.execute('UPDATE users SET phone = ? WHERE id = ?', [phone, account.id]);
+  await writeAudit(conn, {
+    userId: who.user.id,
+    action: account.phone === null ? 'RO_PHONE_ADDED' : 'RO_PHONE_CHANGED',
+    entity: 'users',
+    entityId: account.id,
+    oldValue: { phone_last4: phoneLast4(account.phone) },
+    newValue: { via: 'web', username: account.username, phone_last4: phoneLast4(phone) },
+    ip: who.ip,
+  });
+}
+
+/** "मोबाइल जोड़ें / बदलें": sets the RO's mobile number. Audit keeps only the last 4 digits. */
+export async function setAccountPhone(
+  pool: Pool,
+  who: Actor,
+  userId: number,
+  body: { phone: string; password: string },
+): Promise<void> {
+  await inUserWrite(pool, who, body.password, async (conn) => {
+    const account = await lockRoAccount(conn, userId);
+    if (account.phone === body.phone) throw new ApiError(409, 'NO_CHANGE');
+    await writeAccountPhone(conn, who, account, body.phone);
+  });
 }
 
 /** "बंद करें" / "चालू करें". Enabling needs a free seat (one active login per seat). */

@@ -17,6 +17,20 @@ export const ROLE_LIMITS: Readonly<Record<Role, number>> = { PS_RO: 13, ZP_RO: 1
 
 export const USERNAME_PATTERN = /^[a-z0-9_]{4,30}$/;
 export const MAX_FULL_NAME_LENGTH = 100;
+export const PHONE_ERROR = 'कृपया 10 अंकों का सही मोबाइल नंबर लिखें';
+
+/** 10-digit Indian mobile (6-9 first) from what was typed: spaces, - and a +91 / 91 / 0 prefix go. */
+export function normalizePhone(raw: string): string | null {
+  let t = raw.replace(/[\s\-().]/g, '');
+  if (t.startsWith('+91')) t = t.slice(3);
+  else if (/^91\d{10}$/.test(t)) t = t.slice(2);
+  else if (/^0\d{10}$/.test(t)) t = t.slice(1);
+  return /^[6-9]\d{9}$/.test(t) ? t : null;
+}
+
+/** For the audit log: never the whole number. */
+export const phoneLast4 = (phone: string | null): string | null =>
+  phone === null ? null : `****${phone.slice(-4)}`;
 
 export type AccountIssue =
   | { code: 'USERNAME_TAKEN'; username: string }
@@ -75,18 +89,25 @@ export async function checkNewAccount(
  */
 export async function insertAccount(
   conn: PoolConnection,
-  account: { username: string; fullName: string; role: Role; psId: number | null },
+  account: {
+    username: string;
+    fullName: string;
+    role: Role;
+    psId: number | null;
+    phone?: string | null;
+  },
   vaultKey: Buffer,
 ): Promise<{ id: number; password: string }> {
   const password = generatePassword();
   // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM.
   const copy = account.role === 'DM' ? null : encryptPassword(password, vaultKey);
   const [inserted] = await conn.execute<ResultSetHeader>(
-    `INSERT INTO users (username, full_name, password_hash, password_enc, role, panchayat_samiti_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (username, full_name, phone, password_hash, password_enc, role, panchayat_samiti_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       account.username,
       account.fullName,
+      account.phone ?? null,
       await hashPassword(password),
       copy,
       account.role,

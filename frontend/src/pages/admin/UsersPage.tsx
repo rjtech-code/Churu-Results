@@ -39,10 +39,12 @@ export function UsersPage() {
         <CredentialsDialog
           userId={editing.account.id}
           currentUsername={editing.account.username}
+          currentPhone={editing.account.phone}
           title={`${editing.label} — बदलें`}
           onSaved={(saved) => {
             setEditing(null);
-            if (saved.password === null) setDone('यूज़रनेम बदल गया');
+            if (saved.credentialsChanged === false) setDone('मोबाइल नंबर सहेज लिया गया');
+            else if (saved.password === null) setDone('यूज़रनेम बदल गया');
             else setCredentials({ username: saved.username, password: saved.password });
             reload();
           }}
@@ -60,6 +62,7 @@ export function UsersPage() {
               <th>पद</th>
               <th>नाम</th>
               <th>यूज़रनेम</th>
+              <th>मोबाइल</th>
               <th>स्थिति</th>
               <th>अंतिम लॉगिन</th>
               <th />
@@ -71,6 +74,7 @@ export function UsersPage() {
                 <td className="ward-name">{s.label}</td>
                 <td>{s.account?.fullName ?? '—'}</td>
                 <td>{s.account?.username ?? '—'}</td>
+                <td>{s.account?.phone ?? '—'}</td>
                 <td>{seatState(s)}</td>
                 <td>{s.account?.lastLoginAt ? formatDateTime(s.account.lastLoginAt) : '—'}</td>
                 <td className="actions">

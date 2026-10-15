@@ -79,6 +79,7 @@ describe('DM RO management', () => {
     const taken = await dm.post('/api/admin/users/create', {
       seat: `PS:${w.ps1}`,
       fullName: 'नया अधिकारी',
+      phone: '9876543210',
       password: PASSWORD,
     });
     expect([taken.status, taken.body]).toEqual([409, { error: 'SEAT_TAKEN' }]);
@@ -91,6 +92,7 @@ describe('DM RO management', () => {
     const res = await dm.post('/api/admin/users/create', {
       seat: `PS:${w.ps2}`,
       fullName: '  नया   अधिकारी ',
+      phone: '9876543210',
       password: PASSWORD,
     });
     expect(res.status).toBe(201);
@@ -121,6 +123,7 @@ describe('DM RO management', () => {
 
     const res = await dm.post(`/api/admin/users/${w.users.ro1}/replace`, {
       fullName: 'नए RO',
+      phone: '9876543210',
       password: PASSWORD,
     });
     expect(res.status).toBe(201);
@@ -143,6 +146,7 @@ describe('DM RO management', () => {
     const create = await dm.post('/api/admin/users/create', {
       seat: `PS:${w.ps1}`,
       fullName: 'तीसरा',
+      phone: '9876543210',
       password: PASSWORD,
     });
     expect(create.body).toEqual({ error: 'SEAT_TAKEN' });
@@ -223,6 +227,7 @@ describe('DM RO management', () => {
     }
     const replaceDm = await dm.post(`/api/admin/users/${w.users.dm}/replace`, {
       fullName: 'नया DM',
+      phone: '9876543210',
       password: PASSWORD,
     });
     expect(replaceDm.status).toBe(403);
@@ -231,7 +236,10 @@ describe('DM RO management', () => {
   it('wrong password: REAUTH_FAILED and nothing written', async () => {
     const before = JSON.parse(await masterSnapshot(pool)) as unknown[][];
     for (const [path, body] of [
-      [`/api/admin/users/${w.users.ro1}/replace`, { fullName: 'कोई', password: 'bad' }],
+      [
+        `/api/admin/users/${w.users.ro1}/replace`,
+        { fullName: 'कोई', phone: '9876543210', password: 'bad' },
+      ],
       [
         `/api/admin/users/${w.users.ro1}/update-credentials`,
         { username: 'ro_new_name', newPassword: 'Kesar7Tila9mor', password: 'bad' },

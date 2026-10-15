@@ -112,6 +112,7 @@ export interface SeatAccount {
   id: number;
   username: string;
   fullName: string | null;
+  phone: string | null;
   isActive: boolean;
   lastLoginAt: string | null;
   locked: boolean;

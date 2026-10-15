@@ -5,10 +5,13 @@ import { ErrorBox } from './ErrorBox';
 import { Modal } from './Modal';
 import { ReauthPasswordField } from './ReauthPasswordField';
 import { chosenPasswordProblems, problemText } from './chosenPassword';
+import { PHONE_ERROR, normalizePhone } from './phone';
 
 export interface SavedCredentials {
   username: string;
   password: string | null;
+  /** false: only the mobile number changed. */
+  credentialsChanged?: boolean;
 }
 
 /**
@@ -19,17 +22,20 @@ export interface SavedCredentials {
 export function CredentialsDialog({
   userId,
   currentUsername,
+  currentPhone,
   title,
   onSaved,
   onCancel,
 }: {
   userId: number;
   currentUsername: string;
+  currentPhone: string | null;
   title: string;
   onSaved: (saved: SavedCredentials) => void;
   onCancel: () => void;
 }) {
   const [username, setUsername] = useState(currentUsername);
+  const [phone, setPhone] = useState(currentPhone ?? '');
   const [pw, setPw] = useState('');
   // The password shown by "देखें": saving it unchanged must not count as a password change.
   const [viewed, setViewed] = useState<string | null>(null);
@@ -40,7 +46,15 @@ export function CredentialsDialog({
   const passwordChanged = pw !== '' && pw !== viewed;
   const usernameChanged = username.trim() !== currentUsername;
   const problems = passwordChanged ? chosenPasswordProblems(pw, pw, username.trim()) : [];
-  const canSave = (passwordChanged || usernameChanged) && problems.length === 0 && username.trim() !== '';
+  // The mobile number is optional: empty keeps the old one; a typed one must be valid.
+  const cleanPhone = normalizePhone(phone);
+  const phoneBad = phone.trim() !== '' && cleanPhone === null;
+  const phoneChanged = cleanPhone !== null && cleanPhone !== currentPhone;
+  const canSave =
+    (passwordChanged || usernameChanged || phoneChanged) &&
+    problems.length === 0 &&
+    username.trim() !== '' &&
+    !phoneBad;
 
   const guarded = async (work: () => Promise<void>) => {
     if (busy) return;
@@ -86,6 +100,7 @@ export function CredentialsDialog({
       const saved = await api<SavedCredentials>('POST', `/api/admin/users/${userId}/update-credentials`, {
         username: username.trim(),
         ...(passwordChanged ? { newPassword: pw } : {}),
+        ...(phoneChanged ? { phone: cleanPhone } : {}),
         password: dmPw,
       });
       setPw('');
@@ -121,6 +136,20 @@ export function CredentialsDialog({
             }}
           />
         </div>
+        <div className="field">
+          <label htmlFor="cred-phone">मोबाइल नंबर (खाली छोड़ें तो नंबर वही रहेगा)</label>
+          <input
+            id="cred-phone"
+            inputMode="tel"
+            autoComplete="off"
+            maxLength={20}
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+            }}
+          />
+          {phoneBad && <p className="msg msg-error">{PHONE_ERROR}</p>}
+        </div>
         <div className="actions">
           <button type="button" className="btn btn-secondary" onClick={() => void view()} disabled={busy}>
             देखें
@@ -142,7 +171,9 @@ export function CredentialsDialog({
         <div className="field">
           <ReauthPasswordField id="confirm-password" value={dmPw} onChange={setDmPw} />
         </div>
-        <p className="muted">सेव करने पर इस RO का चल रहा सेशन बंद हो जाएगा।</p>
+        {(passwordChanged || usernameChanged) && (
+          <p className="muted">सेव करने पर इस RO का चल रहा सेशन बंद हो जाएगा।</p>
+        )}
         <ErrorBox error={error} />
         <div className="actions">
           <button type="button" className="btn btn-secondary btn-big" onClick={onCancel} disabled={busy}>

@@ -53,6 +53,7 @@ function adminEndpoints(): [string, string][] {
     ['POST', `/api/admin/users/${w.users.ro1}/disable`],
     ['POST', `/api/admin/users/${w.users.ro1}/enable`],
     ['POST', `/api/admin/users/${w.users.ro1}/unlock`],
+    ['POST', `/api/admin/users/${w.users.ro1}/phone`],
     ['GET', `/api/admin/booths?psId=${w.ps1}`],
     ['GET', `/api/admin/wards?psId=${w.ps1}`],
     ['POST', `/api/admin/booths/${w.b7}`],

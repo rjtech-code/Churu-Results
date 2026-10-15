@@ -147,6 +147,7 @@ describe('DM views an RO password', () => {
   it('created and replaced accounts are viewable; the stored column is ciphertext', async () => {
     const created = await dm.post(`/api/admin/users/${w.users.ro2}/replace`, {
       fullName: 'नया RO',
+      phone: '9876543210',
       password: PASSWORD,
     });
     const out = created.body as { username: string; password: string };
