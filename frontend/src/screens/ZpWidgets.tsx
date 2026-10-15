@@ -113,7 +113,7 @@ export function SeatTable({
  * the oldest are dropped), so nothing is ever cut or overflows.
  */
 export function LatestWinners({ items }: { items: WinnerItem[] }) {
-  const all = items.slice(0, 4);
+  const all = items.slice(0, 8); // as many as fit (the panel has the column's free height)
   const key = all.map((w) => `${w.wardId}-${w.version}`).join('|');
   const [fit, setFit] = useState({ key, count: all.length });
   const count = fit.key === key ? fit.count : all.length;

@@ -39,7 +39,8 @@ test('screen 3: empty pie state; after a ZP declaration the pie, legend and tabl
     psPartySeats: SeatRow[];
   };
   await expectTable(page.getByTestId('zp-seats'), api.partySeats, true);
-  await expectTable(page.getByTestId('ps-seats'), api.psPartySeats, false);
+  // ZP screen shows ZP only: no all-PS seat table
+  await expect(page.getByTestId('ps-seats')).toHaveCount(0);
 
   // Declare ZP ward 2 as the ZP RO.
   const zp = await apiLogin(world().users.zp);
@@ -68,7 +69,8 @@ test('screen 3: empty pie state; after a ZP declaration the pie, legend and tabl
     won.map((r) => new RegExp(`${r.party.nameHindi}\\s+${r.won}`)),
   );
   await expectTable(page.getByTestId('zp-seats'), api.partySeats, true);
-  await expectTable(page.getByTestId('ps-seats'), api.psPartySeats, false);
+  // ZP screen shows ZP only: no all-PS seat table
+  await expect(page.getByTestId('ps-seats')).toHaveCount(0);
   await expect(page.getByTestId('latest-winners').locator('li').first()).toContainText(
     'ज़िला परिषद · वार्ड 2',
   );

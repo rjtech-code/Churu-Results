@@ -90,6 +90,11 @@ function LiveScreen({ screen }: { screen: ScreenNo }) {
       <Stage>
         <ScreenHeader
           name={SCREEN_NAMES[screen]}
+          scope={
+            screen === 3
+              ? [SCREEN_NAMES[3]]
+              : (bundle?.ps?.panchayatSamitis ?? []).map((b) => psTitle(b.panchayatSamiti.name))
+          }
           generatedAt={bundle?.generatedAt ?? null}
           live={bundle !== null && !feed.stale}
           progress={bundle === null ? null : screenProgress(cardsOf(bundle))}
@@ -154,10 +159,6 @@ function ZpSide({ bundle, names }: { bundle: ScreenBundle; names: readonly strin
       <section className="tv-panel tv-panel-winners">
         <h3>नवीनतम विजेता</h3>
         <LatestWinners items={bundle.winners} />
-      </section>
-      <section className="tv-panel">
-        <h3>सभी पंचायत समितियाँ</h3>
-        <SeatTable rows={zp?.psPartySeats ?? []} allShortNames={names} withTotal={false} testId="ps-seats" />
       </section>
     </aside>
   );

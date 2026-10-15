@@ -112,7 +112,7 @@ describe('LiveFeed', () => {
     expect(server.calls.map((c) => c.path)).toEqual([
       '/api/public/meta',
       '/api/public/screens/2',
-      '/api/public/recent?limit=10',
+      '/api/public/recent?limit=10&screen=2',
     ]);
     expect(server.calls.every((c) => c.etag === null)).toBe(true);
     expect(last().bundle?.version).toBe(1);
@@ -224,7 +224,7 @@ describe('LiveFeed before any data', () => {
     await advance(TIMING.retryMs + 1000);
     expect(last().unavailable).toBe(false);
     expect(last().bundle).not.toBeNull();
-    expect(server.calls.some((c) => c.path === '/api/public/winners?limit=8')).toBe(true);
+    expect(server.calls.some((c) => c.path === '/api/public/winners?limit=8&screen=3')).toBe(true);
   });
 });
 

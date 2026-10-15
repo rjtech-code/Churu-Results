@@ -156,6 +156,61 @@ html.hide-cursor * {
   border-radius: 8px;
   white-space: nowrap;
 }
+/* "इस स्क्रीन पर": between the badge and the pill; it shrinks first, so the header never breaks. */
+.tv-scope {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+}
+.tv-scope-label {
+  flex: none;
+  font-size: 20px;
+  font-weight: 700;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.tv-scope-window {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}
+.tv-scope-track {
+  display: flex;
+  width: max-content;
+  animation-name: tv-scope-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.tv-scope-half {
+  display: flex;
+  gap: 12px;
+  padding-right: 12px; /* same as the gap, so the seam between the halves looks like any other gap */
+}
+.tv-scope-chip {
+  flex: none;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  white-space: nowrap;
+}
+@keyframes tv-scope-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
 .tv-progress {
   font-size: 26px;
   font-weight: 700;
@@ -502,7 +557,7 @@ html.hide-cursor * {
   padding: 16px;
 }
 .tv-panel-winners {
-  flex: 0 1 auto; /* stacks at its own height; may give up space only if the column is tight */
+  flex: 1 1 auto; /* takes the rest of the column; items that do not fit are dropped whole */
 }
 .tv-panel h3 {
   margin: 0 0 8px;

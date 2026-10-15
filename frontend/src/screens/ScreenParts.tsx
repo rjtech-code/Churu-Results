@@ -6,13 +6,49 @@ import type { RecentItem, Summary } from './types';
 
 export const SCREEN_NAMES = { 1: 'स्क्रीन 1', 2: 'स्क्रीन 2', 3: 'ज़िला परिषद' } as const;
 
+/** Copies of the chip row needed so one half of the track is always wider than the strip. */
+function scopeRepeats(count: number): number {
+  return Math.max(1, Math.ceil(6 / Math.max(1, count)));
+}
+
+/**
+ * "इस स्क्रीन पर": the PS (or ZP) of this screen, scrolling slowly. CSS-only loop: the track holds
+ * the chip row twice and moves by exactly half its width, so the end meets the start seamlessly.
+ */
+export function ScopeStrip({ names }: { names: readonly string[] }) {
+  if (names.length === 0) return <div className="tv-scope" aria-hidden="true" />;
+  const row = Array.from({ length: scopeRepeats(names.length) }, () => names).flat();
+  const half = (copy: number) =>
+    row.map((n, i) => (
+      <span key={`${String(copy)}-${String(i)}`} className="tv-scope-chip">
+        {n}
+      </span>
+    ));
+  return (
+    <div className="tv-scope" data-testid="scope-strip">
+      <span className="tv-scope-label">इस स्क्रीन पर</span>
+      {/* data-clamp: clipped on purpose (the chips scroll through it), see e2e/layout-check.ts */}
+      <div className="tv-scope-window" data-clamp>
+        <div className="tv-scope-track" style={{ animationDuration: `${String(row.length * 4)}s` }}>
+          <span className="tv-scope-half">{half(0)}</span>
+          <span className="tv-scope-half" aria-hidden="true">
+            {half(1)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ScreenHeader({
   name,
+  scope,
   generatedAt,
   live,
   progress,
 }: {
   name: string;
+  scope: readonly string[];
   generatedAt: string | null;
   live: boolean;
   progress: { declared: number; total: number } | null;
@@ -23,6 +59,7 @@ export function ScreenHeader({
         <h1 className="tv-title">चूरू पंचायत चुनाव 2026 — परिणाम</h1>
         <span className="tv-screen-name">{name}</span>
       </div>
+      <ScopeStrip names={scope} />
       <div className="tv-header-group tv-header-right">
         {progress !== null && (
           <span className="tv-progress" data-testid="progress">

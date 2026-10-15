@@ -8,8 +8,22 @@ import type { PublicApiConfig } from '../../config/app-config.js';
 import type { PublicSnapshotData, PublicSnapshotService } from '../../services/public-snapshot.js';
 import type { SseHub } from './sse.js';
 
-const limitQuery = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20) }).strict();
 const screenParam = z.enum(['1', '2', '3']);
+const limitQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    /** Only the wards of this screen (its PS from the screen layout, or the ZP). */
+    screen: screenParam.optional(),
+  })
+  .strict();
+
+/** Is this ward shown on that screen? Uses the snapshot's own screen layout. */
+function onScreen(s: PublicSnapshotData, screen: '1' | '2' | '3') {
+  if (screen === '3') return (item: { kind: 'PS' | 'ZP' }) => item.kind === 'ZP';
+  const ids = new Set(s.screens[screen].flatMap((b) => b.wards.map((w) => w.wardId)));
+  return (item: { kind: 'PS' | 'ZP'; wardId: number }) =>
+    item.kind === 'PS' && ids.has(item.wardId);
+}
 
 function badRequest(res: Response, issues: z.core.$ZodIssue[]): void {
   res
@@ -96,7 +110,9 @@ export function publicRouter(
     }),
   );
 
-  const listed = (pick: (s: PublicSnapshotData) => readonly unknown[]) =>
+  const listed = (
+    pick: (s: PublicSnapshotData) => readonly { kind: 'PS' | 'ZP'; wardId: number }[],
+  ) =>
     withSnapshot((s, req, res) => {
       const parsed = limitQuery.safeParse(req.query);
       if (!parsed.success) {
@@ -106,7 +122,10 @@ export function publicRouter(
       res.json({
         version: s.version,
         generatedAt: s.generatedAt,
-        items: pick(s).slice(0, parsed.data.limit),
+        items: (parsed.data.screen === undefined
+          ? pick(s)
+          : pick(s).filter(onScreen(s, parsed.data.screen))
+        ).slice(0, parsed.data.limit),
       });
     });
   router.get(

@@ -118,8 +118,12 @@ export class LiveFeed {
   }
 
   private paths(): string[] {
-    const paths = ['/api/public/meta', `/api/public/screens/${this.screen}`, '/api/public/recent?limit=10'];
-    if (this.screen === 3) paths.push('/api/public/winners?limit=8');
+    const paths = [
+      '/api/public/meta',
+      `/api/public/screens/${this.screen}`,
+      `/api/public/recent?limit=10&screen=${this.screen}`,
+    ];
+    if (this.screen === 3) paths.push(`/api/public/winners?limit=8&screen=${this.screen}`);
     return paths;
   }
 
