@@ -100,6 +100,8 @@ describe('Part 13 error codes have Hindi text', () => {
       'LOCK_PLAN_CHANGED',
       'LOCK_REFUSED',
       'NOTHING_TO_LOCK',
+      'UNLOCK_COUNTING_STARTED',
+      'NOTHING_TO_UNLOCK',
       'SEAT_TAKEN',
       'LIST_EMPTY',
       'BOOTH_NAME_INVALID',

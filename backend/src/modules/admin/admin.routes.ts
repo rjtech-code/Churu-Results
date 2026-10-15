@@ -34,6 +34,7 @@ import {
   lockPreview,
   parseArea,
   sendBack,
+  unlockArea,
   wardCandidates,
 } from './lists.service.js';
 import type { Area } from './lists.service.js';
@@ -112,6 +113,18 @@ const lockBody = z
     area: areaText,
     confirmText: z.literal('LOCK'),
     expectedWardIds: z.array(z.number().int().positive()).max(1000),
+    password,
+  })
+  .strict();
+/** Unlock is for one PS or the ZP only (never "all PS" at once). */
+const unlockBody = z
+  .object({
+    area: areaText.refine(
+      (a): a is Extract<Area, { kind: 'PS' } | { kind: 'ZP' }> => a.kind !== 'ALL_PS',
+      'unknown area',
+    ),
+    reason,
+    confirmText: z.literal('UNLOCK'),
     password,
   })
   .strict();
@@ -227,6 +240,10 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
   router.post('/lock', async (req, res) => {
     const body = parse(lockBody, req.body);
     res.json(await lockArea(pool, actor(req), body));
+  });
+  router.post('/unlock', async (req, res) => {
+    const body = parse(unlockBody, req.body);
+    res.json(await unlockArea(pool, actor(req), body));
   });
   router.get('/ballot-report.xlsx', async (req, res) => {
     const q = parse(reportQuery, req.query);

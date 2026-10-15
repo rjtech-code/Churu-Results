@@ -246,6 +246,80 @@ export async function lockArea(
   return { locked };
 }
 
+/**
+ * "अनलॉक करें": unlocks the locked wards of one PS or the ZP and clears their "सूची तैयार" mark,
+ * so the RO can change the list, mark it ready again and the DM can lock it again. Refused while
+ * any ward of the area has an active booth or postal entry (voided entries live in voided_entry).
+ * Candidates are not touched.
+ */
+export async function unlockArea(
+  pool: Pool,
+  who: Actor,
+  body: { area: Extract<Area, { kind: 'PS' } | { kind: 'ZP' }>; reason: string; password: string },
+): Promise<{ unlocked: number[] }> {
+  await requireReauth(pool, who.user.id, body.password, who.ip);
+  const by = who.user.fullName ?? who.user.username;
+  const unlocked = await busyAsConflict(() =>
+    withMasterDataWrite(pool, async (conn) => {
+      await resetFailedLogins(conn, who.user.id);
+      const select = inArea(body.area);
+      await lockWardRows(
+        conn,
+        (await loadWards(conn)).filter(select).map((w) => w.id),
+      );
+      const wards = (await loadWards(conn)).filter(select);
+      const entries = await wardsWithEntries(conn);
+      if (wards.some((w) => entries.has(w.id))) throw new ApiError(409, 'UNLOCK_COUNTING_STARTED');
+      const ids = wards
+        .filter((w) => w.is_locked === 1)
+        .map((w) => w.id)
+        .sort((a, b) => a - b);
+      if (ids.length === 0) throw new ApiError(409, 'NOTHING_TO_UNLOCK');
+      const before: RowDataPacket[] = [];
+      for (const id of ids) {
+        const [rows] = await conn.execute<RowDataPacket[]>(
+          `SELECT id, locked_at, locked_by, locked_by_name, (candidates_ready_at IS NOT NULL) AS ready
+             FROM ward WHERE id = ?`,
+          [id],
+        );
+        before.push(...rows);
+        await conn.execute(
+          `UPDATE ward SET is_locked = 0, locked_at = NULL, locked_by = NULL, locked_by_name = NULL,
+                  candidates_ready_at = NULL, candidates_ready_by = NULL
+            WHERE id = ? AND is_locked = 1`,
+          [id],
+        );
+      }
+      await writeAudit(conn, {
+        userId: who.user.id,
+        action: 'BALLOT_UNLOCK',
+        entity: 'ward',
+        entityId: ids.length === 1 ? (ids[0] ?? null) : null,
+        oldValue: {
+          wards: before.map((r) => ({
+            id: Number(r.id),
+            locked_at: r.locked_at instanceof Date ? r.locked_at.toISOString() : null,
+            locked_by: r.locked_by === null ? null : Number(r.locked_by),
+            locked_by_name: r.locked_by_name === null ? null : String(r.locked_by_name),
+            candidates_ready: Number(r.ready) === 1,
+          })),
+        },
+        newValue: {
+          via: 'web',
+          unlocked_by_name: by,
+          scope: areaKey(body.area),
+          unlocked_ward_ids: ids,
+        },
+        reason: body.reason,
+        ip: who.ip,
+      });
+      return ids;
+    }),
+  );
+  for (const id of unlocked) emitWardChanged(id);
+  return { unlocked };
+}
+
 // ---------------------------------------------------------------- ballot report
 
 /** The printable ballot report (.xlsx) of one PS, the ZP, or everything. Audited. */

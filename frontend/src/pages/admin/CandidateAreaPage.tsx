@@ -54,7 +54,7 @@ function WardView({ ward, onClose }: { ward: AreaWard; onClose: () => void }) {
   );
 }
 
-/** One PS (or the ZP): print the ballot report, send a list back, lock the area. */
+/** One PS (or the ZP): print the ballot report, send a list back, lock or unlock the area. */
 export function CandidateAreaPage() {
   const { area = '' } = useParams();
   const { data, error, reload } = useApiData(
@@ -65,10 +65,14 @@ export function CandidateAreaPage() {
   const [sending, setSending] = useState<AreaWard | null>(null);
   const [reason, setReason] = useState('');
   const [locking, setLocking] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockReason, setUnlockReason] = useState('');
+  const [unlockTyped, setUnlockTyped] = useState('');
   const [done, setDone] = useState<string | null>(null);
   const detail = data?.detail;
   const name = detail?.name ?? '';
   const unlocked = (detail?.wards ?? []).filter((w) => w.status !== 'LOCKED').length;
+  const lockedCount = (detail?.wards ?? []).length - unlocked;
 
   return (
     <>
@@ -141,18 +145,34 @@ export function CandidateAreaPage() {
           </tbody>
         </table>
       )}
-      {unlocked > 0 && (
+      {(unlocked > 0 || lockedCount > 0) && (
         <div className="actions main-action">
-          <button
-            type="button"
-            className="btn btn-danger btn-big"
-            onClick={() => {
-              setDone(null);
-              setLocking(true);
-            }}
-          >
-            {area === 'ZP' ? 'ज़िला परिषद लॉक करें' : 'इस पंचायत समिति को लॉक करें'}
-          </button>
+          {unlocked > 0 && (
+            <button
+              type="button"
+              className="btn btn-danger btn-big"
+              onClick={() => {
+                setDone(null);
+                setLocking(true);
+              }}
+            >
+              {area === 'ZP' ? 'ज़िला परिषद लॉक करें' : 'इस पंचायत समिति को लॉक करें'}
+            </button>
+          )}
+          {lockedCount > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-big"
+              onClick={() => {
+                setDone(null);
+                setUnlockReason('');
+                setUnlockTyped('');
+                setUnlocking(true);
+              }}
+            >
+              अनलॉक करें
+            </button>
+          )}
         </div>
       )}
 
@@ -192,6 +212,53 @@ export function CandidateAreaPage() {
               value={reason}
               onChange={(e) => {
                 setReason(e.target.value);
+              }}
+            />
+          </div>
+        </PasswordDialog>
+      )}
+      {unlocking && (
+        <PasswordDialog
+          title={`${name} अनलॉक करें?`}
+          explain={`${name} के ${lockedCount} लॉक वार्ड खुल जाएँगे और RO का "सूची तैयार है" हट जाएगा। बदलाव के बाद RO फिर "सूची तैयार है" करें, फिर लॉक करें।`}
+          confirmLabel="अनलॉक करें"
+          danger
+          canConfirm={unlockReason.trim().length >= 10 && unlockTyped === 'UNLOCK'}
+          onConfirm={async (password) => {
+            const out = await api<{ unlocked: number[] }>('POST', '/api/admin/unlock', {
+              area,
+              reason: unlockReason.trim(),
+              confirmText: unlockTyped,
+              password,
+            });
+            setUnlocking(false);
+            setDone(`${out.unlocked.length} वार्ड अनलॉक हो गए`);
+            reload();
+          }}
+          onCancel={() => {
+            setUnlocking(false);
+          }}
+        >
+          <div className="field">
+            <label htmlFor="unlock-reason">कारण (कम से कम 10 अक्षर)</label>
+            <input
+              id="unlock-reason"
+              autoComplete="off"
+              maxLength={500}
+              value={unlockReason}
+              onChange={(e) => {
+                setUnlockReason(e.target.value);
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="unlock-typed">पुष्टि के लिए अंग्रेज़ी में UNLOCK लिखें</label>
+            <input
+              id="unlock-typed"
+              autoComplete="off"
+              value={unlockTyped}
+              onChange={(e) => {
+                setUnlockTyped(e.target.value);
               }}
             />
           </div>
