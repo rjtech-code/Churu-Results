@@ -213,7 +213,7 @@ export function StFormatPanel({
         <h2 id={titleId}>{kind} ST Format — State Election Commission / राज्य निर्वाचन आयोग प्रारूप</h2>
         <div className="st-actions">
           {psSelector && (
-            <label>
+            <label className="st-ps-picker">
               Panchayat Samiti / पंचायत समिति{' '}
               <select
                 value={ps}

@@ -125,6 +125,24 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* The PS selector stays inside the card: long PS names are cut, not stretching the box. */
+.st-ps-picker {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.st-ps-picker select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .st-summary {
   margin: 4px 0 8px;
