@@ -2,7 +2,13 @@
 // and how to fix it, e.g. "पंक्ति 15: चूरू पंचायत समिति वार्ड 5 में बैलेट नंबर 2 दो बार है — Excel में
 // इसे ठीक करके फ़ाइल फिर से चुनें".
 import { AGE_REFERENCE_DATE } from '../../config/election.js';
-import { EDUCATIONS, EDUCATION_HI, MAX_AGE, MIN_AGE } from './candidate-details.js';
+import {
+  CANDIDATE_CATEGORIES,
+  EDUCATIONS,
+  EDUCATION_HI,
+  MAX_AGE,
+  MIN_AGE,
+} from './candidate-details.js';
 import type { Issue, IssueBody, PartyField, WardRef } from './issues.js';
 import type { SheetFailure } from './xlsx.js';
 
@@ -27,6 +33,7 @@ const COLUMN_HI: Readonly<Record<string, string>> = {
   age: 'उम्र',
   education: 'शिक्षा',
   mobile: 'मोबाइल',
+  candidate_category: 'Category / श्रेणी',
   name_english: 'अंग्रेज़ी नाम',
   short_name: 'छोटा नाम',
   symbol: 'चुनाव चिह्न',
@@ -78,6 +85,8 @@ function text(issue: IssueBody): string {
       return `शिक्षा "${issue.value}" सही नहीं है — इनमें से एक लिखें: ${EDUCATIONS.map((e) => EDUCATION_HI[e]).join(', ')}`;
     case 'MOBILE_INVALID':
       return `मोबाइल "${issue.value}" सही नहीं है — 10 अंकों का नंबर लिखें जो 6, 7, 8 या 9 से शुरू हो`;
+    case 'CANDIDATE_CATEGORY_INVALID':
+      return `Category "${issue.value}" is not valid — use ${CANDIDATE_CATEGORIES.join(', ')} / श्रेणी सही नहीं है`;
     case 'PARTY_UNKNOWN':
       return `पार्टी "${issue.value}" पार्टी सूची में नहीं है — पहले "पार्टी सूची" में जोड़ें`;
     case 'PS_REQUIRED':

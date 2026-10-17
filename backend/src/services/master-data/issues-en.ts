@@ -40,6 +40,8 @@ export function issueTextEn(issue: IssueBody): string {
       return `"education" must be one of ${EDUCATION_NAMES_EN}, got "${issue.value}"`;
     case 'MOBILE_INVALID':
       return `"mobile" must be a 10-digit mobile number starting with 6-9, got "${issue.value}"`;
+    case 'CANDIDATE_CATEGORY_INVALID':
+      return `"candidate_category" must be GEN, SC, ST or OBC (or the Hindi name), got "${issue.value}"`;
     case 'PARTY_UNKNOWN':
       return `Unknown party short name "${issue.value}"`;
     case 'PS_REQUIRED':

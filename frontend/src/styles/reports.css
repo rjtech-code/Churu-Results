@@ -116,6 +116,72 @@
   font-size: 0.9rem;
   padding: 2px 8px;
 }
+/* ST Format panels: one line per kind of note, ward lists folded away. */
+.st-head {
+  flex-wrap: wrap;
+}
+.st-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.st-summary {
+  margin: 4px 0 8px;
+}
+.st-line {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 4px solid;
+  border-radius: 4px;
+}
+.st-info {
+  background: #f1f3f5;
+  color: var(--muted);
+  border-color: var(--line);
+}
+.st-amber {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: var(--warn);
+  font-weight: 700;
+}
+.st-ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-color: var(--ok);
+  font-size: 0.9rem;
+}
+.st-excluded {
+  margin-top: 4px;
+  font-weight: 400;
+}
+.st-details {
+  margin-top: 4px;
+  font-weight: 400;
+}
+.st-details summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-weight: 700;
+}
+.st-table-wrap {
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+.st-table {
+  width: 100%;
+}
+.st-table .st-group th {
+  background: #eef2f7;
+  text-align: left;
+}
+.st-names {
+  margin: 6px 0 0;
+}
 .rp-empty {
   color: var(--muted);
   margin: 8px 0;

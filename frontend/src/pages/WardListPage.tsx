@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { loadPsZpWards, loadWards } from '../api/loaders';
 import { useRole } from '../auth/AuthContext';
 import { ErrorBox } from '../components/ErrorBox';
+import { StFormatPanel } from '../components/StFormatPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
@@ -85,6 +86,8 @@ export function WardListPage() {
         </div>
       )}
       {zpTab ? <PsZpWardList /> : <PsWardList />}
+      {role === 'ZP_RO' && <StFormatPanel kind="ZP" />}
+      {role === 'PS_RO' && <StFormatPanel kind="PS" />}
     </>
   );
 }

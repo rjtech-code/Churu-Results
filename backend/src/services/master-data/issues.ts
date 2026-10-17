@@ -37,6 +37,7 @@ export type IssueBody =
   | { code: 'AGE_INVALID'; value: string }
   | { code: 'EDUCATION_INVALID'; value: string }
   | { code: 'MOBILE_INVALID'; value: string }
+  | { code: 'CANDIDATE_CATEGORY_INVALID'; value: string }
   // Per-ward candidate rules
   | { code: 'WARD_LOCKED'; ward: WardRef }
   | { code: 'WARD_HAS_ENTRIES'; ward: WardRef }

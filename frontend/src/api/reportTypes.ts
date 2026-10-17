@@ -173,3 +173,27 @@ export interface ReportWardDetail {
     declaredAt: string;
   }[];
 }
+
+/** GET /api/st-format/{zp,ps}/summary: what the ST Format file will leave out or empty.
+ *  A ward is its number (ZP) or "PS name - Ward n" (PS). */
+export interface StFormatWarnings<W = number> {
+  totalWards: number;
+  declaredWards: number;
+  includedWards: number;
+  unopposedWards: W[];
+  excludedWards: { wardNo: W; reason: 'MISMATCH' | 'UNAVAILABLE' }[];
+  missing: { age: W[]; education: W[]; mobile: W[]; category: W[] };
+  partiesAsInd: string[];
+  reservationUnknown: { wardNo: W; text: string | null }[];
+  rejectedUnknown: W[];
+  electorateUnknown: W[];
+  /** The same facts once per ward, for the panel's tables (ps: null for ZP). */
+  excludedByWard: { ps: string | null; wardNo: number; reason: 'MISMATCH' | 'UNAVAILABLE' }[];
+  missingByWard: { ps: string | null; wardNo: number; missing: MissingDetail[] }[];
+  otherByWard: { ps: string | null; wardNo: number; blank: OtherBlank[] }[];
+  /** PS file only: PS without any elected member yet. */
+  psWithoutMembers?: string[];
+}
+
+export type MissingDetail = 'AGE' | 'EDUCATION' | 'MOBILE' | 'CATEGORY';
+export type OtherBlank = 'REJECTED' | 'ELECTORATE' | 'RESERVATION';

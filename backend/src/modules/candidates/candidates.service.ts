@@ -119,6 +119,7 @@ export async function readOwnWard(pool: Pool, who: Actor, wardId: number) {
       ageStated: c.details.ageStated,
       education: c.details.education,
       mobile: c.details.mobile,
+      candidateCategory: c.details.candidateCategory,
     })),
     parties: (await loadParties(pool)).map((p) => ({
       id: p.id,

@@ -1,5 +1,5 @@
-import { EDUCATION_HINDI } from '../api/adminTypes';
-import type { CandidateDetails, Education } from '../api/adminTypes';
+import { CANDIDATE_CATEGORIES, EDUCATION_HINDI } from '../api/adminTypes';
+import type { CandidateCategory, CandidateDetails, Education } from '../api/adminTypes';
 
 const EDUCATIONS = Object.keys(EDUCATION_HINDI) as Education[];
 
@@ -12,12 +12,14 @@ export function detailsSummary(d: CandidateDetails): string {
     d.dob !== null ? `जन्म ${dmy(d.dob)}` : d.ageStated !== null ? `उम्र ${String(d.ageStated)}` : null,
     d.education !== null ? EDUCATION_HINDI[d.education] : null,
     d.mobile,
+    d.candidateCategory,
   ].filter((p) => p !== null);
   return parts.length === 0 ? '—' : parts.join(' · ');
 }
 
 /**
- * The optional candidate details: date of birth OR age, education (9 values), mobile. All may stay
+ * The optional candidate details: date of birth OR age, education (9 values), mobile, the
+ * candidate's own category (GEN/SC/ST/OBC). All may stay
  * empty. The server checks every value (Hindi message on a mistake).
  */
 export function CandidateDetailsFields({
@@ -96,6 +98,27 @@ export function CandidateDetailsFields({
             onChange({ mobile: e.target.value === '' ? null : e.target.value });
           }}
         />
+      </span>
+      <span className="field-inline">
+        <label htmlFor={`${idPrefix}-category`}>Category / श्रेणी</label>
+        <select
+          id={`${idPrefix}-category`}
+          aria-label={`${label} Category`}
+          disabled={disabled}
+          value={value.candidateCategory ?? ''}
+          onChange={(e) => {
+            onChange({
+              candidateCategory: e.target.value === '' ? null : (e.target.value as CandidateCategory),
+            });
+          }}
+        >
+          <option value="">— चुनें —</option>
+          {CANDIDATE_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </span>
     </div>
   );

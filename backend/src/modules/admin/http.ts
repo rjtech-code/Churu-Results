@@ -36,6 +36,7 @@ export const candidateDetailsFields = {
   ageStated: z.number().int().min(0).max(255).nullable().optional(),
   education: z.string().max(50).nullable().optional(),
   mobile: z.string().max(20).nullable().optional(),
+  candidateCategory: z.string().max(30).nullable().optional(),
 };
 /** Why a change was made (stored in the audit log). */
 export const reason = z.string().trim().min(10).max(500);

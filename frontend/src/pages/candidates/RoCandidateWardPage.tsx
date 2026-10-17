@@ -85,6 +85,7 @@ function WardForm({
         ageStated: null,
         education: null,
         mobile: null,
+        candidateCategory: null,
       },
     ]);
     setDirty(true);
@@ -112,6 +113,7 @@ function WardForm({
           ageStated: r.ageStated,
           education: r.education,
           mobile: r.mobile,
+          candidateCategory: r.candidateCategory,
         })),
       });
       setDone('सूची सेव हो गई');

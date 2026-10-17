@@ -190,12 +190,19 @@ export const EDUCATION_HINDI: Record<Education, string> = {
   PROFESSIONAL: 'व्यावसायिक',
 };
 
+/** The candidate's own social category (not the ward's reservation). */
+export type CandidateCategory = 'GEN' | 'SC' | 'ST' | 'OBC';
+
+/** Shown as the codes, the same as the official ST Format. */
+export const CANDIDATE_CATEGORIES: readonly CandidateCategory[] = ['GEN', 'SC', 'ST', 'OBC'];
+
 /** Optional private details (DM and the ward's own RO only). dob is YYYY-MM-DD. */
 export interface CandidateDetails {
   dob: string | null;
   ageStated: number | null;
   education: Education | null;
   mobile: string | null;
+  candidateCategory: CandidateCategory | null;
 }
 
 export interface RoCandidate extends CandidateDetails {

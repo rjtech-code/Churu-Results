@@ -23,13 +23,14 @@ export const CANDIDATE_COLUMNS = [
   'party_short_name',
   'gender',
 ] as const;
-/** Old files without the detail columns (dob, age, education, mobile) still import. */
+/** Old files without the detail columns (dob, age, education, mobile, candidate_category) still import. */
 export const OPTIONAL_CANDIDATE_COLUMNS = [
   'reservation_category',
   'dob',
   'age',
   'education',
   'mobile',
+  'candidate_category',
 ] as const;
 
 /** Label of the NOTA row on every contested ballot. */
@@ -123,6 +124,7 @@ export function parseCandidateSheet(
         age: row.cells.age ?? null,
         education: row.cells.education ?? null,
         mobile: row.cells.mobile ?? null,
+        candidateCategory: row.cells.candidate_category ?? null,
       },
       row.rowNumber,
       issues,
@@ -265,8 +267,8 @@ export async function replaceWardCandidates(
   for (const r of [...rows].sort((a, b) => a.position - b.position)) {
     await conn.execute(
       `INSERT INTO candidate (ward_id, ballot_position, name_hindi, party_id, gender,
-                              dob, age_stated, education, mobile, is_nota)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+                              dob, age_stated, education, mobile, candidate_category, is_nota)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [
         wardId,
         r.position,
@@ -277,6 +279,7 @@ export async function replaceWardCandidates(
         r.details.ageStated,
         r.details.education,
         r.details.mobile,
+        r.details.candidateCategory,
       ],
     );
   }
@@ -320,7 +323,8 @@ export async function readWardCandidates(
 ): Promise<StoredCandidate[]> {
   const [rows] = await db.execute<RowDataPacket[]>(
     `SELECT c.id, c.ballot_position, c.name_hindi, c.party_id, p.short_name, c.gender,
-            DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education, c.mobile
+            DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education, c.mobile,
+            c.candidate_category
        FROM candidate c LEFT JOIN party p ON p.id = c.party_id
       WHERE c.ward_id = ? AND c.is_nota = 0 ORDER BY c.ballot_position`,
     [wardId],

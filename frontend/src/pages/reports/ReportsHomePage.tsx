@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api/api';
 import type { ReportSummary } from '../../api/reportTypes';
 import { ErrorBox } from '../../components/ErrorBox';
+import { StFormatPanel } from '../../components/StFormatPanel';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
 import {
@@ -139,6 +140,8 @@ export function ReportsView({
             </a>
           </header>
         </section>
+        <StFormatPanel kind="ZP" />
+        <StFormatPanel kind="PS" psSelector />
         <Panel id="close" title="नज़दीकी मुकाबले" section="close-contests" scope={scope} wide>
           <Close rows={s.close} />
         </Panel>

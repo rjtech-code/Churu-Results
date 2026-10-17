@@ -224,6 +224,7 @@ export function CandidateAreaPage() {
               ageStated: candidate.ageStated,
               education: candidate.education,
               mobile: candidate.mobile,
+              candidateCategory: candidate.candidateCategory,
             });
             setViewing(null);
           }}
@@ -232,7 +233,7 @@ export function CandidateAreaPage() {
       {editing && details && (
         <PasswordDialog
           title={`${editing.ward.label} — ${editing.candidate.nameHindi} — विवरण बदलें`}
-          explain="जन्म तिथि या उम्र, शिक्षा और मोबाइल बदलेंगे (लॉक के बाद भी)। नाम, पार्टी, बैलेट नंबर और वोट नहीं बदलेंगे।"
+          explain="जन्म तिथि या उम्र, शिक्षा, मोबाइल और Category (श्रेणी) बदलेंगे (लॉक के बाद भी)। नाम, पार्टी, बैलेट नंबर और वोट नहीं बदलेंगे।"
           confirmLabel="विवरण सेव करें"
           onConfirm={async (password) => {
             try {

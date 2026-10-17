@@ -1,5 +1,5 @@
-// Optional candidate details for the ST Format returns (F15, F18, F19, F19A): date of birth (or the
-// stated age), education and mobile. One set of rules for the Excel import, the RO form and the
+// Optional candidate details for the ST Format returns (F15-F19A): date of birth (or the stated
+// age), education, mobile and the candidate's own social category. One set of rules for the Excel import, the RO form and the
 // DM's details edit. Private: only the DM and the ward's own RO ever see them (never public screens,
 // the public API or the existing reports).
 import type { RowDataPacket } from 'mysql2/promise';
@@ -33,7 +33,7 @@ export const EDUCATION_HI: Readonly<Record<Education, string>> = {
   PROFESSIONAL: 'व्यावसायिक',
 };
 
-const EDUCATION_EN: Readonly<Record<Education, string>> = {
+export const EDUCATION_EN: Readonly<Record<Education, string>> = {
   ILLITERATE: 'Illiterate',
   LITERATE: 'Literate',
   PRIMARY: 'Primary',
@@ -43,6 +43,18 @@ const EDUCATION_EN: Readonly<Record<Education, string>> = {
   GRADUATE: 'Graduate',
   POST_GRADUATE: 'Post Graduate',
   PROFESSIONAL: 'Professional',
+};
+
+/** The candidate's own social category (not the ward's reservation). */
+export const CANDIDATE_CATEGORIES = ['GEN', 'SC', 'ST', 'OBC'] as const;
+export type CandidateCategory = (typeof CANDIDATE_CATEGORIES)[number];
+
+/** Hindi names, accepted as input only: always saved and shown as GEN/SC/ST/OBC. */
+export const CANDIDATE_CATEGORY_HI: Readonly<Record<CandidateCategory, string>> = {
+  GEN: 'सामान्य',
+  SC: 'अनुसूचित जाति',
+  ST: 'अनुसूचित जनजाति',
+  OBC: 'अन्य पिछड़ा वर्ग',
 };
 
 /** "Illiterate, Literate, …" for the English (CLI) messages. */
@@ -59,6 +71,7 @@ export interface CandidateDetails {
   education: Education | null;
   /** 10 digits, 6-9 first. */
   mobile: string | null;
+  candidateCategory: CandidateCategory | null;
 }
 
 export const NO_DETAILS: CandidateDetails = {
@@ -66,6 +79,7 @@ export const NO_DETAILS: CandidateDetails = {
   ageStated: null,
   education: null,
   mobile: null,
+  candidateCategory: null,
 };
 
 // "Sr. Secondary", "sr secondary", "SR_SECONDARY" and "उच्च माध्यमिक" all match.
@@ -83,6 +97,19 @@ const EDUCATION_BY_KEY = new Map<string, Education>(
 
 export function parseEducation(raw: string): Education | null {
   return EDUCATION_BY_KEY.get(educationKey(raw)) ?? null;
+}
+
+// "GEN", "general", "सामान्य", "अनुसूचित जाति" … (same matching as education).
+const CATEGORY_BY_KEY = new Map<string, CandidateCategory>(
+  CANDIDATE_CATEGORIES.flatMap((c) => [
+    [educationKey(c), c],
+    [educationKey(CANDIDATE_CATEGORY_HI[c]), c],
+  ]),
+);
+CATEGORY_BY_KEY.set(educationKey('General'), 'GEN');
+
+export function parseCandidateCategory(raw: string): CandidateCategory | null {
+  return CATEGORY_BY_KEY.get(educationKey(raw)) ?? null;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -148,6 +175,7 @@ export interface RawDetails {
   age: string | number | null;
   education: string | number | null;
   mobile: string | number | null;
+  candidateCategory: string | number | null;
 }
 
 /**
@@ -180,6 +208,14 @@ export function checkDetails(
     if (out.mobile === null)
       issues.error({ code: 'MOBILE_INVALID', value: String(raw.mobile) }, rowNumber);
   }
+  if (raw.candidateCategory !== null) {
+    out.candidateCategory = parseCandidateCategory(String(raw.candidateCategory));
+    if (out.candidateCategory === null)
+      issues.error(
+        { code: 'CANDIDATE_CATEGORY_INVALID', value: String(raw.candidateCategory) },
+        rowNumber,
+      );
+  }
   return issues.errors.length === before ? out : null;
 }
 
@@ -189,6 +225,7 @@ export interface FormDetails {
   ageStated?: number | null | undefined;
   education?: string | null | undefined;
   mobile?: string | null | undefined;
+  candidateCategory?: string | null | undefined;
 }
 
 const blank = (v: string | null | undefined) =>
@@ -199,13 +236,15 @@ export const formDetails = (f: FormDetails): RawDetails => ({
   age: f.ageStated ?? null,
   education: blank(f.education),
   mobile: blank(f.mobile),
+  candidateCategory: blank(f.candidateCategory),
 });
 
 export const sameDetails = (a: CandidateDetails, b: CandidateDetails): boolean =>
   a.dob === b.dob &&
   a.ageStated === b.ageStated &&
   a.education === b.education &&
-  a.mobile === b.mobile;
+  a.mobile === b.mobile &&
+  a.candidateCategory === b.candidateCategory;
 
 /** For the audit log: never the whole mobile number. */
 export const detailsForAudit = (d: CandidateDetails) => ({
@@ -213,6 +252,7 @@ export const detailsForAudit = (d: CandidateDetails) => ({
   age_stated: d.ageStated,
   education: d.education,
   mobile_last4: phoneLast4(d.mobile),
+  candidate_category: d.candidateCategory,
 });
 
 /** A DB row's columns (dob read with DATE_FORMAT '%Y-%m-%d'). */
@@ -222,5 +262,9 @@ export function detailsFromRow(r: RowDataPacket): CandidateDetails {
     ageStated: r.age_stated === null ? null : Number(r.age_stated),
     education: r.education === null ? null : (String(r.education) as Education),
     mobile: r.mobile === null ? null : String(r.mobile),
+    candidateCategory:
+      r.candidate_category === null || r.candidate_category === undefined
+        ? null
+        : (String(r.candidate_category) as CandidateCategory),
   };
 }
