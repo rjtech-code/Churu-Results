@@ -30,6 +30,13 @@ export const idParam = z
   .regex(/^[1-9]\d{0,14}$/)
   .transform(Number);
 export const password = z.string().min(1).max(128);
+/** The optional candidate details as typed in a form (null or left out = empty). */
+export const candidateDetailsFields = {
+  dob: z.string().max(10).nullable().optional(),
+  ageStated: z.number().int().min(0).max(255).nullable().optional(),
+  education: z.string().max(50).nullable().optional(),
+  mobile: z.string().max(20).nullable().optional(),
+};
 /** Why a change was made (stored in the audit log). */
 export const reason = z.string().trim().min(10).max(500);
 

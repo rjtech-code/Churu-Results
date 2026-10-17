@@ -48,7 +48,14 @@ export function Header() {
       {/* In the header row itself: the menu takes no extra height (forms must fit one screen). */}
       <Menu items={user.role === 'DM' ? DM_MENU : RO_MENU} />
       <div className="who">
-        <strong>{user.fullName ?? user.username}</strong> · {ROLE_HINDI[user.role]}
+        {user.role === 'DM' ? (
+          <Link to="/profile" className="who-link" title="मेरी प्रोफ़ाइल">
+            <strong>{user.fullName ?? user.username}</strong>
+          </Link>
+        ) : (
+          <strong>{user.fullName ?? user.username}</strong>
+        )}{' '}
+        · {ROLE_HINDI[user.role]}
         {user.panchayatSamiti ? ` · ${user.panchayatSamiti.name}` : ''}
       </div>
       <div className="clock" aria-label="समय">

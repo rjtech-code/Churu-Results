@@ -5,6 +5,7 @@ import { loadEnvOrExit, serverEnvSchema } from './config/env.js';
 import { announceVoterCheckConfig } from './config/startup-checks.js';
 import { createSessionStore } from './middleware/session.js';
 import { SseHub } from './modules/public/sse.js';
+import { createMailer } from './services/mailer.js';
 import { PublicSnapshotService } from './services/public-snapshot.js';
 
 const env = loadEnvOrExit(serverEnvSchema);
@@ -28,7 +29,14 @@ const sseHub = new SseHub(publicSnapshot, {
   heartbeatMs: config.publicApi.sseHeartbeatMs,
 });
 
-const app = createApp({ pool, config, sessionStore, publicSnapshot, sseHub });
+const app = createApp({
+  pool,
+  config,
+  sessionStore,
+  publicSnapshot,
+  sseHub,
+  mailer: createMailer(env),
+});
 console.log(
   config.frontendDist === null
     ? 'Dashboard: no frontend build found (FRONTEND_DIST); serving the API only.'

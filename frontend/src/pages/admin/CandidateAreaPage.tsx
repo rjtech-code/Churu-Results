@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { GENDER_HINDI } from '../../api/adminTypes';
-import type { AreaWard, CandidateStatus, WardCandidatesView } from '../../api/adminTypes';
+import type {
+  AreaWard,
+  CandidateDetails,
+  CandidateStatus,
+  Issue,
+  WardCandidate,
+  WardCandidatesView,
+} from '../../api/adminTypes';
 import { api } from '../../api/api';
-import { ListStatusBadge, PageIntro } from '../../components/AdminParts';
+import { IssueList, ListStatusBadge, PageIntro, issuesOf } from '../../components/AdminParts';
+import { CandidateDetailsFields, detailsSummary } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { Modal } from '../../components/Modal';
 import { PasswordDialog } from '../../components/PasswordDialog';
@@ -11,7 +19,15 @@ import { useApiData } from '../../components/useApiData';
 import { LockDialog } from './LockDialog';
 import '../../styles/admin.css';
 
-function WardView({ ward, onClose }: { ward: AreaWard; onClose: () => void }) {
+function WardView({
+  ward,
+  onClose,
+  onEdit,
+}: {
+  ward: AreaWard;
+  onClose: () => void;
+  onEdit: (candidate: WardCandidate) => void;
+}) {
   const { data, error } = useApiData(
     () => api<WardCandidatesView>('GET', `/api/admin/wards/${ward.id}/candidates`),
     [ward.id],
@@ -30,6 +46,7 @@ function WardView({ ward, onClose }: { ward: AreaWard; onClose: () => void }) {
                 <th>नाम</th>
                 <th>पार्टी</th>
                 <th>लिंग</th>
+                <th>विवरण (निजी)</th>
               </tr>
             </thead>
             <tbody>
@@ -39,6 +56,18 @@ function WardView({ ward, onClose }: { ward: AreaWard; onClose: () => void }) {
                   <td>{c.nameHindi}</td>
                   <td>{c.party ? `${c.party.nameHindi} (${c.party.shortName})` : 'निर्दलीय'}</td>
                   <td>{GENDER_HINDI[c.gender]}</td>
+                  <td>
+                    {detailsSummary(c)}{' '}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        onEdit(c);
+                      }}
+                    >
+                      विवरण बदलें
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -62,6 +91,10 @@ export function CandidateAreaPage() {
     [area],
   );
   const [viewing, setViewing] = useState<AreaWard | null>(null);
+  // "विवरण बदलें" replaces the ward view while open; closing it shows the ward again.
+  const [editing, setEditing] = useState<{ ward: AreaWard; candidate: WardCandidate } | null>(null);
+  const [details, setDetails] = useState<CandidateDetails | null>(null);
+  const [detailIssues, setDetailIssues] = useState<Issue[]>([]);
   const [sending, setSending] = useState<AreaWard | null>(null);
   const [reason, setReason] = useState('');
   const [locking, setLocking] = useState(false);
@@ -182,7 +215,59 @@ export function CandidateAreaPage() {
           onClose={() => {
             setViewing(null);
           }}
+          onEdit={(candidate) => {
+            setDone(null);
+            setEditing({ ward: viewing, candidate });
+            setDetailIssues([]);
+            setDetails({
+              dob: candidate.dob,
+              ageStated: candidate.ageStated,
+              education: candidate.education,
+              mobile: candidate.mobile,
+            });
+            setViewing(null);
+          }}
         />
+      )}
+      {editing && details && (
+        <PasswordDialog
+          title={`${editing.ward.label} — ${editing.candidate.nameHindi} — विवरण बदलें`}
+          explain="जन्म तिथि या उम्र, शिक्षा और मोबाइल बदलेंगे (लॉक के बाद भी)। नाम, पार्टी, बैलेट नंबर और वोट नहीं बदलेंगे।"
+          confirmLabel="विवरण सेव करें"
+          onConfirm={async (password) => {
+            try {
+              await api('POST', `/api/admin/candidates/${editing.candidate.id}/details`, {
+                ...details,
+                password,
+              });
+            } catch (err) {
+              const list = issuesOf(err);
+              if (!list) throw err;
+              setDetailIssues(list);
+              return;
+            }
+            setViewing(editing.ward);
+            setEditing(null);
+            setDone('विवरण सेव हो गया');
+          }}
+          onCancel={() => {
+            setViewing(editing.ward);
+            setEditing(null);
+          }}
+        >
+          <div className="field">
+            <CandidateDetailsFields
+              idPrefix="dm-details"
+              label={editing.candidate.nameHindi}
+              value={details}
+              onChange={(patch) => {
+                setDetails({ ...details, ...patch });
+                setDetailIssues([]);
+              }}
+            />
+          </div>
+          <IssueList title="विवरण सेव नहीं हुआ — ये गलतियाँ ठीक करें" issues={detailIssues} />
+        </PasswordDialog>
       )}
       {sending && (
         <PasswordDialog

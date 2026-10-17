@@ -77,6 +77,14 @@ export interface CandidateStatus {
   detail: { area: string; name: string; wards: AreaWard[] } | null;
 }
 
+export interface WardCandidate extends CandidateDetails {
+  id: number;
+  position: number;
+  nameHindi: string;
+  party: { shortName: string; nameHindi: string } | null;
+  gender: Gender;
+}
+
 export interface WardCandidatesView {
   ward: {
     id: number;
@@ -85,12 +93,7 @@ export interface WardCandidatesView {
     unopposed: boolean;
     reservationCategory: string | null;
   };
-  candidates: {
-    position: number;
-    nameHindi: string;
-    party: { shortName: string; nameHindi: string } | null;
-    gender: Gender;
-  }[];
+  candidates: WardCandidate[];
 }
 
 export interface LockWard {
@@ -164,7 +167,38 @@ export interface RoWard {
   returnReason: string | null;
 }
 
-export interface RoCandidate {
+export type Education =
+  | 'ILLITERATE'
+  | 'LITERATE'
+  | 'PRIMARY'
+  | 'UPPER_PRIMARY'
+  | 'SECONDARY'
+  | 'SR_SECONDARY'
+  | 'GRADUATE'
+  | 'POST_GRADUATE'
+  | 'PROFESSIONAL';
+
+export const EDUCATION_HINDI: Record<Education, string> = {
+  ILLITERATE: 'निरक्षर',
+  LITERATE: 'साक्षर',
+  PRIMARY: 'प्राथमिक',
+  UPPER_PRIMARY: 'उच्च प्राथमिक',
+  SECONDARY: 'माध्यमिक',
+  SR_SECONDARY: 'उच्च माध्यमिक',
+  GRADUATE: 'स्नातक',
+  POST_GRADUATE: 'स्नातकोत्तर',
+  PROFESSIONAL: 'व्यावसायिक',
+};
+
+/** Optional private details (DM and the ward's own RO only). dob is YYYY-MM-DD. */
+export interface CandidateDetails {
+  dob: string | null;
+  ageStated: number | null;
+  education: Education | null;
+  mobile: string | null;
+}
+
+export interface RoCandidate extends CandidateDetails {
   ballotPosition: number;
   nameHindi: string;
   partyId: number | null;

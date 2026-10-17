@@ -23,6 +23,11 @@ export function templateSheets(name: TemplateName): SheetSpec[] {
           'EXAMPLE-PARTY',
           'F',
           'EXAMPLE - सामान्य महिला',
+          // Optional details: dob (DD/MM/YYYY) or age, education (English or Hindi), mobile.
+          '15/05/1980',
+          null,
+          'स्नातक',
+          '9876543210',
         ],
         [
           'EXAMPLE - (leave empty for ZP)',
@@ -33,6 +38,10 @@ export function templateSheets(name: TemplateName): SheetSpec[] {
           null,
           'M',
           'EXAMPLE - अन्य पिछड़ा वर्ग',
+          null,
+          45,
+          'Secondary',
+          null,
         ],
       ],
     },

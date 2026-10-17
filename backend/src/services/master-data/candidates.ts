@@ -4,6 +4,8 @@
 //   exempt); name and gender required; the ward unlocked with no counting entries.
 //   NOTA is added automatically at N+1; exactly one candidate = unopposed (no NOTA).
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { checkDetails, detailsFromRow } from './candidate-details.js';
+import type { CandidateDetails } from './candidate-details.js';
 import { optionalText, requireInt, requireText } from './cells.js';
 import { wardRef } from './issues.js';
 import type { IssueList } from './issues.js';
@@ -21,7 +23,14 @@ export const CANDIDATE_COLUMNS = [
   'party_short_name',
   'gender',
 ] as const;
-export const OPTIONAL_CANDIDATE_COLUMNS = ['reservation_category'] as const;
+/** Old files without the detail columns (dob, age, education, mobile) still import. */
+export const OPTIONAL_CANDIDATE_COLUMNS = [
+  'reservation_category',
+  'dob',
+  'age',
+  'education',
+  'mobile',
+] as const;
 
 /** Label of the NOTA row on every contested ballot. */
 export const NOTA_NAME_HINDI = 'इनमें से कोई नहीं';
@@ -47,6 +56,8 @@ export interface CandidateInput {
   partyShort: string | null;
   gender: Gender;
   category: string | null;
+  /** Optional, private details (candidate-details.ts). */
+  details: CandidateDetails;
 }
 
 export interface CandidateLookups {
@@ -106,6 +117,16 @@ export function parseCandidateSheet(
     const partyShort = optionalText(row, 'party_short_name');
     const category = optionalText(row, 'reservation_category');
     const psName = optionalText(row, 'panchayat_samiti');
+    const details = checkDetails(
+      {
+        dob: row.cells.dob ?? null,
+        age: row.cells.age ?? null,
+        education: row.cells.education ?? null,
+        mobile: row.cells.mobile ?? null,
+      },
+      row.rowNumber,
+      issues,
+    );
 
     if (election !== null && election !== 'PS' && election !== 'ZP') {
       issues.error({ code: 'ELECTION_INVALID', value: election }, row.rowNumber);
@@ -155,7 +176,8 @@ export function parseCandidateSheet(
       !ward ||
       position === null ||
       nameHindi === null ||
-      gender === null
+      gender === null ||
+      details === null
     ) {
       continue;
     }
@@ -168,6 +190,7 @@ export function parseCandidateSheet(
       partyShort,
       gender: gender as Gender,
       category,
+      details,
     });
     byWard.set(ward.id, group);
   }
@@ -241,9 +264,20 @@ export async function replaceWardCandidates(
   await conn.execute('DELETE FROM candidate WHERE ward_id = ?', [wardId]);
   for (const r of [...rows].sort((a, b) => a.position - b.position)) {
     await conn.execute(
-      `INSERT INTO candidate (ward_id, ballot_position, name_hindi, party_id, gender, is_nota)
-       VALUES (?, ?, ?, ?, ?, 0)`,
-      [wardId, r.position, r.nameHindi, r.partyId, r.gender],
+      `INSERT INTO candidate (ward_id, ballot_position, name_hindi, party_id, gender,
+                              dob, age_stated, education, mobile, is_nota)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [
+        wardId,
+        r.position,
+        r.nameHindi,
+        r.partyId,
+        r.gender,
+        r.details.dob,
+        r.details.ageStated,
+        r.details.education,
+        r.details.mobile,
+      ],
     );
   }
   const unopposed = rows.length === 1;
@@ -276,6 +310,8 @@ export interface StoredCandidate {
   partyId: number | null;
   partyShort: string | null;
   gender: Gender;
+  /** Private: map it into a response only for the DM or the ward's own RO. */
+  details: CandidateDetails;
 }
 
 export async function readWardCandidates(
@@ -283,7 +319,8 @@ export async function readWardCandidates(
   wardId: number,
 ): Promise<StoredCandidate[]> {
   const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT c.id, c.ballot_position, c.name_hindi, c.party_id, p.short_name, c.gender
+    `SELECT c.id, c.ballot_position, c.name_hindi, c.party_id, p.short_name, c.gender,
+            DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education, c.mobile
        FROM candidate c LEFT JOIN party p ON p.id = c.party_id
       WHERE c.ward_id = ? AND c.is_nota = 0 ORDER BY c.ballot_position`,
     [wardId],
@@ -295,5 +332,6 @@ export async function readWardCandidates(
     partyId: r.party_id === null ? null : Number(r.party_id),
     partyShort: r.short_name === null ? null : String(r.short_name),
     gender: String(r.gender) as Gender,
+    details: detailsFromRow(r),
   }));
 }

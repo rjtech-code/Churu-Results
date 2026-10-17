@@ -84,6 +84,15 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   USERNAME_INVALID: 'यूज़रनेम 4-30 अक्षर का हो: केवल छोटे अंग्रेज़ी अक्षर, अंक और _',
   USERNAME_TAKEN: 'यह यूज़रनेम पहले से किसी के पास है',
   PASSWORD_MISMATCH: 'दोनों नए पासवर्ड एक जैसे नहीं हैं',
+  // DM "मेरी प्रोफ़ाइल" (OTP by email)
+  EMAIL_NOT_SET: 'ईमेल सेट नहीं है, कृपया प्रशासक से संपर्क करें',
+  MAIL_NOT_CONFIGURED: 'ईमेल सेवा चालू नहीं है',
+  MAIL_FAILED: 'ईमेल नहीं भेजा जा सका, थोड़ी देर बाद फिर प्रयास करें',
+  OTP_COOLDOWN: (d) => `नया OTP ${n(d.retryAfterSeconds)} सेकंड बाद भेजें`,
+  OTP_NOT_SENT: 'पहले "OTP भेजें" दबाएँ और ईमेल पर आया नया OTP भरें',
+  OTP_EXPIRED: 'OTP का समय (10 मिनट) खत्म हो गया, नया OTP भेजें',
+  OTP_INVALID: (d) => `गलत OTP — ${n(d.attemptsLeft)} कोशिश बाकी`,
+  OTP_LOCKED: '5 बार गलत OTP — यह OTP बंद हो गया, नया OTP भेजें',
 };
 
 /** Hindi text for any error (unknown codes: generic text + the code, so it can be reported). */

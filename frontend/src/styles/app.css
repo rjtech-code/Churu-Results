@@ -82,6 +82,11 @@ a {
 .topbar .who {
   min-width: 0; /* the name shrinks (wraps inside), the header row never grows a second row */
 }
+/* The DM's name opens "मेरी प्रोफ़ाइल". */
+.topbar .who-link {
+  color: #fff;
+  text-decoration: underline;
+}
 .mainnav {
   display: flex;
   flex-wrap: wrap;

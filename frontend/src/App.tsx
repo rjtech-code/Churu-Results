@@ -21,6 +21,7 @@ import { CandidateCheckPage } from './pages/admin/CandidateCheckPage';
 import { CandidateUploadPage } from './pages/admin/CandidateUploadPage';
 import { CandidatesHomePage } from './pages/admin/CandidatesHomePage';
 import { PartiesPage } from './pages/admin/PartiesPage';
+import { ProfilePage } from './pages/admin/ProfilePage';
 import { UserSeatPage } from './pages/admin/UserSeatPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { WardCategoryPage } from './pages/admin/WardCategoryPage';
@@ -95,6 +96,7 @@ export const router = createBrowserRouter([
           { path: '/admin/booths', element: <BoothsPage /> },
           { path: '/admin/booths/:psId/:boothId', element: <BoothEditPage /> },
           { path: '/admin/wards/:psId', element: <WardCategoryPage /> },
+          { path: '/profile', element: <ProfilePage /> },
         ],
       },
       {

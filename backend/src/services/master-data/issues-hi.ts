@@ -1,6 +1,8 @@
 // Simple Hindi text for every master-data issue, for the web pages. Each message says what is wrong
 // and how to fix it, e.g. "पंक्ति 15: चूरू पंचायत समिति वार्ड 5 में बैलेट नंबर 2 दो बार है — Excel में
 // इसे ठीक करके फ़ाइल फिर से चुनें".
+import { AGE_REFERENCE_DATE } from '../../config/election.js';
+import { EDUCATIONS, EDUCATION_HI, MAX_AGE, MIN_AGE } from './candidate-details.js';
 import type { Issue, IssueBody, PartyField, WardRef } from './issues.js';
 import type { SheetFailure } from './xlsx.js';
 
@@ -21,10 +23,17 @@ const COLUMN_HI: Readonly<Record<string, string>> = {
   party_short_name: 'पार्टी',
   gender: 'लिंग',
   reservation_category: 'आरक्षण वर्ग',
+  dob: 'जन्म तिथि',
+  age: 'उम्र',
+  education: 'शिक्षा',
+  mobile: 'मोबाइल',
   name_english: 'अंग्रेज़ी नाम',
   short_name: 'छोटा नाम',
   symbol: 'चुनाव चिह्न',
 };
+
+/** 20/11/2026 */
+const REF_DATE_HI = AGE_REFERENCE_DATE.split('-').reverse().join('/');
 
 const columnHi = (c: string): string => COLUMN_HI[c] ?? c;
 const fieldHi = (f: PartyField): string => columnHi(f);
@@ -61,6 +70,14 @@ function text(issue: IssueBody): string {
       return `"चुनाव" में PS या ZP लिखें, लिखा है "${issue.value}"`;
     case 'GENDER_INVALID':
       return `"लिंग" में M (पुरुष), F (महिला) या O (अन्य) लिखें, लिखा है "${issue.value}"`;
+    case 'DOB_INVALID':
+      return `जन्म तिथि "${issue.value}" सही नहीं है — DD/MM/YYYY में लिखें (${REF_DATE_HI} को उम्र ${String(MIN_AGE)} से ${String(MAX_AGE)} वर्ष)`;
+    case 'AGE_INVALID':
+      return `उम्र "${issue.value}" सही नहीं है — ${String(MIN_AGE)} से ${String(MAX_AGE)} के बीच पूरी संख्या लिखें`;
+    case 'EDUCATION_INVALID':
+      return `शिक्षा "${issue.value}" सही नहीं है — इनमें से एक लिखें: ${EDUCATIONS.map((e) => EDUCATION_HI[e]).join(', ')}`;
+    case 'MOBILE_INVALID':
+      return `मोबाइल "${issue.value}" सही नहीं है — 10 अंकों का नंबर लिखें जो 6, 7, 8 या 9 से शुरू हो`;
     case 'PARTY_UNKNOWN':
       return `पार्टी "${issue.value}" पार्टी सूची में नहीं है — पहले "पार्टी सूची" में जोड़ें`;
     case 'PS_REQUIRED':

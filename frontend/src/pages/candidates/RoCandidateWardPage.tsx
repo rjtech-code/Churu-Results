@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { GENDER_HINDI } from '../../api/adminTypes';
 import type { Gender, Issue, RoCandidate, RoWardDetail } from '../../api/adminTypes';
 import { api } from '../../api/api';
 import { IssueList, ListStatusBadge, PageIntro, issuesOf } from '../../components/AdminParts';
+import { CandidateDetailsFields } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
@@ -74,7 +75,17 @@ function WardForm({
     const next = rows.reduce((m, r) => Math.max(m, Number(r.ballotPosition) || 0), 0) + 1;
     setRows([
       ...rows,
-      { key: nextKey++, ballotPosition: String(next), nameHindi: '', partyId: null, gender: 'M' },
+      {
+        key: nextKey++,
+        ballotPosition: String(next),
+        nameHindi: '',
+        partyId: null,
+        gender: 'M',
+        dob: null,
+        ageStated: null,
+        education: null,
+        mobile: null,
+      },
     ]);
     setDirty(true);
     setDone(null);
@@ -97,6 +108,10 @@ function WardForm({
           nameHindi: r.nameHindi,
           partyId: r.partyId,
           gender: r.gender,
+          dob: r.dob,
+          ageStated: r.ageStated,
+          education: r.education,
+          mobile: r.mobile,
         })),
       });
       setDone('सूची सेव हो गई');
@@ -121,7 +136,7 @@ function WardForm({
         title={`${ward.label} — उम्मीदवार सूची`}
         hint={
           editable
-            ? 'हर उम्मीदवार का बैलेट नंबर, नाम, पार्टी और लिंग भरें, फिर सूची सेव करें।'
+            ? 'हर उम्मीदवार का बैलेट नंबर, नाम, पार्टी और लिंग भरें (जन्म तिथि या उम्र, शिक्षा, मोबाइल वैकल्पिक हैं), फिर सूची सेव करें।'
             : 'यह सूची अब बदली नहीं जा सकती।'
         }
       />
@@ -154,78 +169,94 @@ function WardForm({
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.key}>
-              <td>
-                <input
-                  aria-label={`पंक्ति ${i + 1} बैलेट नंबर`}
-                  className="num num-small"
-                  inputMode="numeric"
-                  disabled={!editable}
-                  value={r.ballotPosition}
-                  onChange={(e) => {
-                    change(r.key, { ballotPosition: e.target.value.replace(/\D/g, '').slice(0, 3) });
-                  }}
-                />
-              </td>
-              <td>
-                <input
-                  aria-label={`पंक्ति ${i + 1} नाम`}
-                  className="wide"
-                  maxLength={200}
-                  disabled={!editable}
-                  value={r.nameHindi}
-                  onChange={(e) => {
-                    change(r.key, { nameHindi: e.target.value });
-                  }}
-                />
-              </td>
-              <td>
-                <select
-                  aria-label={`पंक्ति ${i + 1} पार्टी`}
-                  disabled={!editable}
-                  value={r.partyId === null ? '' : String(r.partyId)}
-                  onChange={(e) => {
-                    change(r.key, { partyId: e.target.value === '' ? null : Number(e.target.value) });
-                  }}
-                >
-                  <option value="">निर्दलीय</option>
-                  {parties.map((p) => (
-                    <option key={p.id} value={String(p.id)}>
-                      {p.nameHindi} ({p.shortName})
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select
-                  aria-label={`पंक्ति ${i + 1} लिंग`}
-                  disabled={!editable}
-                  value={r.gender}
-                  onChange={(e) => {
-                    change(r.key, { gender: e.target.value as Gender });
-                  }}
-                >
-                  {(['M', 'F', 'O'] as const).map((g) => (
-                    <option key={g} value={g}>
-                      {GENDER_HINDI[g]}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              {editable && (
+            <Fragment key={r.key}>
+              <tr>
                 <td>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      remove(r.key);
+                  <input
+                    aria-label={`पंक्ति ${i + 1} बैलेट नंबर`}
+                    className="num num-small"
+                    inputMode="numeric"
+                    disabled={!editable}
+                    value={r.ballotPosition}
+                    onChange={(e) => {
+                      change(r.key, { ballotPosition: e.target.value.replace(/\D/g, '').slice(0, 3) });
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label={`पंक्ति ${i + 1} नाम`}
+                    className="wide"
+                    maxLength={200}
+                    disabled={!editable}
+                    value={r.nameHindi}
+                    onChange={(e) => {
+                      change(r.key, { nameHindi: e.target.value });
+                    }}
+                  />
+                </td>
+                <td>
+                  <select
+                    aria-label={`पंक्ति ${i + 1} पार्टी`}
+                    disabled={!editable}
+                    value={r.partyId === null ? '' : String(r.partyId)}
+                    onChange={(e) => {
+                      change(r.key, { partyId: e.target.value === '' ? null : Number(e.target.value) });
                     }}
                   >
-                    हटाएँ
-                  </button>
+                    <option value="">निर्दलीय</option>
+                    {parties.map((p) => (
+                      <option key={p.id} value={String(p.id)}>
+                        {p.nameHindi} ({p.shortName})
+                      </option>
+                    ))}
+                  </select>
                 </td>
-              )}
-            </tr>
+                <td>
+                  <select
+                    aria-label={`पंक्ति ${i + 1} लिंग`}
+                    disabled={!editable}
+                    value={r.gender}
+                    onChange={(e) => {
+                      change(r.key, { gender: e.target.value as Gender });
+                    }}
+                  >
+                    {(['M', 'F', 'O'] as const).map((g) => (
+                      <option key={g} value={g}>
+                        {GENDER_HINDI[g]}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                {editable && (
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        remove(r.key);
+                      }}
+                    >
+                      हटाएँ
+                    </button>
+                  </td>
+                )}
+              </tr>
+              <tr className="cand-details-row">
+                <td />
+                <td colSpan={editable ? 4 : 3}>
+                  <CandidateDetailsFields
+                    idPrefix={`cand-${String(r.key)}`}
+                    label={`पंक्ति ${String(i + 1)}`}
+                    value={r}
+                    disabled={!editable}
+                    onChange={(patch) => {
+                      change(r.key, patch);
+                    }}
+                  />
+                </td>
+              </tr>
+            </Fragment>
           ))}
           {rows.length > 1 && (
             <tr className="nota-row">

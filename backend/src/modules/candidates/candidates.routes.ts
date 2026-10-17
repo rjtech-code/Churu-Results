@@ -6,7 +6,7 @@ import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
-import { actor, idParam, parse, password } from '../admin/http.js';
+import { actor, candidateDetailsFields, idParam, parse, password } from '../admin/http.js';
 import { listOwnWards, markReady, readOwnWard, saveOwnWard } from './candidates.service.js';
 
 const candidate = z
@@ -15,6 +15,8 @@ const candidate = z
     nameHindi: z.string().max(400),
     partyId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
     gender: z.enum(['M', 'F', 'O']),
+    // Optional private details (checked with a Hindi message by checkDetails). Left out = empty.
+    ...candidateDetailsFields,
   })
   .strict();
 // The list size rule (at most 59) is checked by checkWardList, with a Hindi message.

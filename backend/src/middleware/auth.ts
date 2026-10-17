@@ -40,6 +40,7 @@ const DM_ADMIN_WRITE = new RegExp(
     [
       'parties/(?:check|save|add)',
       'candidates/(?:check|save)',
+      `candidates/${ID}/details`,
       `wards/${ID}/(?:send-back|category)`,
       'lock',
       'unlock',
@@ -52,10 +53,13 @@ const DM_ADMIN_WRITE = new RegExp(
     ')$',
 );
 
+/** The DM's own profile (name; username and password with an emailed OTP). POST only. */
+const DM_PROFILE_WRITE = /^\/api\/profile\/(?:name|send-otp|username|password)$/;
+
 /** True for a DM write that is on the allow-list (exported for tests). */
 export function dmWriteAllowed(method: string, path: string): boolean {
   if (DM_WRITE_ALLOWED.has(path)) return true;
-  return method === 'POST' && DM_ADMIN_WRITE.test(path);
+  return method === 'POST' && (DM_ADMIN_WRITE.test(path) || DM_PROFILE_WRITE.test(path));
 }
 
 /**

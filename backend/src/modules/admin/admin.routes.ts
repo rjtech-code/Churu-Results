@@ -26,7 +26,15 @@ import {
   updateBooth,
   updateWardCategory,
 } from './booths.service.js';
-import { actor, idParam, noStore, parse, password, reason } from './http.js';
+import {
+  actor,
+  candidateDetailsFields,
+  idParam,
+  noStore,
+  parse,
+  password,
+  reason,
+} from './http.js';
 import {
   ballotReport,
   candidateStatus,
@@ -35,6 +43,7 @@ import {
   parseArea,
   sendBack,
   unlockArea,
+  updateCandidateDetails,
   wardCandidates,
 } from './lists.service.js';
 import type { Area } from './lists.service.js';
@@ -145,6 +154,7 @@ const moveBody = z
   .strict();
 const categoryBody = z.object({ category: z.string().max(200), reason, password }).strict();
 const sendBackBody = z.object({ reason, password }).strict();
+const candidateDetailsBody = z.object({ ...candidateDetailsFields, password }).strict();
 const createBody = z
   .object({
     seat: z
@@ -228,6 +238,11 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
   });
   router.get('/wards/:wardId/candidates', async (req, res) => {
     res.json(await wardCandidates(pool, id(req, 'wardId')));
+  });
+  router.post('/candidates/:candidateId/details', async (req, res) => {
+    const body = parse(candidateDetailsBody, req.body);
+    await updateCandidateDetails(pool, actor(req), id(req, 'candidateId'), body);
+    res.json({ ok: true });
   });
   router.post('/wards/:wardId/send-back', async (req, res) => {
     await sendBack(pool, actor(req), id(req, 'wardId'), parse(sendBackBody, req.body));

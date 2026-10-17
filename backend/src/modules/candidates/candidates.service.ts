@@ -8,6 +8,16 @@ import { canWriteWard, wardWriteAllowed } from '../../services/access.js';
 import { writeAudit } from '../../services/audit.js';
 import { emitWardChanged } from '../../services/events.js';
 import {
+  detailsForAudit,
+  checkDetails,
+  formDetails,
+  sameDetails,
+} from '../../services/master-data/candidate-details.js';
+import type {
+  CandidateDetails,
+  FormDetails,
+} from '../../services/master-data/candidate-details.js';
+import {
   MAX_NAME_LENGTH,
   checkWardList,
   readWardCandidates,
@@ -32,7 +42,7 @@ import { busyAsConflict } from '../admin/http.js';
 import type { Actor } from '../admin/http.js';
 import { listStatus } from '../admin/lists.service.js';
 
-export interface FormCandidate {
+export interface FormCandidate extends FormDetails {
   ballotPosition: number;
   nameHindi: string;
   partyId: number | null;
@@ -104,6 +114,11 @@ export async function readOwnWard(pool: Pool, who: Actor, wardId: number) {
       nameHindi: c.nameHindi,
       partyId: c.partyId,
       gender: c.gender,
+      // The ward's own RO (authorize above) may see the private details.
+      dob: c.details.dob,
+      ageStated: c.details.ageStated,
+      education: c.details.education,
+      mobile: c.details.mobile,
     })),
     parties: (await loadParties(pool)).map((p) => ({
       id: p.id,
@@ -114,7 +129,13 @@ export async function readOwnWard(pool: Pool, who: Actor, wardId: number) {
 }
 
 const sameList = (
-  a: readonly { position: number; nameHindi: string; partyId: number | null; gender: Gender }[],
+  a: readonly {
+    position: number;
+    nameHindi: string;
+    partyId: number | null;
+    gender: Gender;
+    details: CandidateDetails;
+  }[],
   b: readonly CandidateInput[],
 ) =>
   a.length === b.length &&
@@ -126,7 +147,8 @@ const sameList = (
         o?.position === c.position &&
         o.nameHindi === c.nameHindi &&
         o.partyId === c.partyId &&
-        o.gender === c.gender
+        o.gender === c.gender &&
+        sameDetails(o.details, c.details)
       );
     });
 
@@ -163,7 +185,9 @@ export async function saveOwnWard(
           issues.error({ code: 'PARTY_UNKNOWN', value: String(c.partyId) }, rowNumber);
           ok = false;
         }
-        if (ok)
+        const details = checkDetails(formDetails(c), rowNumber, issues);
+        if (details === null) ok = false;
+        if (ok && details !== null)
           rows.push({
             rowNumber,
             position: c.ballotPosition,
@@ -172,6 +196,7 @@ export async function saveOwnWard(
             partyShort,
             gender: c.gender,
             category: null,
+            details,
           });
       });
       checkWardList(ward, rows, await wardHasEntries(conn, wardId), false, issues);
@@ -187,6 +212,7 @@ export async function saveOwnWard(
           nameHindi: string;
           partyShort: string | null;
           gender: Gender;
+          details: CandidateDetails;
         }[],
       ) =>
         list.map((c) => ({
@@ -194,6 +220,7 @@ export async function saveOwnWard(
           name_hindi: c.nameHindi,
           party: c.partyShort,
           gender: c.gender,
+          ...detailsForAudit(c.details),
         }));
       await writeAudit(conn, {
         userId: who.user.id,

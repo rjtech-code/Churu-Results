@@ -68,6 +68,13 @@ export const appEnvSchema = z.object({
   PUBLIC_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(3000),
   /** Built operator dashboard to serve (relative to the backend folder). Missing folder = API only. */
   FRONTEND_DIST: z.string().trim().min(1).default('../frontend/dist'),
+  /** SMTP for the DM profile OTP mail. All five or none; none = profile username/password change off
+   *  in production (outside production the OTP is printed on the server console instead). */
+  SMTP_HOST: nonEmpty.optional(),
+  SMTP_PORT: port.optional(),
+  SMTP_USER: nonEmpty.optional(),
+  SMTP_PASS: nonEmpty.optional(),
+  MAIL_FROM: z.email().optional(),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
 
@@ -81,6 +88,15 @@ export const serverEnvSchema = appEnvSchema.superRefine((env, ctx) => {
       code: 'custom',
       path: ['SESSION_IDLE_MINUTES'],
       message: 'must be at least 5 in production',
+    });
+  }
+  const smtp = [env.SMTP_HOST, env.SMTP_PORT, env.SMTP_USER, env.SMTP_PASS, env.MAIL_FROM];
+  const smtpSet = smtp.filter((v) => v !== undefined).length;
+  if (smtpSet !== 0 && smtpSet !== smtp.length) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['SMTP_HOST'],
+      message: 'set all of SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM, or none',
     });
   }
 });

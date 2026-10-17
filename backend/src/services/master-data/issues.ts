@@ -33,6 +33,10 @@ export type IssueBody =
   | { code: 'ZP_WARD_UNKNOWN'; wardNo: number }
   | { code: 'ZP_PS_IGNORED' }
   | { code: 'NAME_TOO_LONG'; max: number }
+  | { code: 'DOB_INVALID'; value: string }
+  | { code: 'AGE_INVALID'; value: string }
+  | { code: 'EDUCATION_INVALID'; value: string }
+  | { code: 'MOBILE_INVALID'; value: string }
   // Per-ward candidate rules
   | { code: 'WARD_LOCKED'; ward: WardRef }
   | { code: 'WARD_HAS_ENTRIES'; ward: WardRef }

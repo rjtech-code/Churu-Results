@@ -1,4 +1,6 @@
 // English text of every master-data issue: exactly the Part 2 CLI report wording.
+import { AGE_REFERENCE_DATE } from '../../config/election.js';
+import { EDUCATION_NAMES_EN, MAX_AGE, MIN_AGE } from './candidate-details.js';
 import type { Issue, IssueBody, WardRef } from './issues.js';
 
 /** "PS ward 3 of CHURU PANCHAYAT SAMITI (ward id 12)" / "ZP ward 3 (ward id 40)". */
@@ -30,6 +32,14 @@ export function issueTextEn(issue: IssueBody): string {
       return `"election" must be PS or ZP, got "${issue.value}"`;
     case 'GENDER_INVALID':
       return `"gender" must be M, F or O, got "${issue.value}"`;
+    case 'DOB_INVALID':
+      return `"dob" must be a real date DD/MM/YYYY (age ${String(MIN_AGE)} to ${String(MAX_AGE)} on ${AGE_REFERENCE_DATE}), got "${issue.value}"`;
+    case 'AGE_INVALID':
+      return `"age" must be a whole number from ${String(MIN_AGE)} to ${String(MAX_AGE)}, got "${issue.value}"`;
+    case 'EDUCATION_INVALID':
+      return `"education" must be one of ${EDUCATION_NAMES_EN}, got "${issue.value}"`;
+    case 'MOBILE_INVALID':
+      return `"mobile" must be a 10-digit mobile number starting with 6-9, got "${issue.value}"`;
     case 'PARTY_UNKNOWN':
       return `Unknown party short name "${issue.value}"`;
     case 'PS_REQUIRED':

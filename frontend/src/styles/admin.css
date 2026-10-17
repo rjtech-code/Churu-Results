@@ -241,3 +241,18 @@ fieldset.choice .radio {
   padding-left: 1.2rem;
   list-style: none;
 }
+.cand-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+.cand-details .field-inline {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.cand-details-row td {
+  border-top: none;
+  padding-top: 0;
+}

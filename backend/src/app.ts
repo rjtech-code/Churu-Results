@@ -19,8 +19,11 @@ import { reportsRouter } from './modules/reports/reports.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
 import { frontendStatic } from './modules/frontend/static.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { profileRouter } from './modules/profile/profile.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
 import { SseHub } from './modules/public/sse.js';
+import { consoleMailer } from './services/mailer.js';
+import type { Mailer } from './services/mailer.js';
 import { PublicSnapshotService } from './services/public-snapshot.js';
 
 export interface AppDeps {
@@ -33,6 +36,8 @@ export interface AppDeps {
   /** Public snapshot service (server.ts passes the started one); created lazily otherwise. */
   publicSnapshot?: PublicSnapshotService;
   sseHub?: SseHub;
+  /** OTP mail for the DM profile. null = no mail service. Omitted: console mail outside production. */
+  mailer?: Mailer | null;
 }
 
 export function createApp({
@@ -42,6 +47,7 @@ export function createApp({
   routes = [],
   publicSnapshot,
   sseHub,
+  mailer,
 }: AppDeps): Express {
   const app = express();
   const store = sessionStore ?? createSessionStore(pool, { clearExpired: false });
@@ -127,6 +133,14 @@ export function createApp({
   app.use('/api/reports', reportsRouter(pool, config));
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
+  app.use(
+    '/api/profile',
+    profileRouter(
+      pool,
+      config,
+      mailer === undefined ? (config.production ? null : consoleMailer) : mailer,
+    ),
+  );
   for (const { path, router } of routes) app.use(path, router);
 
   // 12. 404, 13. central error handler.

@@ -35,6 +35,7 @@
     "test:coverage": "vitest run --coverage tests/result",
     "result:ward": "tsx scripts/result-ward.ts",
     "users:unlock": "tsx scripts/users-unlock.ts",
+    "set-dm-email": "tsx scripts/dm-set-email.ts",
     "demo:seed": "tsx scripts/demo-seed.ts",
     "demo:reset": "tsx scripts/demo-reset.ts",
     "screens:show": "tsx scripts/screens-show.ts",
@@ -53,6 +54,7 @@
     "helmet": "8.3.0",
     "knex": "3.3.0",
     "mysql2": "3.24.5",
+    "nodemailer": "^10.1.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -61,6 +63,7 @@
     "@types/express-mysql-session": "3.0.8",
     "@types/express-session": "1.19.0",
     "@types/node": "24.19.1",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "7.2.1",
     "@vitest/coverage-v8": "5.0.3",
     "eslint": "10.12.0",

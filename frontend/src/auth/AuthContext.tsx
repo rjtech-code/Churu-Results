@@ -12,6 +12,8 @@ interface AuthState {
   notice: string | null;
   login: (username: string, password: string) => Promise<Me>;
   logout: () => Promise<void>;
+  /** Reloads the logged-in user (e.g. after the DM changed their own name or username). */
+  refresh: () => Promise<void>;
   clearNotice: () => void;
 }
 
@@ -71,17 +73,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void navigate('/login', { replace: true });
   }, [navigate]);
 
+  const refresh = useCallback(async () => {
+    setUser(await api<Me>('GET', '/api/auth/me'));
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
       notice,
       login,
       logout,
+      refresh,
       clearNotice: () => {
         setNotice(null);
       },
     }),
-    [user, notice, login, logout],
+    [user, notice, login, logout, refresh],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
