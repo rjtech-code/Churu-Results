@@ -1,4 +1,9 @@
-import { CANDIDATE_CATEGORIES, EDUCATION_HINDI } from '../api/adminTypes';
+import {
+  CANDIDATE_CATEGORIES,
+  EDUCATION_HINDI,
+  MAX_ADDRESS_LENGTH,
+  MAX_OCCUPATION_LENGTH,
+} from '../api/adminTypes';
 import type { CandidateCategory, CandidateDetails, Education } from '../api/adminTypes';
 
 const EDUCATIONS = Object.keys(EDUCATION_HINDI) as Education[];
@@ -17,10 +22,45 @@ export function detailsSummary(d: CandidateDetails): string {
   return parts.length === 0 ? '—' : parts.join(' · ');
 }
 
+/** A free-text detail input (address, occupation): empty = null. */
+function TextDetail({
+  id,
+  label,
+  ariaLabel,
+  value,
+  maxLength,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  ariaLabel: string;
+  value: string | null;
+  maxLength: number;
+  disabled: boolean;
+  onChange: (value: string | null) => void;
+}) {
+  return (
+    <span className="field-inline">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        aria-label={ariaLabel}
+        maxLength={maxLength}
+        disabled={disabled}
+        value={value ?? ''}
+        onChange={(e) => {
+          onChange(e.target.value === '' ? null : e.target.value);
+        }}
+      />
+    </span>
+  );
+}
+
 /**
  * The optional candidate details: date of birth OR age, education (9 values), mobile, the
- * candidate's own category (GEN/SC/ST/OBC). All may stay
- * empty. The server checks every value (Hindi message on a mistake).
+ * candidate's own category (GEN/SC/ST/OBC), address and occupation. All may stay empty. The
+ * server checks every value (Hindi message on a mistake).
  */
 export function CandidateDetailsFields({
   idPrefix,
@@ -120,6 +160,28 @@ export function CandidateDetailsFields({
           ))}
         </select>
       </span>
+      <TextDetail
+        id={`${idPrefix}-address`}
+        label="पता"
+        ariaLabel={`${label} पता`}
+        value={value.address}
+        maxLength={MAX_ADDRESS_LENGTH}
+        disabled={disabled}
+        onChange={(address) => {
+          onChange({ address });
+        }}
+      />
+      <TextDetail
+        id={`${idPrefix}-occupation`}
+        label="व्यवसाय"
+        ariaLabel={`${label} व्यवसाय`}
+        value={value.occupation}
+        maxLength={MAX_OCCUPATION_LENGTH}
+        disabled={disabled}
+        onChange={(occupation) => {
+          onChange({ occupation });
+        }}
+      />
     </div>
   );
 }

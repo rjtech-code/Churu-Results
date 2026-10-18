@@ -17,6 +17,7 @@ import { candidatesRouter } from './modules/candidates/candidates.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
 import { stFormatRouter } from './modules/reports/st-format.routes.js';
+import { wardFormsRouter } from './modules/reports/ward-forms.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
 import { frontendStatic } from './modules/frontend/static.js';
 import { healthRouter } from './modules/health/health.routes.js';
@@ -133,6 +134,7 @@ export function createApp({
   app.use('/api/declare', declareRouter(pool, config));
   app.use('/api/reports', reportsRouter(pool, config));
   app.use('/api/st-format', stFormatRouter(pool));
+  app.use('/api/ward-forms', wardFormsRouter(pool));
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
   app.use(

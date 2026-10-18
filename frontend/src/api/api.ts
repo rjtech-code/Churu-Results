@@ -83,15 +83,44 @@ export async function api<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?
     const data = await readJson(res);
     if (res.ok) return data as T;
 
-    const code = errorCode(data, res.status);
-    if (code === 'CSRF_FAILED' && attempt === 0) {
+    if (errorCode(data, res.status) === 'CSRF_FAILED' && attempt === 0) {
       resetCsrf();
       continue; // retry once with a fresh token
     }
-    if (res.status === 401 && (code === 'UNAUTHENTICATED' || code === 'SESSION_EXPIRED')) {
-      resetCsrf();
-      sessionLost?.(code);
-    }
-    throw new ApiError(res.status, code, (data ?? {}) as Record<string, unknown>);
+    throw failure(res, data);
   }
+}
+
+/** The error of a failed response; a lost session (401) is reported to the app. */
+function failure(res: Response, data: unknown): ApiError {
+  const code = errorCode(data, res.status);
+  if (res.status === 401 && (code === 'UNAUTHENTICATED' || code === 'SESSION_EXPIRED')) {
+    resetCsrf();
+    sessionLost?.(code);
+  }
+  return new ApiError(res.status, code, (data ?? {}) as Record<string, unknown>);
+}
+
+/** The file name the server gives (Content-Disposition), else `fallback`. */
+function fileNameOf(res: Response, fallback: string): string {
+  const m = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '');
+  return m?.[1] ?? fallback;
+}
+
+/**
+ * GETs a file (e.g. a PDF) and saves it. A refusal comes back as an ApiError, like api(), so the
+ * page can show it in Hindi instead of saving an error as a file.
+ */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const res = await send('GET', path, undefined, null);
+  if (!res.ok) throw failure(res, await readJson(res));
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileNameOf(res, fallbackName);
+  link.click();
+  // Revoked after the click has started the download.
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
 }

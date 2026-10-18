@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { idParam, loadBooths, loadWard } from '../api/loaders';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
+import { WardFormDownloads } from '../components/WardFormDownloads';
 import { formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
@@ -56,6 +57,7 @@ export function WardDetailPage() {
           </Link>
         )}
       </div>
+      <WardFormDownloads wardId={ward.id} />
 
       <h2>
         डाक मत{' '}

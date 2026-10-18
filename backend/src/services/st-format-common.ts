@@ -6,7 +6,12 @@
 // without votes). A declared ward whose numbers the engine flags (declaration mismatch, or data it
 // refuses) is LEFT OUT and named in the warnings. Unknown information is null (an empty cell), never
 // a guess.
-import { EDUCATIONS, EDUCATION_EN, candidateAge } from './master-data/candidate-details.js';
+import {
+  EDUCATIONS,
+  EDUCATION_EN,
+  NO_DETAILS,
+  candidateAge,
+} from './master-data/candidate-details.js';
 import type {
   CandidateCategory,
   CandidateDetails,
@@ -298,14 +303,7 @@ export function collectWinners<W>(
   opts: CollectOptions<W>,
 ): { collected: CollectedWard[]; warnings: StFormatWarnings<W> } {
   const candidate = new Map(raw.candidates.map((c) => [c.id, c]));
-  const detailsOf = (id: number): CandidateDetails =>
-    details.get(id) ?? {
-      dob: null,
-      ageStated: null,
-      education: null,
-      mobile: null,
-      candidateCategory: null,
-    };
+  const detailsOf = (id: number): CandidateDetails => details.get(id) ?? NO_DETAILS;
   const declaredIds = new Set(raw.declarations.map((d) => d.wardId));
   const warnings: StFormatWarnings<W> = {
     totalWards: wards.length,

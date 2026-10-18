@@ -3,7 +3,10 @@
 // The details are read separately from the report snapshot; they never change a vote number.
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
-import { detailsFromRow } from '../../services/master-data/candidate-details.js';
+import {
+  DETAIL_COLUMNS_SQL,
+  detailsFromRow,
+} from '../../services/master-data/candidate-details.js';
 import type { CandidateDetails } from '../../services/master-data/candidate-details.js';
 import { buildStFormatPs } from '../../services/st-format-ps.js';
 import type { PsName, StFormatPs } from '../../services/st-format-ps.js';
@@ -16,8 +19,7 @@ async function readDetails(
   wardType: 'PS' | 'ZP',
 ): Promise<Map<number, CandidateDetails>> {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT c.id, DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education, c.mobile,
-            c.candidate_category
+    `SELECT c.id, ${DETAIL_COLUMNS_SQL}
        FROM candidate c JOIN ward w ON w.id = c.ward_id
       WHERE w.ward_type = ? AND c.is_nota = 0`,
     [wardType],

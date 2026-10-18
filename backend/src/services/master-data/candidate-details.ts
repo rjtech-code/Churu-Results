@@ -1,12 +1,14 @@
-// Optional candidate details for the ST Format returns (F15-F19A): date of birth (or the stated
-// age), education, mobile and the candidate's own social category. One set of rules for the Excel import, the RO form and the
-// DM's details edit. Private: only the DM and the ward's own RO ever see them (never public screens,
-// the public API or the existing reports).
+// Optional candidate details for the ST Format returns (F15-F19A) and Prarup-7: date of birth (or
+// the stated age), education, mobile, the candidate's own social category, address and occupation.
+// One set of rules for the Excel import, the RO form and the DM's details edit. Private: only the DM
+// and the ward's own RO ever see them (never public screens, the public API or the existing reports).
 import type { RowDataPacket } from 'mysql2/promise';
-import { AGE_REFERENCE_DATE } from '../../config/election.js';
 import { normalizePhone, phoneLast4 } from './accounts.js';
+import { parseAge, parseDob, shownDob } from './candidate-age.js';
 import type { IssueList } from './issues.js';
 import { normalizeText } from './text.js';
+
+export { MAX_AGE, MIN_AGE, ageOn, candidateAge, parseAge, parseDob } from './candidate-age.js';
 
 export const EDUCATIONS = [
   'ILLITERATE',
@@ -60,9 +62,9 @@ export const CANDIDATE_CATEGORY_HI: Readonly<Record<CandidateCategory, string>> 
 /** "Illiterate, Literate, …" for the English (CLI) messages. */
 export const EDUCATION_NAMES_EN = EDUCATIONS.map((e) => EDUCATION_EN[e]).join(', ');
 
-/** Sanity range only (not the legal minimum age, which the system does not enforce). */
-export const MIN_AGE = 18;
-export const MAX_AGE = 120;
+/** candidate.address VARCHAR(300), candidate.occupation VARCHAR(100). */
+export const MAX_ADDRESS_LENGTH = 300;
+export const MAX_OCCUPATION_LENGTH = 100;
 
 export interface CandidateDetails {
   /** YYYY-MM-DD. When set, age_stated is NULL. */
@@ -72,6 +74,9 @@ export interface CandidateDetails {
   /** 10 digits, 6-9 first. */
   mobile: string | null;
   candidateCategory: CandidateCategory | null;
+  /** Free text (Hindi allowed), normalized. */
+  address: string | null;
+  occupation: string | null;
 }
 
 export const NO_DETAILS: CandidateDetails = {
@@ -80,7 +85,16 @@ export const NO_DETAILS: CandidateDetails = {
   education: null,
   mobile: null,
   candidateCategory: null,
+  address: null,
+  occupation: null,
 };
+
+/**
+ * The detail columns of `candidate c`, in the shape detailsFromRow reads. Fixed SQL text (no input),
+ * shared by every read of the details so a new detail is added in one place.
+ */
+export const DETAIL_COLUMNS_SQL = `DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education,
+            c.mobile, c.candidate_category, c.address, c.occupation`;
 
 // "Sr. Secondary", "sr secondary", "SR_SECONDARY" and "उच्च माध्यमिक" all match.
 const educationKey = (text: string) =>
@@ -112,75 +126,59 @@ export function parseCandidateCategory(raw: string): CandidateCategory | null {
   return CATEGORY_BY_KEY.get(educationKey(raw)) ?? null;
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-/** YYYY-MM-DD for a real calendar date, else null. */
-function calendarDate(y: number, m: number, d: number): string | null {
-  const t = new Date(Date.UTC(y, m - 1, d));
-  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return null;
-  return `${String(y)}-${pad2(m)}-${pad2(d)}`;
-}
-
-function ymd(date: string): [number, number, number] {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!m) throw new Error(`not a YYYY-MM-DD date: ${date}`);
-  return [Number(m[1]), Number(m[2]), Number(m[3])];
-}
-
-/** Whole years completed on `on` (both YYYY-MM-DD). */
-export function ageOn(dob: string, on: string = AGE_REFERENCE_DATE): number {
-  const [by, bm, bd] = ymd(dob);
-  const [oy, om, od] = ymd(on);
-  return oy - by - (om < bm || (om === bm && od < bd) ? 1 : 0);
-}
-
-/** The candidate's age on AGE_REFERENCE_DATE: from the date of birth if known, else the stated age. */
-export function candidateAge(c: Pick<CandidateDetails, 'dob' | 'ageStated'>): number | null {
-  return c.dob !== null ? ageOn(c.dob) : c.ageStated;
-}
-
-const ageInRange = (age: number) => age >= MIN_AGE && age <= MAX_AGE;
-
-/**
- * Date of birth from an Excel cell or a form: DD/MM/YYYY text (also with - or .), YYYY-MM-DD (the
- * form), or an Excel date cell (read as an ISO time at UTC midnight). Null when it is not a real
- * date or the age on AGE_REFERENCE_DATE is outside 18..120.
- */
-export function parseDob(value: string | number): string | null {
-  if (typeof value === 'number') return null;
-  const text = value.trim();
-  let date: string | null = null;
-  const dmy = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(text);
-  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z)?$/.exec(text);
-  if (dmy) date = calendarDate(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]));
-  else if (iso) date = calendarDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
-  return date !== null && ageInRange(ageOn(date)) ? date : null;
-}
-
-export function parseAge(value: string | number): number | null {
-  const text = String(value).trim();
-  if (!/^\d{1,3}$/.test(text)) return null;
-  const age = Number(text);
-  return ageInRange(age) ? age : null;
-}
-
-/** DD/MM/YYYY for messages (an Excel date cell arrives as an ISO time). */
-function shownValue(value: string | number): string {
-  const iso = /^(\d{4})-(\d{2})-(\d{2})T/.exec(String(value));
-  return iso ? `${iso[3] ?? ''}/${iso[2] ?? ''}/${iso[1] ?? ''}` : String(value);
-}
-
 export interface RawDetails {
   dob: string | number | null;
   age: string | number | null;
   education: string | number | null;
   mobile: string | number | null;
   candidateCategory: string | number | null;
+  address: string | number | null;
+  occupation: string | number | null;
+}
+
+type TextDetail = 'address' | 'occupation';
+const TEXT_MAX: Readonly<Record<TextDetail, number>> = {
+  address: MAX_ADDRESS_LENGTH,
+  occupation: MAX_OCCUPATION_LENGTH,
+};
+
+/** A free-text detail: normalized, empty = null, too long = an issue (and null). */
+function checkText(
+  raw: string | number | null,
+  column: TextDetail,
+  rowNumber: number,
+  issues: IssueList,
+): string | null {
+  if (raw === null) return null;
+  const text = normalizeText(String(raw));
+  if (text.length > TEXT_MAX[column]) {
+    issues.error({ code: 'DETAIL_TOO_LONG', column, max: TEXT_MAX[column] }, rowNumber);
+    return null;
+  }
+  return text === '' ? null : text;
+}
+
+/** Date of birth, else the stated age (both given: the date of birth is kept). */
+function checkDobOrAge(
+  raw: RawDetails,
+  out: CandidateDetails,
+  rowNumber: number,
+  issues: IssueList,
+): void {
+  if (raw.dob !== null) {
+    out.dob = parseDob(raw.dob);
+    if (out.dob === null)
+      issues.error({ code: 'DOB_INVALID', value: shownDob(raw.dob) }, rowNumber);
+  } else if (raw.age !== null) {
+    out.ageStated = parseAge(raw.age);
+    if (out.ageStated === null)
+      issues.error({ code: 'AGE_INVALID', value: String(raw.age) }, rowNumber);
+  }
 }
 
 /**
- * Checks the raw values (null = empty). Both a date of birth and an age: the date of birth is kept
- * and the age ignored. Each wrong value is reported for `rowNumber`; then the result is null.
+ * Checks the raw values (null = empty). Each wrong value is reported for `rowNumber`; then the
+ * result is null.
  */
 export function checkDetails(
   raw: RawDetails,
@@ -189,15 +187,7 @@ export function checkDetails(
 ): CandidateDetails | null {
   const before = issues.errors.length;
   const out: CandidateDetails = { ...NO_DETAILS };
-  if (raw.dob !== null) {
-    out.dob = parseDob(raw.dob);
-    if (out.dob === null)
-      issues.error({ code: 'DOB_INVALID', value: shownValue(raw.dob) }, rowNumber);
-  } else if (raw.age !== null) {
-    out.ageStated = parseAge(raw.age);
-    if (out.ageStated === null)
-      issues.error({ code: 'AGE_INVALID', value: String(raw.age) }, rowNumber);
-  }
+  checkDobOrAge(raw, out, rowNumber, issues);
   if (raw.education !== null) {
     out.education = parseEducation(String(raw.education));
     if (out.education === null)
@@ -216,6 +206,8 @@ export function checkDetails(
         rowNumber,
       );
   }
+  out.address = checkText(raw.address, 'address', rowNumber, issues);
+  out.occupation = checkText(raw.occupation, 'occupation', rowNumber, issues);
   return issues.errors.length === before ? out : null;
 }
 
@@ -226,6 +218,8 @@ export interface FormDetails {
   education?: string | null | undefined;
   mobile?: string | null | undefined;
   candidateCategory?: string | null | undefined;
+  address?: string | null | undefined;
+  occupation?: string | null | undefined;
 }
 
 const blank = (v: string | null | undefined) =>
@@ -237,6 +231,8 @@ export const formDetails = (f: FormDetails): RawDetails => ({
   education: blank(f.education),
   mobile: blank(f.mobile),
   candidateCategory: blank(f.candidateCategory),
+  address: blank(f.address),
+  occupation: blank(f.occupation),
 });
 
 export const sameDetails = (a: CandidateDetails, b: CandidateDetails): boolean =>
@@ -244,7 +240,9 @@ export const sameDetails = (a: CandidateDetails, b: CandidateDetails): boolean =
   a.ageStated === b.ageStated &&
   a.education === b.education &&
   a.mobile === b.mobile &&
-  a.candidateCategory === b.candidateCategory;
+  a.candidateCategory === b.candidateCategory &&
+  a.address === b.address &&
+  a.occupation === b.occupation;
 
 /** For the audit log: never the whole mobile number. */
 export const detailsForAudit = (d: CandidateDetails) => ({
@@ -253,18 +251,25 @@ export const detailsForAudit = (d: CandidateDetails) => ({
   education: d.education,
   mobile_last4: phoneLast4(d.mobile),
   candidate_category: d.candidateCategory,
+  address: d.address,
+  occupation: d.occupation,
 });
 
-/** A DB row's columns (dob read with DATE_FORMAT '%Y-%m-%d'). */
+/** mysql2 returns VARCHAR and DATE_FORMAT values as strings; anything else is no value. */
+const textOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+/** A DB row read with DETAIL_COLUMNS_SQL. */
 export function detailsFromRow(r: RowDataPacket): CandidateDetails {
   return {
-    dob: r.dob === null ? null : String(r.dob),
+    dob: textOrNull(r.dob),
     ageStated: r.age_stated === null ? null : Number(r.age_stated),
     education: r.education === null ? null : (String(r.education) as Education),
-    mobile: r.mobile === null ? null : String(r.mobile),
+    mobile: textOrNull(r.mobile),
     candidateCategory:
       r.candidate_category === null || r.candidate_category === undefined
         ? null
         : (String(r.candidate_category) as CandidateCategory),
+    address: textOrNull(r.address),
+    occupation: textOrNull(r.occupation),
   };
 }

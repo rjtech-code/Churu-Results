@@ -18,6 +18,7 @@ import * as userPhone from './20261015000001_user_phone.js';
 import * as dmProfile from './20261016000001_dm_profile.js';
 import * as candidateDetails from './20261017000001_candidate_details.js';
 import * as candidateCategory from './20261018000001_candidate_category.js';
+import * as candidateAddressOccupation from './20261019000001_candidate_address_occupation.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -41,6 +42,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261016000001_dm_profile', dmProfile],
   ['20261017000001_candidate_details', candidateDetails],
   ['20261018000001_candidate_category', candidateCategory],
+  ['20261019000001_candidate_address_occupation', candidateAddressOccupation],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {

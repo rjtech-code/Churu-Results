@@ -47,6 +47,7 @@ import {
   wardCandidates,
 } from './lists.service.js';
 import type { Area } from './lists.service.js';
+import { settingsRouter } from './settings.routes.js';
 import {
   addOneParty,
   checkCandidatesUpload,
@@ -206,6 +207,7 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
   // Only after the role check: a large upload body is read only for a logged-in DM.
   const uploadJson = express.json({ limit: UPLOAD_BODY_LIMIT });
   const id = (req: Request, name: string) => parse(idParam, req.params[name]);
+  router.use('/settings', settingsRouter(pool));
 
   // ---- parties
   router.get('/parties', async (_req, res) => {

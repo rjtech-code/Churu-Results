@@ -5,6 +5,7 @@ import type { ReportWardDetail } from '../../api/reportTypes';
 import { ErrorBox } from '../../components/ErrorBox';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
+import { WardFormDownloads } from '../../components/WardFormDownloads';
 import { GENDER, REPORT_STATUS, num } from './reportFormat';
 import '../../styles/reports.css';
 
@@ -45,6 +46,7 @@ export function WardReport({ d }: { d: ReportWardDetail }) {
           प्रिंट करें
         </button>
       </div>
+      <WardFormDownloads wardId={w.id} />
       {(w.declarationMismatch ||
         w.unavailable ||
         (w.notaHighest && (w.status === 'DECLARED' || w.status === 'TIE_RESOLVED'))) && (

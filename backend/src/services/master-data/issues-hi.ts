@@ -34,6 +34,8 @@ const COLUMN_HI: Readonly<Record<string, string>> = {
   education: 'शिक्षा',
   mobile: 'मोबाइल',
   candidate_category: 'Category / श्रेणी',
+  address: 'पता',
+  occupation: 'व्यवसाय',
   name_english: 'अंग्रेज़ी नाम',
   short_name: 'छोटा नाम',
   symbol: 'चुनाव चिह्न',
@@ -87,6 +89,8 @@ function text(issue: IssueBody): string {
       return `मोबाइल "${issue.value}" सही नहीं है — 10 अंकों का नंबर लिखें जो 6, 7, 8 या 9 से शुरू हो`;
     case 'CANDIDATE_CATEGORY_INVALID':
       return `Category "${issue.value}" is not valid — use ${CANDIDATE_CATEGORIES.join(', ')} / श्रेणी सही नहीं है`;
+    case 'DETAIL_TOO_LONG':
+      return `${columnHi(issue.column)} ${issue.max} अक्षरों से लंबा है`;
     case 'PARTY_UNKNOWN':
       return `पार्टी "${issue.value}" पार्टी सूची में नहीं है — पहले "पार्टी सूची" में जोड़ें`;
     case 'PS_REQUIRED':

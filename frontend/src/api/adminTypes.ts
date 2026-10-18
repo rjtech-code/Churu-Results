@@ -203,7 +203,35 @@ export interface CandidateDetails {
   education: Education | null;
   mobile: string | null;
   candidateCategory: CandidateCategory | null;
+  /** Free text, Hindi allowed (Prarup-7 पता / व्यवसाय). */
+  address: string | null;
+  occupation: string | null;
 }
+
+/** The server's limits (candidate.address / candidate.occupation). */
+export const MAX_ADDRESS_LENGTH = 300;
+export const MAX_OCCUPATION_LENGTH = 100;
+
+export const NO_CANDIDATE_DETAILS: CandidateDetails = {
+  dob: null,
+  ageStated: null,
+  education: null,
+  mobile: null,
+  candidateCategory: null,
+  address: null,
+  occupation: null,
+};
+
+/** Only the detail fields of a candidate (what the forms send). */
+export const pickDetails = (d: CandidateDetails): CandidateDetails => ({
+  dob: d.dob,
+  ageStated: d.ageStated,
+  education: d.education,
+  mobile: d.mobile,
+  candidateCategory: d.candidateCategory,
+  address: d.address,
+  occupation: d.occupation,
+});
 
 export interface RoCandidate extends CandidateDetails {
   ballotPosition: number;

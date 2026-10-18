@@ -6,7 +6,9 @@
 //   dob (~70%) or age only (~30%), ages 25..70 on AGE_REFERENCE_DATE; education cycling through all
 //   values; mobiles 90000xxxxx; candidate_category following the seat for SC/ST/OBC seats, on
 //   general seats mostly GEN with ~1 in 5 SC/OBC; exactly 3 left blank on purpose (on unopposed
-//   general-seat wards first, so the ST Format "missing details" warning shows them).
+//   general-seat wards first, so the ST Format "missing details" warning shows them); a "TEST"
+//   address and an occupation from a short list, both left blank on the same 3 rows (so the
+//   Prarup-7 blanks can be seen).
 // Saved as backend/reports/TEST-candidates-<timestamp>.xlsx. Run it BEFORE reset-candidates.
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -33,6 +35,11 @@ export const BLANK_CATEGORY_COUNT = 3;
 export const MIN_TEST_AGE = 25;
 export const MAX_TEST_AGE = 70;
 const DEFAULT_SEED = 20261120;
+export const TEST_OCCUPATIONS = ['कृषि', 'व्यापार', 'गृहिणी', 'स्वयं का व्यवसाय', 'सेवानिवृत्त'];
+
+/** An obviously fake address (row number inside), never a real one. */
+const testAddress = (c: SourceCandidate, i: number) =>
+  `TEST पता ${String(i + 1)}, ग्राम पोस्ट- परीक्षण, ${c.wardType} वार्ड ${String(c.wardNo)}, जिला- चूरू`;
 
 export interface SourceCandidate {
   wardId: number;
@@ -126,6 +133,8 @@ export function buildTestRows(
       education: EDUCATIONS[i % EDUCATIONS.length] ?? null,
       mobile: `90000${String((i + 1) % 100000).padStart(5, '0')}`,
       candidate_category: category,
+      address: blank.has(i) ? null : testAddress(c, i),
+      occupation: blank.has(i) ? null : (TEST_OCCUPATIONS[i % TEST_OCCUPATIONS.length] ?? null),
     };
   });
   return { rows, blankRows: [...blank].sort((a, b) => a - b) };
@@ -208,8 +217,9 @@ export async function runMakeTestCandidateExcel(ctx: ScriptContext): Promise<Tes
       );
       report.section('education', tally('education'));
       report.section('candidate_category', tally('candidate_category'));
+      report.section('occupation', tally('occupation'));
       report.section(
-        `candidate_category left BLANK on purpose (${blankRows.length})`,
+        `candidate_category, address and occupation left BLANK on purpose (${blankRows.length})`,
         cands
           .filter((_, i) => blankRows.includes(i))
           .map((c) => `${wardText(c)}, ballot ${c.position}${c.isUnopposed ? ' (unopposed)' : ''}`),

@@ -49,6 +49,7 @@ const DM_ADMIN_WRITE = new RegExp(
       `users/${ID}/(?:replace|view-password|update-credentials|disable|enable|unlock|phone)`,
       `booths/${ID}`,
       `booths/${ID}/move`,
+      'settings/election-date',
     ].join('|') +
     ')$',
 );

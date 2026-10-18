@@ -24,12 +24,14 @@ export function templateSheets(name: TemplateName): SheetSpec[] {
           'F',
           'EXAMPLE - सामान्य महिला',
           // Optional details: dob (DD/MM/YYYY) or age, education (English or Hindi), mobile,
-          // candidate_category (GEN/SC/ST/OBC or the Hindi name).
+          // candidate_category (GEN/SC/ST/OBC or the Hindi name), address, occupation (free text).
           '15/05/1980',
           null,
           'स्नातक',
           '9876543210',
           'सामान्य',
+          'EXAMPLE - ग्राम पोस्ट- साण्डन, तह.- सुजानगढ़, जिला- चूरू',
+          'कृषि',
         ],
         [
           'EXAMPLE - (leave empty for ZP)',
@@ -45,6 +47,8 @@ export function templateSheets(name: TemplateName): SheetSpec[] {
           'Secondary',
           null,
           'OBC',
+          null,
+          null,
         ],
       ],
     },

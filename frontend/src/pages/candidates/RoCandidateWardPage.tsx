@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { GENDER_HINDI } from '../../api/adminTypes';
+import { GENDER_HINDI, NO_CANDIDATE_DETAILS, pickDetails } from '../../api/adminTypes';
 import type { Gender, Issue, RoCandidate, RoWardDetail } from '../../api/adminTypes';
 import { api } from '../../api/api';
 import { IssueList, ListStatusBadge, PageIntro, issuesOf } from '../../components/AdminParts';
@@ -80,11 +80,7 @@ function WardForm({
         nameHindi: '',
         partyId: null,
         gender: 'M',
-        dob: null,
-        ageStated: null,
-        education: null,
-        mobile: null,
-        candidateCategory: null,
+        ...NO_CANDIDATE_DETAILS,
       },
     ]);
     setDirty(true);
@@ -125,11 +121,7 @@ function WardForm({
           nameHindi: r.nameHindi,
           partyId: r.partyId,
           gender: r.gender,
-          dob: r.dob,
-          ageStated: r.ageStated,
-          education: r.education,
-          mobile: r.mobile,
-          candidateCategory: r.candidateCategory,
+          ...pickDetails(r),
         })),
       });
       setDone('सूची सेव हो गई');

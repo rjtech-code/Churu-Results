@@ -37,6 +37,9 @@ export const candidateDetailsFields = {
   education: z.string().max(50).nullable().optional(),
   mobile: z.string().max(20).nullable().optional(),
   candidateCategory: z.string().max(30).nullable().optional(),
+  // Generous: the exact limits (after whitespace is collapsed) are checked by checkDetails.
+  address: z.string().max(1000).nullable().optional(),
+  occupation: z.string().max(1000).nullable().optional(),
 };
 /** Why a change was made (stored in the audit log). */
 export const reason = z.string().trim().min(10).max(500);

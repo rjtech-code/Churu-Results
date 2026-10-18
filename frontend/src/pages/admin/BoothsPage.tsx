@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import type { BoothRow, CandidateStatus } from '../../api/adminTypes';
 import { api } from '../../api/api';
 import { PageIntro } from '../../components/AdminParts';
+import { ElectionDateCard } from '../../components/ElectionDateCard';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
@@ -120,6 +121,7 @@ export function BoothsPage() {
         </table>
       )}
       {list !== null && list.length === 0 && <p>कोई बूथ नहीं मिला।</p>}
+      <ElectionDateCard />
     </>
   );
 }

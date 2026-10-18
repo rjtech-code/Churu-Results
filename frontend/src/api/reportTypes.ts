@@ -197,3 +197,9 @@ export interface StFormatWarnings<W = number> {
 
 export type MissingDetail = 'AGE' | 'EDUCATION' | 'MOBILE' | 'CATEGORY';
 export type OtherBlank = 'REJECTED' | 'ELECTORATE' | 'RESERVATION';
+
+/** GET /api/ward-forms/:wardId — which official forms the ward offers (the server's rule). */
+export type WardFormName = 'part2' | 'prarup7';
+export interface WardFormsInfo {
+  forms: Record<WardFormName, { available: boolean; reason: string | null }>;
+}

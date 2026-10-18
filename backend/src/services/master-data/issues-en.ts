@@ -42,6 +42,8 @@ export function issueTextEn(issue: IssueBody): string {
       return `"mobile" must be a 10-digit mobile number starting with 6-9, got "${issue.value}"`;
     case 'CANDIDATE_CATEGORY_INVALID':
       return `"candidate_category" must be GEN, SC, ST or OBC (or the Hindi name), got "${issue.value}"`;
+    case 'DETAIL_TOO_LONG':
+      return `"${issue.column}" must be at most ${issue.max} characters`;
     case 'PARTY_UNKNOWN':
       return `Unknown party short name "${issue.value}"`;
     case 'PS_REQUIRED':

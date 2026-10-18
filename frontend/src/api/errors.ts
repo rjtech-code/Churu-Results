@@ -53,6 +53,11 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   LOTTERY_WINNER_NOT_TIED: 'लॉटरी विजेता बराबरी वाले उम्मीदवारों में से होना चाहिए',
   NOTA_HIGHEST_ACK_REQUIRED: 'नोटा को सर्वाधिक मत — पुष्टि का बॉक्स चुनें',
   NOT_DECLARED: 'यह वार्ड अभी घोषित नहीं है',
+  // Official ward forms (Part-II, Prarup-7)
+  DECLARATION_MISMATCH: 'घोषणा के बाद मत बदले हैं — पहले संशोधन करें, फिर फ़ॉर्म निकालें',
+  RESULT_UNAVAILABLE: 'इस वार्ड के परिणाम की गणना नहीं हो सकी — डेटा जाँचें',
+  TOO_MANY_CANDIDATES: 'उम्मीदवार इतने अधिक हैं कि फ़ॉर्म एक पेज पर नहीं आएगा',
+  FORM_DOES_NOT_FIT: 'पते या नाम बहुत लंबे हैं, फ़ॉर्म एक पेज पर नहीं आ रहा — पते छोटे करें',
   ENTRY_NOT_IN_WARD: 'यह एंट्री इस वार्ड की नहीं है',
   DUPLICATE_CHANGE: 'एक ही एंट्री दो बार चुनी गई है',
   NO_CHANGE: 'कोई बदलाव नहीं — सुधार की ज़रूरत नहीं',

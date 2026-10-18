@@ -153,14 +153,17 @@ export async function wardCandidates(pool: Pool, wardId: number) {
       education: c.details.education,
       mobile: c.details.mobile,
       candidateCategory: c.details.candidateCategory,
+      address: c.details.address,
+      occupation: c.details.occupation,
     })),
   };
 }
 
 /**
  * "विवरण बदलें": the DM changes one candidate's private details (date of birth or age, education,
- * mobile, candidate category). Allowed even after the ballot lock and after counting started: these never change a
- * vote, the ballot or who the candidate is. No password re-check; an audit entry, as always.
+ * mobile, candidate category, address, occupation). Allowed even after the ballot lock and after
+ * counting started: these never change a vote, the ballot or who the candidate is. No password
+ * re-check; an audit entry, as always.
  */
 export async function updateCandidateDetails(
   pool: Pool,
@@ -187,7 +190,8 @@ export async function updateCandidateDetails(
       if (sameDetails(before.details, details)) throw new ApiError(409, 'NO_CHANGE');
 
       await conn.execute(
-        `UPDATE candidate SET dob = ?, age_stated = ?, education = ?, mobile = ?, candidate_category = ?
+        `UPDATE candidate SET dob = ?, age_stated = ?, education = ?, mobile = ?, candidate_category = ?,
+                address = ?, occupation = ?
           WHERE id = ?`,
         [
           details.dob,
@@ -195,6 +199,8 @@ export async function updateCandidateDetails(
           details.education,
           details.mobile,
           details.candidateCategory,
+          details.address,
+          details.occupation,
           candidateId,
         ],
       );
