@@ -160,18 +160,16 @@ export async function wardCandidates(pool: Pool, wardId: number) {
 /**
  * "विवरण बदलें": the DM changes one candidate's private details (date of birth or age, education,
  * mobile, candidate category). Allowed even after the ballot lock and after counting started: these never change a
- * vote, the ballot or who the candidate is. Password re-check and an audit entry, as always.
+ * vote, the ballot or who the candidate is. No password re-check; an audit entry, as always.
  */
 export async function updateCandidateDetails(
   pool: Pool,
   who: Actor,
   candidateId: number,
-  body: FormDetails & { password: string },
+  body: FormDetails,
 ): Promise<void> {
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   await busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
       const [found] = await conn.execute<RowDataPacket[]>(
         'SELECT ward_id FROM candidate WHERE id = ? AND is_nota = 0',
         [candidateId],
@@ -218,13 +216,11 @@ export async function sendBack(
   pool: Pool,
   who: Actor,
   wardId: number,
-  body: { reason: string; password: string },
+  body: { reason: string },
 ): Promise<void> {
   if (!(await loadWard(pool, wardId))) throw new ApiError(404, 'NOT_FOUND');
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   await busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
       await lockWardRows(conn, [wardId]);
       const ward = await loadWard(conn, wardId);
       if (!ward) throw new ApiError(404, 'NOT_FOUND');

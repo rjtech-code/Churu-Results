@@ -33,7 +33,7 @@ const ID = '[1-9][0-9]{0,14}';
 /**
  * Part 13: the DM's master-data tools (parties, candidate lists, ballot lock/unlock, RO accounts, booths
  * and wards). POST only, exact paths, nothing under /api/counting or /api/declare. Every one of
- * these routes also has requireRole('DM') and (for writes) a password re-check.
+ * these routes also has requireRole('DM'); the high-impact writes also re-check the DM's password.
  */
 const DM_ADMIN_WRITE = new RegExp(
   '^/api/admin/(?:' +

@@ -3,6 +3,7 @@ import type { SubmitEvent } from 'react';
 import { api } from '../api/api';
 import { ErrorBox } from './ErrorBox';
 import { Modal } from './Modal';
+import { PasswordDialog } from './PasswordDialog';
 import { ReauthPasswordField } from './ReauthPasswordField';
 import { chosenPasswordProblems, problemText } from './chosenPassword';
 import { PHONE_ERROR, normalizePhone } from './phone';
@@ -16,8 +17,8 @@ export interface SavedCredentials {
 
 /**
  * "बदलें": ONE small form for an RO's username and password. "देखें" shows the current password
- * (needs the DM's password), "अपने आप बनाएं" fills a strong easy-to-read one, or type your own.
- * One "सेव करें". The DM's password is typed once in this form and cleared after every try.
+ * (after a confirm popup; every view is audited), "अपने आप बनाएं" fills a strong easy-to-read one,
+ * or type your own. One "सेव करें" (needs the DM's password, cleared after every try).
  */
 export function CredentialsDialog({
   userId,
@@ -42,6 +43,7 @@ export function CredentialsDialog({
   const [dmPw, setDmPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [confirmView, setConfirmView] = useState(false);
 
   const passwordChanged = pw !== '' && pw !== viewed;
   const usernameChanged = username.trim() !== currentUsername;
@@ -74,14 +76,13 @@ export function CredentialsDialog({
     }
   };
 
-  const view = () =>
-    guarded(async () => {
-      const out = await api<{ password: string }>('POST', `/api/admin/users/${userId}/view-password`, {
-        password: dmPw,
-      });
-      setPw(out.password);
-      setViewed(out.password);
-    });
+  /** Runs from the confirm popup: an error stays in the popup. */
+  const view = async () => {
+    const out = await api<{ password: string }>('POST', `/api/admin/users/${userId}/view-password`, {});
+    setPw(out.password);
+    setViewed(out.password);
+    setConfirmView(false);
+  };
 
   const generate = async () => {
     if (busy) return;
@@ -151,7 +152,15 @@ export function CredentialsDialog({
           {phoneBad && <p className="msg msg-error">{PHONE_ERROR}</p>}
         </div>
         <div className="actions">
-          <button type="button" className="btn btn-secondary" onClick={() => void view()} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setError(null);
+              setConfirmView(true);
+            }}
+            disabled={busy}
+          >
             देखें
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => void generate()} disabled={busy}>
@@ -184,6 +193,18 @@ export function CredentialsDialog({
           </button>
         </div>
       </form>
+      {confirmView && (
+        <PasswordDialog
+          title="पासवर्ड देखें?"
+          explain="इस RO का अभी का पासवर्ड दिखेगा। देखना रिकॉर्ड (audit) में दर्ज होगा।"
+          confirmLabel="हाँ, दिखाएँ"
+          askPassword={false}
+          onConfirm={view}
+          onCancel={() => {
+            setConfirmView(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }

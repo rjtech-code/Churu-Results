@@ -4,7 +4,6 @@ import type { Issue } from '../../api/adminTypes';
 import { api } from '../../api/api';
 import { IssueList, PageIntro, Section, issuesOf } from '../../components/AdminParts';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
-import { PasswordDialog } from '../../components/PasswordDialog';
 import { UploadFlow } from '../../components/UploadFlow';
 import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
@@ -18,22 +17,26 @@ export function PartiesPage() {
     [],
   );
   const [form, setForm] = useState(EMPTY);
-  const [confirming, setConfirming] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<unknown>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [added, setAdded] = useState<string | null>(null);
   const complete = Object.values(form).every((v) => v.trim() !== '');
 
-  const add = async (password: string) => {
+  const add = async () => {
+    if (adding) return;
+    setAdding(true);
+    setAddError(null);
     try {
-      await api('POST', '/api/admin/parties/add', { ...form, password });
+      await api('POST', '/api/admin/parties/add', form);
     } catch (err) {
       const list = issuesOf(err);
-      if (list === null) throw err;
-      setIssues(list);
-      setConfirming(false);
+      if (list === null) setAddError(err);
+      else setIssues(list);
       return;
+    } finally {
+      setAdding(false);
     }
-    setConfirming(false);
     setAdded(`पार्टी "${form.shortName}" जुड़ गई`);
     setForm(EMPTY);
     reload();
@@ -49,6 +52,7 @@ export function PartiesPage() {
           setForm({ ...form, [key]: e.target.value });
           setAdded(null);
           setIssues([]);
+          setAddError(null);
         }}
       />
     </div>
@@ -64,6 +68,7 @@ export function PartiesPage() {
         successText="सूची सेव हो गई"
         saveExplain={(p) => `${p.toInsert.length} नई पार्टियाँ सूची में जुड़ेंगी।`}
         onSaved={reload}
+        askPassword={false}
         renderPreview={(p) => (
           <>
             <p className="big">
@@ -104,15 +109,14 @@ export function PartiesPage() {
         </div>
         <IssueList title="पार्टी नहीं जुड़ी" issues={issues} />
         <SuccessBox text={added} />
+        <ErrorBox error={addError} />
         <button
           type="button"
           className="btn btn-secondary btn-big"
-          disabled={!complete}
-          onClick={() => {
-            setConfirming(true);
-          }}
+          disabled={!complete || adding}
+          onClick={() => void add()}
         >
-          पार्टी जोड़ें
+          {adding ? 'जुड़ रही है…' : 'पार्टी जोड़ें'}
         </button>
       </Section>
 
@@ -141,18 +145,6 @@ export function PartiesPage() {
           </table>
         )}
       </Section>
-
-      {confirming && (
-        <PasswordDialog
-          title="पार्टी जोड़ें?"
-          explain={`पार्टी "${form.shortName}" (${form.nameHindi}) सूची में जुड़ेगी। बाद में इसे बदला नहीं जा सकेगा।`}
-          confirmLabel="हाँ, जोड़ें"
-          onConfirm={add}
-          onCancel={() => {
-            setConfirming(false);
-          }}
-        />
-      )}
     </>
   );
 }

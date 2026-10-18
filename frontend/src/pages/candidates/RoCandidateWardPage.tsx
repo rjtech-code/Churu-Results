@@ -6,7 +6,6 @@ import { api } from '../../api/api';
 import { IssueList, ListStatusBadge, PageIntro, issuesOf } from '../../components/AdminParts';
 import { CandidateDetailsFields } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
-import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
 
@@ -61,7 +60,7 @@ function WardForm({
   const [saving, setSaving] = useState(false);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [saveError, setSaveError] = useState<unknown>(null);
-  const [confirmReady, setConfirmReady] = useState(false);
+  const [readying, setReadying] = useState(false);
   const { ward, parties } = data;
   const editable = ward.editable;
 
@@ -95,6 +94,23 @@ function WardForm({
     setRows(rows.filter((r) => r.key !== key));
     setDirty(true);
     setDone(null);
+  };
+
+  /** "सूची तैयार है": no password, no confirmation box. */
+  const markReady = async () => {
+    if (readying) return;
+    setReadying(true);
+    setDone(null);
+    setSaveError(null);
+    try {
+      await api('POST', `/api/candidates/wards/${ward.id}/ready`, {});
+      setDone('सूची तैयार बता दी गई');
+      reload();
+    } catch (err) {
+      setSaveError(err);
+    } finally {
+      setReadying(false);
+    }
   };
 
   const save = async () => {
@@ -296,12 +312,10 @@ function WardForm({
                 <button
                   type="button"
                   className="btn btn-primary btn-big"
-                  onClick={() => {
-                    setDone(null);
-                    setConfirmReady(true);
-                  }}
+                  disabled={readying}
+                  onClick={() => void markReady()}
                 >
-                  सूची तैयार है
+                  {readying ? 'हो रहा है…' : 'सूची तैयार है'}
                 </button>
               )
             )}
@@ -310,23 +324,6 @@ function WardForm({
             <p className="msg msg-ok">✓ सूची तैयार है — DM इसे जाँचकर लॉक करेंगे।</p>
           )}
         </>
-      )}
-
-      {confirmReady && (
-        <PasswordDialog
-          title={`${ward.label} — सूची तैयार है?`}
-          explain="DM को बताया जाएगा कि यह सूची जाँच और लॉक के लिए तैयार है।"
-          confirmLabel="हाँ, सूची तैयार है"
-          onConfirm={async (password) => {
-            await api('POST', `/api/candidates/wards/${ward.id}/ready`, { password });
-            setConfirmReady(false);
-            setDone('सूची तैयार बता दी गई');
-            reload();
-          }}
-          onCancel={() => {
-            setConfirmReady(false);
-          }}
-        />
       )}
     </>
   );

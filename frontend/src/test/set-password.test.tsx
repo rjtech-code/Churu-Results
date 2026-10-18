@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -110,24 +110,35 @@ describe('बदलें: one form for username and password', () => {
     });
   });
 
-  it('"अपने आप बनाएं" fills a generated password; "देखें" asks the DM password and fills the current one', async () => {
+  it('"अपने आप बनाएं" fills a generated password; "देखें" asks "are you sure?" (no password) and fills the current one', async () => {
     await open();
     await userEvent.click(screen.getByRole('button', { name: 'अपने आप बनाएं' }));
     expect(screen.getByLabelText<HTMLInputElement>(/^पासवर्ड/).value).toBe('Gen7ratedPass2xyz');
     expect(calls.at(-1)?.path).toBe('/api/admin/users/generate-password');
 
+    // "रुकें" in the popup: nothing is fetched.
     await userEvent.click(screen.getByRole('button', { name: 'देखें' }));
-    expect(await screen.findByText('✗ अपना पासवर्ड लिखें')).toBeTruthy();
-    await userEvent.type(dmPassword(), 'dm-pass');
+    const popup = await screen.findByRole('alertdialog', { name: 'पासवर्ड देखें?' });
+    expect(within(popup).queryByLabelText('Admin Password (सत्यापन हेतु)')).toBeNull();
+    await userEvent.click(within(popup).getByRole('button', { name: 'रुकें' }));
+    expect(screen.queryByRole('alertdialog', { name: 'पासवर्ड देखें?' })).toBeNull();
+    expect(calls.some((c) => c.path.endsWith('/view-password'))).toBe(false);
+
     await userEvent.click(screen.getByRole('button', { name: 'देखें' }));
+    await userEvent.click(
+      within(await screen.findByRole('alertdialog', { name: 'पासवर्ड देखें?' })).getByRole('button', {
+        name: 'हाँ, दिखाएँ',
+      }),
+    );
     await vi.waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>(/^पासवर्ड/).value).toBe('Current4Pass8abc');
     });
     expect(calls.at(-1)).toEqual({
       method: 'POST',
       path: '/api/admin/users/9/view-password',
-      body: { password: 'dm-pass' },
+      body: {},
     });
+    expect(screen.queryByRole('alertdialog', { name: 'पासवर्ड देखें?' })).toBeNull();
     // The viewed password is not a change: saving stays disabled until something changes.
     expect(save().disabled).toBe(true);
   });

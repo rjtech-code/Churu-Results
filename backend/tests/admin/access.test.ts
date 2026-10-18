@@ -140,9 +140,7 @@ describe('Part 13 access: /api/candidates is RO only, own wards only', () => {
     expect((await ro2.get(`/api/candidates/wards/${w.psW5}`)).status).toBe(403);
     expect((await ro2.put(`/api/candidates/wards/${w.psW5}`, list)).status).toBe(403);
     expect((await ro1.put(`/api/candidates/wards/${w.zW2}`, list)).status).toBe(403);
-    expect((await ro1.post(`/api/candidates/wards/${w.zW2}/ready`, { password: 'x' })).status).toBe(
-      403,
-    );
+    expect((await ro1.post(`/api/candidates/wards/${w.zW2}/ready`, {})).status).toBe(403);
     // ZP_RO on a PS ward: 403.
     expect((await zp.put(`/api/candidates/wards/${w.psW5}`, list)).status).toBe(403);
     // Unknown ward: 404.

@@ -8,6 +8,7 @@ import {
   adminApp,
   apiClient,
   auditOf,
+  auditWhoWhen,
   buildAdminWorld,
   masterSnapshot,
 } from './helpers.js';
@@ -116,9 +117,7 @@ describe('RO candidate list', () => {
     const locked = await save(w.psW1, [c(1, 'नया', null)]);
     expect(locked.status).toBe(400);
     expect(errorsOf(locked.body)[0]).toContain('की सूची लॉक है');
-    expect(
-      (await ro.post(`/api/candidates/wards/${w.psW1}/ready`, { password: PASSWORD })).body,
-    ).toEqual({
+    expect((await ro.post(`/api/candidates/wards/${w.psW1}/ready`, {})).body).toEqual({
       error: 'BALLOT_LOCKED',
     });
 
@@ -146,20 +145,22 @@ describe('RO candidate list', () => {
     expect(snapshot[1]).toEqual((JSON.parse(before) as unknown[])[1]); // candidates untouched
   });
 
-  it('mark ready (password), DM sends back (reason), an RO save clears ready', async () => {
-    expect(
-      (await ro.post(`/api/candidates/wards/${w.psW5}/ready`, { password: PASSWORD })).body,
-    ).toEqual({ error: 'LIST_EMPTY' });
+  it('mark ready (no password), DM sends back (reason), an RO save clears ready', async () => {
+    expect((await ro.post(`/api/candidates/wards/${w.psW5}/ready`, {})).body).toEqual({
+      error: 'LIST_EMPTY',
+    });
     await save(w.psW5, [c(1, 'राम', w.p1), c(2, 'सीता', null, 'F')]);
 
-    const wrong = await ro.post(`/api/candidates/wards/${w.psW5}/ready`, { password: 'nope' });
-    expect([wrong.status, wrong.body]).toEqual([401, { error: 'REAUTH_FAILED' }]);
+    // A password is no longer accepted (strict body).
+    const extra = await ro.post(`/api/candidates/wards/${w.psW5}/ready`, { password: PASSWORD });
+    expect(extra.status).toBe(400);
     expect((await wardRow(w.psW5))?.candidates_ready_by).toBeNull();
 
-    expect(
-      (await ro.post(`/api/candidates/wards/${w.psW5}/ready`, { password: PASSWORD })).status,
-    ).toBe(200);
+    expect((await ro.post(`/api/candidates/wards/${w.psW5}/ready`, {})).status).toBe(200);
     expect((await wardRow(w.psW5))?.candidates_ready_by).toBe(w.users.ro1);
+    expect(await auditWhoWhen(pool, 'CANDIDATES_READY')).toEqual([
+      { userId: w.users.ro1, entityId: w.psW5, at: 'date' },
+    ]);
     const list = (await ro.get('/api/candidates/wards')).body as {
       wards: { id: number; status: string; candidates: number }[];
     };
@@ -171,7 +172,6 @@ describe('RO candidate list', () => {
     const dm = await apiClient(app, 'dm_x4');
     const back = await dm.post(`/api/admin/wards/${w.psW5}/send-back`, {
       reason: 'बैलेट नंबर 2 का नाम गलत है',
-      password: PASSWORD,
     });
     expect(back.status).toBe(200);
     expect(await wardRow(w.psW5)).toMatchObject({
@@ -180,6 +180,9 @@ describe('RO candidate list', () => {
     });
     const [audit] = await auditOf(pool, 'CANDIDATES_SENT_BACK');
     expect(audit?.reason).toBe('बैलेट नंबर 2 का नाम गलत है');
+    expect(await auditWhoWhen(pool, 'CANDIDATES_SENT_BACK')).toEqual([
+      { userId: w.users.dm, entityId: w.psW5, at: 'date' },
+    ]);
     const ward = (await ro.get(`/api/candidates/wards/${w.psW5}`)).body as {
       ward: { status: string; returnReason: string };
     };
@@ -189,7 +192,7 @@ describe('RO candidate list', () => {
     });
 
     // Ready again clears the reason; then an RO save clears ready.
-    await ro.post(`/api/candidates/wards/${w.psW5}/ready`, { password: PASSWORD });
+    await ro.post(`/api/candidates/wards/${w.psW5}/ready`, {});
     expect((await wardRow(w.psW5))?.candidates_return_reason).toBeNull();
     await save(w.psW5, [c(1, 'राम', w.p1), c(2, 'सीता देवी', null, 'F')]);
     expect((await wardRow(w.psW5))?.candidates_ready_by).toBeNull();
@@ -199,7 +202,6 @@ describe('RO candidate list', () => {
       (
         await dm.post(`/api/admin/wards/${w.psW1}/send-back`, {
           reason: 'कुछ भी गलत है',
-          password: PASSWORD,
         })
       ).body,
     ).toEqual({ error: 'BALLOT_LOCKED' });

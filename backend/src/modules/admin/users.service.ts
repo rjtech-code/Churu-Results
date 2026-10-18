@@ -161,6 +161,7 @@ async function freeUsername(conn: PoolConnection, seat: Seat, psEnglish: string 
   throw new Error('could not find a free username');
 }
 
+/** An account write that needs the DM's password again (create, credentials, lockout). */
 async function inUserWrite<T>(
   pool: Pool,
   who: Actor,
@@ -168,12 +169,15 @@ async function inUserWrite<T>(
   work: (conn: PoolConnection) => Promise<T>,
 ): Promise<T> {
   await requireReauth(pool, who.user.id, password, who.ip);
-  return busyAsConflict(() =>
-    withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
-      return work(conn);
-    }),
-  );
+  return userWrite(pool, async (conn) => {
+    await resetFailedLogins(conn, who.user.id);
+    return work(conn);
+  });
+}
+
+/** An account write without a password re-check (phone, replace, disable/enable, view). */
+function userWrite<T>(pool: Pool, work: (conn: PoolConnection) => Promise<T>): Promise<T> {
+  return busyAsConflict(() => withMasterDataWrite(pool, work));
 }
 
 export interface NewCredentials {
@@ -234,10 +238,10 @@ export async function replaceAccount(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { fullName: string; phone: string; password: string },
+  body: { fullName: string; phone: string },
   vaultKey: Buffer,
 ): Promise<NewCredentials> {
-  return inUserWrite(pool, who, body.password, async (conn) => {
+  return userWrite(pool, async (conn) => {
     const old = await lockRoAccount(conn, userId);
     if (await seatHasOtherActive(conn, old)) throw new ApiError(409, 'SEAT_TAKEN');
     const seat: Seat =
@@ -297,7 +301,7 @@ export interface ViewedPassword {
 }
 
 /**
- * "देखें": shows the RO's current password. DM only, needs the DM's password, audit
+ * "देखें": shows the RO's current password. DM only (after a confirm popup in the UI), audit
  * RO_PASSWORD_VIEWED (who/which account, never the password). 409 NO_COPY when the account has no
  * readable encrypted copy (older accounts): the DM sets a new password instead.
  */
@@ -305,10 +309,9 @@ export async function viewAccountPassword(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { password: string },
   vaultKey: Buffer,
 ): Promise<ViewedPassword> {
-  return inUserWrite(pool, who, body.password, async (conn) => {
+  return userWrite(pool, async (conn) => {
     const account = await lockRoAccount(conn, userId);
     const [rows] = await conn.execute<RowDataPacket[]>(
       'SELECT password_enc FROM users WHERE id = ?',
@@ -469,9 +472,9 @@ export async function setAccountPhone(
   pool: Pool,
   who: Actor,
   userId: number,
-  body: { phone: string; password: string },
+  body: { phone: string },
 ): Promise<void> {
-  await inUserWrite(pool, who, body.password, async (conn) => {
+  await userWrite(pool, async (conn) => {
     const account = await lockRoAccount(conn, userId);
     if (account.phone === body.phone) throw new ApiError(409, 'NO_CHANGE');
     await writeAccountPhone(conn, who, account, body.phone);
@@ -484,9 +487,8 @@ export async function setRoActive(
   who: Actor,
   userId: number,
   active: boolean,
-  body: { password: string },
 ): Promise<void> {
-  await inUserWrite(pool, who, body.password, async (conn) => {
+  await userWrite(pool, async (conn) => {
     const account = await lockRoAccount(conn, userId);
     if (account.isActive === active) throw new ApiError(409, 'NO_CHANGE');
     if (active && (await seatHasOtherActive(conn, account))) throw new ApiError(409, 'SEAT_TAKEN');

@@ -134,15 +134,13 @@ export async function checkPartiesUpload(
 export async function savePartiesUpload(
   pool: Pool,
   who: Actor,
-  body: UploadBody & { password: string },
+  body: UploadBody,
 ): Promise<PartiesPreview> {
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   const file = await readUpload(body, PARTY_COLUMNS);
   if (file.rows === null) throw checkFailed(file.errors);
   const rows = file.rows;
   return busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
       const { issues, plan } = await checkPartiesOn(conn, rows);
       if (!issues.isOk()) throw checkFailed(issuesHi(issues.errors, 'file'));
       await insertParties(conn, plan.toInsert);
@@ -173,10 +171,8 @@ export async function addOneParty(
     nameEnglish: string;
     shortName: string;
     symbol: string;
-    password: string;
   },
 ): Promise<{ shortName: string }> {
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   const party = partyFromForm({
     name_hindi: body.nameHindi,
     name_english: body.nameEnglish,
@@ -186,7 +182,6 @@ export async function addOneParty(
   const empty = PARTY_COLUMNS.filter((c) => party[c] === '');
   return busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
       const issues = new IssueList();
       for (const column of empty) issues.error({ code: 'CELL_EMPTY', column });
       const plan = checkParties([party], await loadParties(conn), issues);

@@ -1,7 +1,7 @@
 // RO "उम्मीदवार": a PS_RO edits the candidate lists of its own PS's PS wards, the ZP_RO those of
 // the ZP wards (canWriteWard, checked on the server for every request). The whole list of a ward is
 // saved at once with exactly the importer's rules (checkWardList), so a half-edited list can never be
-// stored. "सूची तैयार है" (with the password) marks it ready for the DM's check.
+// stored. "सूची तैयार है" marks it ready for the DM's check.
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
 import { canWriteWard, wardWriteAllowed } from '../../services/access.js';
@@ -37,7 +37,6 @@ import type { WardRow } from '../../services/master-data/lookups.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { loadParties } from '../../services/master-data/parties.js';
 import { normalizeText } from '../../services/master-data/text.js';
-import { requireReauth, resetFailedLogins } from '../auth/auth.service.js';
 import { busyAsConflict } from '../admin/http.js';
 import type { Actor } from '../admin/http.js';
 import { listStatus } from '../admin/lists.service.js';
@@ -243,18 +242,11 @@ export async function saveOwnWard(
   return out;
 }
 
-/** "सूची तैयार है": needs the password, at least one candidate, and an unlocked ward. */
-export async function markReady(
-  pool: Pool,
-  who: Actor,
-  wardId: number,
-  password: string,
-): Promise<void> {
+/** "सूची तैयार है": needs at least one candidate and an unlocked ward (no password re-check). */
+export async function markReady(pool: Pool, who: Actor, wardId: number): Promise<void> {
   await authorize(pool, who, wardId);
-  await requireReauth(pool, who.user.id, password, who.ip);
   await busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
-      await resetFailedLogins(conn, who.user.id);
       await lockWardRows(conn, [wardId]);
       const ward = await loadWard(conn, wardId);
       if (!ward) throw new ApiError(404, 'NOT_FOUND');

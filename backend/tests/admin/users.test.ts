@@ -11,6 +11,7 @@ import {
   adminApp,
   apiClient,
   auditOf,
+  auditWhoWhen,
   buildAdminWorld,
   masterSnapshot,
 } from './helpers.js';
@@ -124,7 +125,6 @@ describe('DM RO management', () => {
     const res = await dm.post(`/api/admin/users/${w.users.ro1}/replace`, {
       fullName: 'नए RO',
       phone: '9876543210',
-      password: PASSWORD,
     });
     expect(res.status).toBe(201);
     expect(res.headers['cache-control']).toBe('no-store');
@@ -137,10 +137,12 @@ describe('DM RO management', () => {
     const [audit] = await auditOf(pool, 'USER_REPLACE');
     expect(audit?.old_value).toMatchObject({ id: w.users.ro1, username: 'ro_ps1_x1' });
     expect(audit?.new_value).toMatchObject({ username: out.username, old_account_disabled: true });
+    const [who] = await auditWhoWhen(pool, 'USER_REPLACE');
+    expect(who).toMatchObject({ userId: w.users.dm, at: 'date' });
     expect(await auditText()).not.toContain(out.password);
 
     // The old account can't be enabled again while the seat has an active account.
-    const enable = await dm.post(`/api/admin/users/${w.users.ro1}/enable`, { password: PASSWORD });
+    const enable = await dm.post(`/api/admin/users/${w.users.ro1}/enable`, {});
     expect([enable.status, enable.body]).toEqual([409, { error: 'SEAT_TAKEN' }]);
     // Plain create stays strict for that seat.
     const create = await dm.post('/api/admin/users/create', {
@@ -187,17 +189,13 @@ describe('DM RO management', () => {
   });
 
   it('disable / enable / unlock, each audited; the DM account is never managed here', async () => {
-    const off = await dm.post(`/api/admin/users/${w.users.ro2}/disable`, { password: PASSWORD });
+    const off = await dm.post(`/api/admin/users/${w.users.ro2}/disable`, {});
     expect(off.status).toBe(200);
     expect(await loginStatus('ro_ps2_x2', PASSWORD)).toBe(401);
-    expect(
-      (await dm.post(`/api/admin/users/${w.users.ro2}/disable`, { password: PASSWORD })).body,
-    ).toEqual({
+    expect((await dm.post(`/api/admin/users/${w.users.ro2}/disable`, {})).body).toEqual({
       error: 'NO_CHANGE',
     });
-    expect(
-      (await dm.post(`/api/admin/users/${w.users.ro2}/enable`, { password: PASSWORD })).status,
-    ).toBe(200);
+    expect((await dm.post(`/api/admin/users/${w.users.ro2}/enable`, {})).status).toBe(200);
     expect(await loginStatus('ro_ps2_x2', PASSWORD)).toBe(200);
 
     await pool.execute(
@@ -217,35 +215,39 @@ describe('DM RO management', () => {
 
     for (const action of ['USER_DISABLE', 'USER_ENABLE', 'USER_UNLOCKED'])
       expect((await auditOf(pool, action)).length).toBe(1);
+    for (const action of ['USER_DISABLE', 'USER_ENABLE'])
+      expect([action, await auditWhoWhen(pool, action)]).toEqual([
+        action,
+        [{ userId: w.users.dm, entityId: w.users.ro2, at: 'date' }],
+      ]);
+    // Disable / enable take no password any more (strict body).
+    expect(
+      (await dm.post(`/api/admin/users/${w.users.ro2}/disable`, { password: PASSWORD })).status,
+    ).toBe(400);
 
     for (const path of ['disable', 'view-password', 'update-credentials', 'unlock']) {
       const res = await dm.post(`/api/admin/users/${w.users.dm}/${path}`, {
         ...(path === 'update-credentials' ? { username: 'dm_renamed' } : {}),
-        password: PASSWORD,
+        // disable and view-password take no password; update-credentials and unlock still do.
+        ...(path === 'update-credentials' || path === 'unlock' ? { password: PASSWORD } : {}),
       });
       expect([path, res.status]).toEqual([path, 403]);
     }
     const replaceDm = await dm.post(`/api/admin/users/${w.users.dm}/replace`, {
       fullName: 'नया DM',
       phone: '9876543210',
-      password: PASSWORD,
     });
     expect(replaceDm.status).toBe(403);
   });
 
   it('wrong password: REAUTH_FAILED and nothing written', async () => {
     const before = JSON.parse(await masterSnapshot(pool)) as unknown[][];
+    // replace, view-password and disable no longer take a password (see their own tests).
     for (const [path, body] of [
-      [
-        `/api/admin/users/${w.users.ro1}/replace`,
-        { fullName: 'कोई', phone: '9876543210', password: 'bad' },
-      ],
       [
         `/api/admin/users/${w.users.ro1}/update-credentials`,
         { username: 'ro_new_name', newPassword: 'Kesar7Tila9mor', password: 'bad' },
       ],
-      [`/api/admin/users/${w.users.ro1}/view-password`, { password: 'bad' }],
-      [`/api/admin/users/${w.users.ro1}/disable`, { password: 'bad' }],
     ] as const) {
       const res = await dm.post(path, body);
       expect([path, res.body]).toEqual([path, { error: 'REAUTH_FAILED' }]);

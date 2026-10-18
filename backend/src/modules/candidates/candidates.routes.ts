@@ -6,7 +6,7 @@ import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
-import { actor, candidateDetailsFields, idParam, parse, password } from '../admin/http.js';
+import { actor, candidateDetailsFields, idParam, parse } from '../admin/http.js';
 import { listOwnWards, markReady, readOwnWard, saveOwnWard } from './candidates.service.js';
 
 const candidate = z
@@ -21,7 +21,7 @@ const candidate = z
   .strict();
 // The list size rule (at most 59) is checked by checkWardList, with a Hindi message.
 const listBody = z.object({ candidates: z.array(candidate).max(100) }).strict();
-const readyBody = z.object({ password }).strict();
+const readyBody = z.object({}).strict();
 
 export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
   const router = Router();
@@ -39,8 +39,8 @@ export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
     res.json(await saveOwnWard(pool, actor(req), wardId(req), body.candidates));
   });
   router.post('/wards/:wardId/ready', async (req, res) => {
-    const body = parse(readyBody, req.body);
-    await markReady(pool, actor(req), wardId(req), body.password);
+    parse(readyBody, req.body ?? {});
+    await markReady(pool, actor(req), wardId(req));
     res.json({ ok: true });
   });
   return router;

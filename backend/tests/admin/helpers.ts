@@ -155,3 +155,16 @@ export async function auditOf(pool: Pool, action: string) {
   );
   return rows;
 }
+
+/** Who did it and when, for each audit row of an action (actions without a password re-check). */
+export async function auditWhoWhen(pool: Pool, action: string) {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    'SELECT user_id, entity_id, created_at FROM audit_log WHERE action = ? ORDER BY id',
+    [action],
+  );
+  return rows.map((r) => ({
+    userId: Number(r.user_id),
+    entityId: r.entity_id === null ? null : Number(r.entity_id),
+    at: r.created_at instanceof Date ? 'date' : 'missing',
+  }));
+}

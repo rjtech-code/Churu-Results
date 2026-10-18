@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api/api';
 import { PageIntro, Section } from '../../components/AdminParts';
 import { ErrorBox, SuccessBox, WarningBox } from '../../components/ErrorBox';
-import { ReauthPasswordField } from '../../components/ReauthPasswordField';
 import { useApiData } from '../../components/useApiData';
 import { useAuth } from '../../auth/AuthContext';
 import '../../styles/admin.css';
@@ -120,30 +119,30 @@ function useSave(save: () => Promise<void>, done: string) {
   };
 }
 
-/** DM "मेरी प्रोफ़ाइल": name (password), username and password (password + OTP by email). */
+/** DM "मेरी प्रोफ़ाइल": name (no password, no OTP), username and password (OTP by email only). */
 export function ProfilePage() {
   const { refresh } = useAuth();
   const { data, error, reload } = useApiData(() => api<Profile>('GET', '/api/profile'), []);
 
-  const [name, setName] = useState({ fullName: '', password: '' });
-  const [uname, setUname] = useState({ newUsername: '', otp: '', password: '' });
-  const [pw, setPw] = useState({ otp: '', password: '', newPassword: '', confirmPassword: '' });
+  const [name, setName] = useState({ fullName: '' });
+  const [uname, setUname] = useState({ newUsername: '', otp: '' });
+  const [pw, setPw] = useState({ otp: '', newPassword: '', confirmPassword: '' });
 
   const nameSave = useSave(async () => {
     await api('POST', '/api/profile/name', name);
-    setName({ fullName: '', password: '' });
+    setName({ fullName: '' });
     reload();
     await refresh();
   }, 'नाम बदल गया');
   const unameSave = useSave(async () => {
     await api('POST', '/api/profile/username', uname);
-    setUname({ newUsername: '', otp: '', password: '' });
+    setUname({ newUsername: '', otp: '' });
     reload();
     await refresh();
   }, 'यूज़रनेम बदल गया। अगली बार नए यूज़रनेम से लॉगिन करें।');
   const pwSave = useSave(async () => {
     await api('POST', '/api/profile/password', pw);
-    setPw({ otp: '', password: '', newPassword: '', confirmPassword: '' });
+    setPw({ otp: '', newPassword: '', confirmPassword: '' });
   }, 'पासवर्ड बदल गया। बाकी सभी जगह से लॉगआउट कर दिया गया है।');
 
   if (!data) {
@@ -160,7 +159,7 @@ export function ProfilePage() {
     <>
       <PageIntro
         title="मेरी प्रोफ़ाइल"
-        hint="नाम बदलने के लिए केवल आपका पासवर्ड चाहिए। यूज़रनेम या पासवर्ड बदलने के लिए आपकी ईमेल पर OTP भी आएगा।"
+        hint="नाम सीधे बदला जा सकता है। यूज़रनेम या पासवर्ड बदलने के लिए आपकी ईमेल पर OTP आएगा।"
       />
 
       <Section title="मेरी जानकारी">
@@ -193,21 +192,12 @@ export function ProfilePage() {
             nameSave.clear();
           }}
         />
-        <div className="field">
-          <ReauthPasswordField
-            id="p-name-pass"
-            value={name.password}
-            onChange={(v) => {
-              setName({ ...name, password: v });
-            }}
-          />
-        </div>
         <ErrorBox error={nameSave.error} />
         <SuccessBox text={nameSave.ok} />
         <button
           type="button"
           className="btn btn-big"
-          disabled={nameSave.busy || name.fullName.trim().length < 2 || name.password === ''}
+          disabled={nameSave.busy || name.fullName.trim().length < 2}
           onClick={() => void nameSave.run()}
         >
           नाम सेव करें
@@ -237,23 +227,12 @@ export function ProfilePage() {
                 setUname({ ...uname, otp: v.replace(/\D/g, '').slice(0, 6) });
               }}
             />
-            <div className="field">
-              <ReauthPasswordField
-                id="p-uname-pass"
-                value={uname.password}
-                onChange={(v) => {
-                  setUname({ ...uname, password: v });
-                }}
-              />
-            </div>
             <ErrorBox error={unameSave.error} />
             <SuccessBox text={unameSave.ok} />
             <button
               type="button"
               className="btn btn-big"
-              disabled={
-                unameSave.busy || uname.newUsername === '' || !otpOk(uname.otp) || uname.password === ''
-              }
+              disabled={unameSave.busy || uname.newUsername === '' || !otpOk(uname.otp)}
               onClick={() => void unameSave.run()}
             >
               यूज़रनेम सेव करें
@@ -275,16 +254,6 @@ export function ProfilePage() {
               onChange={(v) => {
                 setPw({ ...pw, otp: v.replace(/\D/g, '').slice(0, 6) });
                 pwSave.clear();
-              }}
-            />
-            <TextField
-              id="p-pw-current"
-              label="मौजूदा पासवर्ड"
-              type="password"
-              autoComplete="current-password"
-              value={pw.password}
-              onChange={(v) => {
-                setPw({ ...pw, password: v });
               }}
             />
             <TextField
@@ -312,13 +281,7 @@ export function ProfilePage() {
             <button
               type="button"
               className="btn btn-big"
-              disabled={
-                pwSave.busy ||
-                !otpOk(pw.otp) ||
-                pw.password === '' ||
-                pw.newPassword === '' ||
-                pw.confirmPassword === ''
-              }
+              disabled={pwSave.busy || !otpOk(pw.otp) || pw.newPassword === '' || pw.confirmPassword === ''}
               onClick={() => void pwSave.run()}
             >
               पासवर्ड सेव करें

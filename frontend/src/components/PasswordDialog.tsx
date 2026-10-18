@@ -8,6 +8,7 @@ import { ReauthPasswordField } from './ReauthPasswordField';
  * Confirmation box for a sensitive action: one sentence saying what will happen, optional extra
  * fields (reason, name, "LOCK"), and the user's password typed again. The password is cleared after
  * every try and never kept. "रुकें" (the safe choice) is first and is what Esc does.
+ * askPassword={false}: the same box as a plain "are you sure?" (onConfirm gets an empty string).
  */
 export function PasswordDialog({
   title,
@@ -15,6 +16,7 @@ export function PasswordDialog({
   confirmLabel,
   danger = false,
   canConfirm = true,
+  askPassword = true,
   onConfirm,
   onCancel,
   children,
@@ -26,6 +28,8 @@ export function PasswordDialog({
   danger?: boolean;
   /** Extra fields complete? (The password is checked here.) */
   canConfirm?: boolean;
+  /** false: no password field (a plain confirmation). */
+  askPassword?: boolean;
   /** Runs the action; throw to show the error and stay open. */
   onConfirm: (password: string) => Promise<void>;
   onCancel: () => void;
@@ -38,7 +42,7 @@ export function PasswordDialog({
   const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
-    if (password === '') {
+    if (askPassword && password === '') {
       setError('अपना पासवर्ड लिखें');
       return;
     }
@@ -60,9 +64,11 @@ export function PasswordDialog({
         <h2>{title}</h2>
         <p className="big-explain">{explain}</p>
         {children}
-        <div className="field">
-          <ReauthPasswordField id="confirm-password" value={password} onChange={setPassword} />
-        </div>
+        {askPassword && (
+          <div className="field">
+            <ReauthPasswordField id="confirm-password" value={password} onChange={setPassword} />
+          </div>
+        )}
         <ErrorBox error={error} />
         <div className="actions">
           <button type="button" className="btn btn-secondary btn-big" onClick={onCancel} disabled={busy}>

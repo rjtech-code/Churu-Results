@@ -10,7 +10,14 @@ import {
 import { login } from '../auth/helpers.js';
 import { TEST_RO_PASSWORD_KEY } from '../auth/helpers.js';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
-import { PASSWORD, adminApp, apiClient, auditOf, buildAdminWorld } from './helpers.js';
+import {
+  PASSWORD,
+  adminApp,
+  apiClient,
+  auditOf,
+  auditWhoWhen,
+  buildAdminWorld,
+} from './helpers.js';
 import type { AdminWorld, ApiClient } from './helpers.js';
 
 describe('password vault (AES-256-GCM)', () => {
@@ -80,9 +87,7 @@ const setPassword = (userId: number, username: string, newPassword = GOOD) =>
 describe('DM views an RO password', () => {
   it('after a save, "view" returns exactly that password, audited without it', async () => {
     expect((await setPassword(w.users.ro2, 'ro_ps2_x2')).status).toBe(200);
-    const res = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {
-      password: PASSWORD,
-    });
+    const res = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {});
     expect([res.status, res.body]).toEqual([200, { username: 'ro_ps2_x2', password: GOOD }]);
     expect(res.headers['cache-control']).toBe('no-store');
     const [audit] = await auditOf(pool, 'RO_PASSWORD_VIEWED');
@@ -90,20 +95,25 @@ describe('DM views an RO password', () => {
     expect(await auditText()).not.toContain(GOOD);
   });
 
-  it('needs the DM password: a wrong one shows nothing and writes no audit row', async () => {
+  it('no DM password: a body with one is refused; every view writes its own audit row', async () => {
     await setPassword(w.users.ro2, 'ro_ps2_x2');
-    const res = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {
-      password: 'wrong-dm-password',
+    const extra = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {
+      password: PASSWORD,
     });
-    expect([res.status, res.body]).toEqual([401, { error: 'REAUTH_FAILED' }]);
-    expect(JSON.stringify(res.body)).not.toContain(GOOD);
+    expect(extra.status).toBe(400);
+    expect(JSON.stringify(extra.body)).not.toContain(GOOD);
     expect((await auditOf(pool, 'RO_PASSWORD_VIEWED')).length).toBe(0);
+
+    for (let i = 0; i < 2; i++)
+      expect((await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {})).status).toBe(200);
+    expect(await auditWhoWhen(pool, 'RO_PASSWORD_VIEWED')).toEqual([
+      { userId: w.users.dm, entityId: w.users.ro2, at: 'date' },
+      { userId: w.users.dm, entityId: w.users.ro2, at: 'date' },
+    ]);
   });
 
   it('an account with no stored copy says NO_COPY (409), nothing audited', async () => {
-    const res = await dm.post(`/api/admin/users/${w.users.ro1}/view-password`, {
-      password: PASSWORD,
-    });
+    const res = await dm.post(`/api/admin/users/${w.users.ro1}/view-password`, {});
     expect([res.status, res.body]).toEqual([409, { error: 'NO_COPY' }]);
     expect((await auditOf(pool, 'RO_PASSWORD_VIEWED')).length).toBe(0);
   });
@@ -112,7 +122,7 @@ describe('DM views an RO password', () => {
     const ro = await apiClient(app, 'ro_ps2_x2');
     const zp = await apiClient(app, 'zp_ro_x3');
     const paths = [
-      [`/api/admin/users/${w.users.ro2}/view-password`, { password: PASSWORD }],
+      [`/api/admin/users/${w.users.ro2}/view-password`, {}],
       [
         `/api/admin/users/${w.users.ro2}/update-credentials`,
         { username: 'ro_hacker', newPassword: GOOD, password: PASSWORD },
@@ -138,9 +148,7 @@ describe('DM views an RO password', () => {
         w.users.dm,
       ]),
     ).rejects.toThrow();
-    const res = await dm.post(`/api/admin/users/${w.users.dm}/view-password`, {
-      password: PASSWORD,
-    });
+    const res = await dm.post(`/api/admin/users/${w.users.dm}/view-password`, {});
     expect(res.status).toBe(403);
   });
 
@@ -148,7 +156,6 @@ describe('DM views an RO password', () => {
     const created = await dm.post(`/api/admin/users/${w.users.ro2}/replace`, {
       fullName: 'नया RO',
       phone: '9876543210',
-      password: PASSWORD,
     });
     const out = created.body as { username: string; password: string };
     const [rows] = await pool.execute<RowDataPacket[]>(
@@ -157,9 +164,7 @@ describe('DM views an RO password', () => {
     );
     const stored = rows[0]?.password_enc as Buffer;
     expect(stored.includes(Buffer.from(out.password))).toBe(false);
-    const view = await dm.post(`/api/admin/users/${rows[0]?.id as number}/view-password`, {
-      password: PASSWORD,
-    });
+    const view = await dm.post(`/api/admin/users/${rows[0]?.id as number}/view-password`, {});
     expect(view.body).toEqual(out);
   });
 });
@@ -198,9 +203,7 @@ describe('DM changes username and/or password', () => {
   it('users:create / users:reset-password style helpers keep the copy in step', async () => {
     await setPassword(w.users.ro2, 'ro_ps2_x2', GOOD);
     await setPassword(w.users.ro2, 'ro_ps2_x2', 'Zebra4Lotus8pond');
-    const view = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {
-      password: PASSWORD,
-    });
+    const view = await dm.post(`/api/admin/users/${w.users.ro2}/view-password`, {});
     expect(view.body).toEqual({ username: 'ro_ps2_x2', password: 'Zebra4Lotus8pond' });
   });
 });

@@ -80,8 +80,11 @@ const UPLOAD_BODY_LIMIT = MAX_UPLOAD_BASE64 + 64 * 1024;
 const fileName = z.string().trim().min(1).max(255);
 const fileBase64 = z.string().min(1).max(MAX_UPLOAD_BASE64);
 const uploadCheck = z.object({ fileName, fileBase64 }).strict();
-const uploadSave = z.object({ fileName, fileBase64, password }).strict();
+const uploadSave = z.object({ fileName, fileBase64 }).strict();
+/** Candidate lists replace a whole area: the DM's password is still needed. */
+const candidatesSave = z.object({ fileName, fileBase64, password }).strict();
 const passwordOnly = z.object({ password }).strict();
+const emptyBody = z.object({}).strict();
 const fullName = z
   .string()
   .transform(normalizeText)
@@ -114,7 +117,6 @@ const partyBody = z
     nameEnglish: z.string().max(400),
     shortName: z.string().max(100),
     symbol: z.string().max(200),
-    password,
   })
   .strict();
 const lockBody = z
@@ -153,8 +155,8 @@ const moveBody = z
   .object({ psWardId: wardIdBody, zpWardId: wardIdBody, reason, password })
   .strict();
 const categoryBody = z.object({ category: z.string().max(200), reason, password }).strict();
-const sendBackBody = z.object({ reason, password }).strict();
-const candidateDetailsBody = z.object({ ...candidateDetailsFields, password }).strict();
+const sendBackBody = z.object({ reason }).strict();
+const candidateDetailsBody = z.object({ ...candidateDetailsFields }).strict();
 const createBody = z
   .object({
     seat: z
@@ -173,8 +175,8 @@ const createBody = z
     password,
   })
   .strict();
-const replaceBody = z.object({ fullName, phone, password }).strict();
-const phoneBody = z.object({ phone, password }).strict();
+const replaceBody = z.object({ fullName, phone }).strict();
+const phoneBody = z.object({ phone }).strict();
 // Only sizes here; the username and password rules (with their own error codes) are in the service.
 const credentialsBody = z
   .object({
@@ -230,7 +232,9 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     res.json(await checkCandidatesUpload(pool, parse(uploadCheck, req.body)));
   });
   router.post('/candidates/save', uploadJson, async (req, res) => {
-    res.json({ saved: await saveCandidatesUpload(pool, actor(req), parse(uploadSave, req.body)) });
+    res.json({
+      saved: await saveCandidatesUpload(pool, actor(req), parse(candidatesSave, req.body)),
+    });
   });
   router.get('/candidate-status', async (req, res) => {
     const q = parse(areaQuery, req.query);
@@ -297,11 +301,11 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     res.json({ password: suggestPassword() });
   });
   router.post('/users/:userId/view-password', async (req, res) => {
+    parse(emptyBody, req.body ?? {});
     const out = await viewAccountPassword(
       pool,
       actor(req),
       id(req, 'userId'),
-      parse(passwordOnly, req.body),
       config.roPasswordKey,
     );
     noStore(res);
@@ -323,11 +327,13 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     res.json({ ok: true });
   });
   router.post('/users/:userId/disable', async (req, res) => {
-    await setRoActive(pool, actor(req), id(req, 'userId'), false, parse(passwordOnly, req.body));
+    parse(emptyBody, req.body ?? {});
+    await setRoActive(pool, actor(req), id(req, 'userId'), false);
     res.json({ ok: true });
   });
   router.post('/users/:userId/enable', async (req, res) => {
-    await setRoActive(pool, actor(req), id(req, 'userId'), true, parse(passwordOnly, req.body));
+    parse(emptyBody, req.body ?? {});
+    await setRoActive(pool, actor(req), id(req, 'userId'), true);
     res.json({ ok: true });
   });
   router.post('/users/:userId/unlock', async (req, res) => {

@@ -15,7 +15,15 @@ type Action = 'create' | 'replace' | 'phone' | 'disable' | 'enable' | 'unlock';
 
 const ACTIONS: Record<
   Action,
-  { label: string; explain: string; danger: boolean; needsName: boolean; needsPhone?: boolean }
+  {
+    label: string;
+    explain: string;
+    danger: boolean;
+    needsName: boolean;
+    needsPhone?: boolean;
+    /** The DM's password again (create, unlock); the others are a plain confirmation. */
+    askPassword: boolean;
+  }
 > = {
   create: {
     label: 'नया RO बनाएँ',
@@ -23,6 +31,7 @@ const ACTIONS: Record<
     danger: false,
     needsName: true,
     needsPhone: true,
+    askPassword: true,
   },
   replace: {
     label: 'RO बदलें',
@@ -30,6 +39,7 @@ const ACTIONS: Record<
     danger: true,
     needsName: true,
     needsPhone: true,
+    askPassword: false,
   },
   phone: {
     label: 'मोबाइल जोड़ें',
@@ -37,23 +47,32 @@ const ACTIONS: Record<
     danger: false,
     needsName: false,
     needsPhone: true,
+    askPassword: false,
   },
   disable: {
     label: 'बंद करें',
     explain: 'यह खाता बंद होगा; RO लॉगिन नहीं कर सकेगा।',
     danger: true,
     needsName: false,
+    askPassword: false,
   },
-  enable: { label: 'चालू करें', explain: 'यह खाता फिर से चालू होगा।', danger: false, needsName: false },
+  enable: {
+    label: 'चालू करें',
+    explain: 'यह खाता फिर से चालू होगा।',
+    danger: false,
+    needsName: false,
+    askPassword: false,
+  },
   unlock: {
     label: 'लॉक खोलें',
     explain: 'गलत पासवर्ड से लगा लॉक हटेगा; पासवर्ड वही रहेगा।',
     danger: false,
     needsName: false,
+    askPassword: true,
   },
 };
 
-/** One post: the account and every action on it (each needs the DM's password). */
+/** One post: the account and every action on it (create and unlock need the DM's password). */
 export function UserSeatPage() {
   const { seat = '' } = useParams();
   const { data, error, reload } = useApiData(() => api<{ seats: Seat[] }>('GET', '/api/admin/users'), []);
@@ -82,14 +101,13 @@ export function UserSeatPage() {
         await api<Credentials>('POST', `${base}/replace`, {
           fullName: fullName.trim(),
           phone: cleanPhone,
-          password,
         }),
       );
     } else if (a === 'phone') {
-      await api('POST', `${base}/phone`, { phone: cleanPhone, password });
+      await api('POST', `${base}/phone`, { phone: cleanPhone });
       setDone('मोबाइल नंबर सहेज लिया गया');
     } else {
-      await api('POST', `${base}/${a}`, { password });
+      await api('POST', `${base}/${a}`, a === 'unlock' ? { password } : {});
       setDone(a === 'disable' ? 'खाता बंद हो गया' : a === 'enable' ? 'खाता चालू हो गया' : 'लॉक खुल गया');
     }
     setAction(null);
@@ -115,7 +133,7 @@ export function UserSeatPage() {
       </p>
       <PageIntro
         title={current ? `${current.label} — RO खाता` : 'RO खाता'}
-        hint="नीचे से एक काम चुनें। हर काम के लिए आपका पासवर्ड लगेगा।"
+        hint="नीचे से एक काम चुनें। नया RO बनाने, लॉक खोलने और यूज़रनेम/पासवर्ड बदलने के लिए आपका पासवर्ड लगेगा।"
       />
       <ErrorBox error={error} />
       {credentials ? (
@@ -201,6 +219,7 @@ export function UserSeatPage() {
           explain={ACTIONS[action].explain}
           confirmLabel={actionLabel(action)}
           danger={ACTIONS[action].danger}
+          askPassword={ACTIONS[action].askPassword}
           canConfirm={
             (!ACTIONS[action].needsName || fullName.trim().length >= 2) &&
             (ACTIONS[action].needsPhone !== true || normalizePhone(phone) !== null)

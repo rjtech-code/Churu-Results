@@ -9,7 +9,7 @@ import { loginRateLimit } from '../../middleware/rate-limit.js';
 import { MAX_FULL_NAME_LENGTH } from '../../services/master-data/accounts.js';
 import { normalizeText } from '../../services/master-data/text.js';
 import type { Mailer } from '../../services/mailer.js';
-import { actor, noStore, parse, password } from '../admin/http.js';
+import { actor, noStore, parse } from '../admin/http.js';
 import {
   changeName,
   changePassword,
@@ -22,15 +22,13 @@ const otp = z.string().regex(/^\d{6}$/);
 const nameBody = z
   .object({
     fullName: z.string().transform(normalizeText).pipe(z.string().min(2).max(MAX_FULL_NAME_LENGTH)),
-    password,
   })
   .strict();
 const sendOtpBody = z.object({ purpose: z.enum(['USERNAME', 'PASSWORD']) }).strict();
-const usernameBody = z.object({ newUsername: z.string().trim().max(50), otp, password }).strict();
+const usernameBody = z.object({ newUsername: z.string().trim().max(50), otp }).strict();
 const passwordBody = z
   .object({
     otp,
-    password,
     newPassword: z.string().max(200),
     confirmPassword: z.string().max(200),
   })

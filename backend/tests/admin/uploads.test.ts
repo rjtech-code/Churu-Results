@@ -13,6 +13,7 @@ import {
   adminApp,
   apiClient,
   auditOf,
+  auditWhoWhen,
   buildAdminWorld,
   dataAuditCount,
   masterSnapshot,
@@ -105,21 +106,23 @@ describe('DM party upload', () => {
     );
   });
 
-  it('save: wrong password -> REAUTH_FAILED and nothing written', async () => {
+  it('save: no password (a body with one is refused); the save is audited with user and time', async () => {
     const before = await masterSnapshot(pool);
     const file = await partyFile([['पार्टी तीन', 'Party Three', 'P3', 'Kite']]);
-    const res = await dm.post('/api/admin/parties/save', {
+    const extra = await dm.post('/api/admin/parties/save', {
       fileName: 'p.xlsx',
       fileBase64: file,
-      password: 'wrong-password',
+      password: PASSWORD,
     });
-    expect([res.status, res.body]).toEqual([401, { error: 'REAUTH_FAILED' }]);
-    // Only the failed-login counter moved (the lockout rule); no party, no data audit.
-    const after = JSON.parse(await masterSnapshot(pool)) as unknown[];
-    const was = JSON.parse(before) as unknown[];
-    expect(after.slice(0, 4)).toEqual(was.slice(0, 4));
+    expect(extra.status).toBe(400);
+    expect(await masterSnapshot(pool)).toBe(before);
     expect((await auditOf(pool, 'IMPORT_PARTIES')).length).toBe(0);
-    expect((await auditOf(pool, 'REAUTH_FAILED')).length).toBe(1);
+
+    const res = await dm.post('/api/admin/parties/save', { fileName: 'p.xlsx', fileBase64: file });
+    expect(res.status).toBe(200);
+    expect(await auditWhoWhen(pool, 'IMPORT_PARTIES')).toEqual([
+      { userId: w.users.dm, entityId: null, at: 'date' },
+    ]);
   });
 
   it('save with an error writes nothing; a good save inserts and is audited without secrets', async () => {
@@ -128,7 +131,6 @@ describe('DM party upload', () => {
     const refused = await dm.post('/api/admin/parties/save', {
       fileName: 'p.xlsx',
       fileBase64: bad,
-      password: PASSWORD,
     });
     expect(refused.status).toBe(400);
     expect((refused.body as { error: string }).error).toBe('CHECK_FAILED');
@@ -138,7 +140,6 @@ describe('DM party upload', () => {
     const res = await dm.post('/api/admin/parties/save', {
       fileName: 'C:\\Users\\dm\\parties.xlsx',
       fileBase64: good,
-      password: PASSWORD,
     });
     expect(res.status).toBe(200);
     const [audit] = await auditOf(pool, 'IMPORT_PARTIES');
@@ -153,7 +154,6 @@ describe('DM party upload', () => {
       nameEnglish: 'New Party',
       shortName: 'p1',
       symbol: 'Star',
-      password: PASSWORD,
     });
     expect(dup.status).toBe(400);
     expect(JSON.stringify(dup.body)).toContain('पार्टी \\"p1\\" पहले से सूची में है');
@@ -162,10 +162,11 @@ describe('DM party upload', () => {
       nameEnglish: 'New Party',
       shortName: 'NP',
       symbol: 'Star',
-      password: PASSWORD,
     });
     expect([ok.status, ok.body]).toEqual([201, { shortName: 'NP' }]);
-    expect((await auditOf(pool, 'PARTY_ADDED')).length).toBe(1);
+    expect(await auditWhoWhen(pool, 'PARTY_ADDED')).toEqual([
+      { userId: w.users.dm, entityId: null, at: 'date' },
+    ]);
   });
 });
 
@@ -335,7 +336,6 @@ describe('only a real .xlsx is read', () => {
       nameEnglish: 'x',
       shortName: 'x',
       symbol: 'x',
-      password: PASSWORD,
     });
     expect(small.status).toBe(413);
   });

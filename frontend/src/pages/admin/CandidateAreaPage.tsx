@@ -235,12 +235,10 @@ export function CandidateAreaPage() {
           title={`${editing.ward.label} — ${editing.candidate.nameHindi} — विवरण बदलें`}
           explain="जन्म तिथि या उम्र, शिक्षा, मोबाइल और Category (श्रेणी) बदलेंगे (लॉक के बाद भी)। नाम, पार्टी, बैलेट नंबर और वोट नहीं बदलेंगे।"
           confirmLabel="विवरण सेव करें"
-          onConfirm={async (password) => {
+          askPassword={false}
+          onConfirm={async () => {
             try {
-              await api('POST', `/api/admin/candidates/${editing.candidate.id}/details`, {
-                ...details,
-                password,
-              });
+              await api('POST', `/api/admin/candidates/${editing.candidate.id}/details`, details);
             } catch (err) {
               const list = issuesOf(err);
               if (!list) throw err;
@@ -276,11 +274,9 @@ export function CandidateAreaPage() {
           explain="यह सूची RO को सुधार के लिए वापस जाएगी।"
           confirmLabel="वापस भेजें"
           canConfirm={reason.trim().length >= 10}
-          onConfirm={async (password) => {
-            await api('POST', `/api/admin/wards/${sending.id}/send-back`, {
-              reason: reason.trim(),
-              password,
-            });
+          askPassword={false}
+          onConfirm={async () => {
+            await api('POST', `/api/admin/wards/${sending.id}/send-back`, { reason: reason.trim() });
             setSending(null);
             setDone('सूची RO को वापस भेज दी गई');
             reload();

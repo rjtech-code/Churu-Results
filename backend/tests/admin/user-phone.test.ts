@@ -3,7 +3,14 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { normalizePhone } from '../../src/services/master-data/accounts.js';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
-import { PASSWORD, adminApp, apiClient, auditOf, buildAdminWorld } from './helpers.js';
+import {
+  PASSWORD,
+  adminApp,
+  apiClient,
+  auditOf,
+  auditWhoWhen,
+  buildAdminWorld,
+} from './helpers.js';
 import type { AdminWorld, ApiClient } from './helpers.js';
 
 let pool: Pool;
@@ -102,7 +109,6 @@ describe('RO mobile number', () => {
     const replaced = await dm.post(`/api/admin/users/${w.users.ro1}/replace`, {
       fullName: 'नए RO',
       phone: '8123456789',
-      password: PASSWORD,
     });
     expect(replaced.status).toBe(201);
     const [r2] = await pool.execute<RowDataPacket[]>('SELECT phone FROM users WHERE username = ?', [
@@ -111,17 +117,23 @@ describe('RO mobile number', () => {
     expect(r2[0]?.phone).toBe('8123456789');
   });
 
-  it('add / change on an old RO: password needed, invalid rejected, audit has last 4 only', async () => {
+  it('add / change on an old RO: no password, invalid rejected, audit has last 4 only', async () => {
     const path = `/api/admin/users/${w.users.ro1}/phone`;
-    expect((await dm.post(path, { phone: '9876543210', password: 'bad' })).status).toBe(401);
+    // A password is no longer accepted (strict body).
+    expect((await dm.post(path, { phone: '9876543210', password: PASSWORD })).status).toBe(400);
     expect(await phoneOf(w.users.ro1)).toBeNull();
-    expect((await dm.post(path, { phone: '12345', password: PASSWORD })).status).toBe(400);
-    expect((await dm.post(path, { password: PASSWORD })).status).toBe(400);
+    expect((await dm.post(path, { phone: '12345' })).status).toBe(400);
+    expect((await dm.post(path, {})).status).toBe(400);
 
-    expect((await dm.post(path, { phone: '+919876543210', password: PASSWORD })).status).toBe(200);
+    expect((await dm.post(path, { phone: '+919876543210' })).status).toBe(200);
     expect(await phoneOf(w.users.ro1)).toBe('9876543210');
-    expect((await dm.post(path, { phone: '9876543210', password: PASSWORD })).status).toBe(409);
-    expect((await dm.post(path, { phone: '7000011112', password: PASSWORD })).status).toBe(200);
+    expect((await dm.post(path, { phone: '9876543210' })).status).toBe(409);
+    expect((await dm.post(path, { phone: '7000011112' })).status).toBe(200);
+    for (const action of ['RO_PHONE_ADDED', 'RO_PHONE_CHANGED'])
+      expect([action, await auditWhoWhen(pool, action)]).toEqual([
+        action,
+        [{ userId: w.users.dm, entityId: w.users.ro1, at: 'date' }],
+      ]);
 
     const added = await auditOf(pool, 'RO_PHONE_ADDED');
     const changed = await auditOf(pool, 'RO_PHONE_CHANGED');
@@ -135,9 +147,9 @@ describe('RO mobile number', () => {
 
   it('the phone reaches only the DM: ROs get 403 and never see it', async () => {
     const path = `/api/admin/users/${w.users.ro1}/phone`;
-    await dm.post(path, { phone: '9876543210', password: PASSWORD });
+    await dm.post(path, { phone: '9876543210' });
     const ro = await apiClient(app, 'ro_ps1_x1');
-    expect((await ro.post(path, { phone: '9000000000', password: PASSWORD })).status).toBe(403);
+    expect((await ro.post(path, { phone: '9000000000' })).status).toBe(403);
     expect((await ro.get('/api/admin/users')).status).toBe(403);
     for (const p of ['/api/auth/me', '/api/candidates/wards']) {
       const res = await ro.get(p);

@@ -3,7 +3,7 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import type { Mailer } from '../../src/services/mailer.js';
-import { apiClient, auditOf, buildAdminWorld, PASSWORD } from '../admin/helpers.js';
+import { apiClient, auditOf, auditWhoWhen, buildAdminWorld, PASSWORD } from '../admin/helpers.js';
 import type { AdminWorld } from '../admin/helpers.js';
 import { login, testAppConfig } from '../auth/helpers.js';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
@@ -56,7 +56,7 @@ beforeEach(async () => {
 });
 
 describe('DM profile (मेरी प्रोफ़ाइल)', () => {
-  it('correct OTP + current password changes the password; other DM sessions end, this one stays', async () => {
+  it('correct OTP (no current password) changes the password; other DM sessions end, this one stays', async () => {
     await setDmEmail(DM_EMAIL);
     const mail = fakeMailer();
     const app = appWith(mail.mailer);
@@ -81,9 +81,16 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
     expect(JSON.stringify(await otpRows())).not.toContain(code);
     expect((await dm.post('/api/profile/send-otp', { purpose: 'PASSWORD' })).status).toBe(429);
 
-    const res = await dm.post('/api/profile/password', {
+    // The current password is no longer accepted (strict body); the code stays unused.
+    const extra = await dm.post('/api/profile/password', {
       otp: code,
       password: PASSWORD,
+      newPassword: NEW_PASSWORD,
+      confirmPassword: NEW_PASSWORD,
+    });
+    expect(extra.status).toBe(400);
+    const res = await dm.post('/api/profile/password', {
+      otp: code,
       newPassword: NEW_PASSWORD,
       confirmPassword: NEW_PASSWORD,
     });
@@ -97,7 +104,6 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
     // The code works once only.
     const again = await dm.post('/api/profile/password', {
       otp: code,
-      password: NEW_PASSWORD,
       newPassword: 'Doosra-Pass-77y',
       confirmPassword: 'Doosra-Pass-77y',
     });
@@ -105,6 +111,9 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
 
     const audit = await auditOf(pool, 'DM_PASSWORD_CHANGED');
     expect(audit).toHaveLength(1);
+    expect(await auditWhoWhen(pool, 'DM_PASSWORD_CHANGED')).toEqual([
+      { userId: w.users.dm, entityId: w.users.dm, at: 'date' },
+    ]);
     const logged = JSON.stringify(audit) + JSON.stringify(await auditOf(pool, 'DM_OTP_SENT'));
     for (const secret of [code, NEW_PASSWORD, PASSWORD, DM_EMAIL])
       expect(logged).not.toContain(secret);
@@ -120,7 +129,6 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
     const wrong = code === '000000' ? '111111' : '000000';
     const body = (otp: string) => ({
       otp,
-      password: PASSWORD,
       newPassword: NEW_PASSWORD,
       confirmPassword: NEW_PASSWORD,
     });
@@ -141,22 +149,45 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
     expect((await login(request.agent(appWith(null)), 'dm_x4', PASSWORD)).status).toBe(200);
   });
 
+  it('name change: no password and no OTP; audited with user and time', async () => {
+    const dm = await apiClient(appWith(null), 'dm_x4');
+    const extra = await dm.post('/api/profile/name', { fullName: 'नया नाम', password: PASSWORD });
+    expect(extra.status).toBe(400);
+    expect((await dm.post('/api/profile/name', { fullName: 'नया नाम' })).status).toBe(200);
+    expect((await dm.get('/api/profile')).body).toMatchObject({ fullName: 'नया नाम' });
+    expect(await auditWhoWhen(pool, 'DM_NAME_CHANGED')).toEqual([
+      { userId: w.users.dm, entityId: w.users.dm, at: 'date' },
+    ]);
+  });
+
+  it('username change: OTP only, audited with user and time', async () => {
+    await setDmEmail(DM_EMAIL);
+    const mail = fakeMailer();
+    const dm = await apiClient(appWith(mail.mailer), 'dm_x4');
+    expect((await dm.post('/api/profile/send-otp', { purpose: 'USERNAME' })).status).toBe(200);
+    const res = await dm.post('/api/profile/username', {
+      newUsername: 'naya_dm',
+      otp: mail.lastCode(),
+    });
+    expect(res.status).toBe(200);
+    expect(await auditWhoWhen(pool, 'DM_USERNAME_CHANGED')).toEqual([
+      { userId: w.users.dm, entityId: w.users.dm, at: 'date' },
+    ]);
+  });
+
   it('an RO gets 403 on every profile route', async () => {
     const mail = fakeMailer();
     const app = appWith(mail.mailer);
     for (const username of ['ro_ps1_x1', 'zp_ro_x3']) {
       const ro = await apiClient(app, username);
       expect((await ro.get('/api/profile')).status).toBe(403);
-      expect(
-        (await ro.post('/api/profile/name', { fullName: 'नया नाम', password: PASSWORD })).status,
-      ).toBe(403);
+      expect((await ro.post('/api/profile/name', { fullName: 'नया नाम' })).status).toBe(403);
       expect((await ro.post('/api/profile/send-otp', { purpose: 'PASSWORD' })).status).toBe(403);
       expect(
         (
           await ro.post('/api/profile/username', {
             newUsername: 'naya_ro',
             otp: '123456',
-            password: PASSWORD,
           })
         ).status,
       ).toBe(403);
@@ -184,7 +215,6 @@ describe('DM profile (मेरी प्रोफ़ाइल)', () => {
     const r3 = await noSmtp.post('/api/profile/username', {
       newUsername: 'naya_dm',
       otp: '123456',
-      password: PASSWORD,
     });
     expect(r3.body).toEqual({ error: 'OTP_NOT_SENT' });
     expect(await otpRows()).toHaveLength(0);

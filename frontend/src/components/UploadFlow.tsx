@@ -15,8 +15,9 @@ interface Picked {
 
 /**
  * 1 फ़ाइल चुनें → 2 जाँच → 3 पूर्वावलोकन → 4 सेव. Only the current step's button is enabled.
- * "जाँच" writes nothing on the server; "सेव" (with the password) checks everything again and saves
- * all or nothing. Save stays disabled until the check found zero problems.
+ * "जाँच" writes nothing on the server; "सेव" checks everything again and saves all or nothing.
+ * Save stays disabled until the check found zero problems. askPassword (default true): "सेव" asks
+ * for the password in a dialog; false saves straight away (parties).
  */
 export function UploadFlow<P>({
   checkPath,
@@ -26,6 +27,7 @@ export function UploadFlow<P>({
   successText,
   renderPreview,
   onSaved,
+  askPassword = true,
 }: {
   checkPath: string;
   savePath: string;
@@ -35,6 +37,7 @@ export function UploadFlow<P>({
   successText: string;
   renderPreview: (preview: P) => ReactNode;
   onSaved?: () => void;
+  askPassword?: boolean;
 }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<Picked | null>(null);
@@ -44,6 +47,7 @@ export function UploadFlow<P>({
   const [saveIssues, setSaveIssues] = useState<Issue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const clearState = () => {
@@ -86,10 +90,11 @@ export function UploadFlow<P>({
     }
   };
 
-  const save = async (password: string) => {
+  const save = async (password: string | null) => {
     if (!file) return;
     try {
-      await api('POST', savePath, { fileName: file.name, fileBase64: file.base64, password });
+      const body = { fileName: file.name, fileBase64: file.base64 };
+      await api('POST', savePath, password === null ? body : { ...body, password });
     } catch (err) {
       const issues = issuesOf(err);
       if (issues === null) throw err; // shown in the dialog (e.g. wrong password)
@@ -100,6 +105,20 @@ export function UploadFlow<P>({
     setConfirming(false);
     setSaved(true);
     onSaved?.();
+  };
+
+  /** No password: save straight away; errors show on the page. */
+  const saveNow = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await save(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const step = saved ? 4 : result?.ok === true ? 3 : file ? 1 : 0;
@@ -121,7 +140,7 @@ export function UploadFlow<P>({
           id="upload-file"
           type="file"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          disabled={checking || confirming}
+          disabled={checking || confirming || saving}
           // Choosing the same (corrected) file again must still count as a new choice.
           onClick={(e) => {
             e.currentTarget.value = '';
@@ -161,11 +180,13 @@ export function UploadFlow<P>({
               <button
                 type="button"
                 className="btn btn-primary btn-big"
+                disabled={saving}
                 onClick={() => {
-                  setConfirming(true);
+                  if (askPassword) setConfirming(true);
+                  else void saveNow();
                 }}
               >
-                4. सेव करें
+                {saving ? 'सेव हो रहा है…' : '4. सेव करें'}
               </button>
             ) : (
               <button

@@ -1,6 +1,5 @@
-// "मेरी प्रोफ़ाइल": the DM's own account. Name: current password only. Username and password: current
-// password AND a 6-digit OTP mailed to the DM's saved email (set only by the dm-set-email script;
-// never changed here). Only an HMAC of the OTP is stored. Passwords and OTPs are never logged.
+// "मेरी प्रोफ़ाइल": the DM's own account. Name: no password, no OTP. Username and password: a 6-digit
+// OTP mailed to the DM's saved email (set only by the dm-set-email script; never changed here). Only an HMAC of the OTP is stored. Passwords and OTPs are never logged.
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
@@ -9,7 +8,6 @@ import { USERNAME_PATTERN, checkChosenPassword } from '../../services/master-dat
 import { hashPassword } from '../../services/master-data/passwords.js';
 import { maskEmail } from '../../services/mailer.js';
 import type { Mailer } from '../../services/mailer.js';
-import { requireReauth, resetFailedLogins } from '../auth/auth.service.js';
 import type { Actor } from '../admin/http.js';
 
 export const OTP_VALID_MINUTES = 10;
@@ -70,15 +68,13 @@ export async function getProfile(pool: Pool, userId: number): Promise<Profile> {
   };
 }
 
-/** "नाम बदलें": current password only, no OTP. */
+/** "नाम बदलें": no password, no OTP (audited). */
 export async function changeName(
   pool: Pool,
   who: Actor,
-  body: { fullName: string; password: string },
+  body: { fullName: string },
 ): Promise<void> {
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   await inTx(pool, async (conn) => {
-    await resetFailedLogins(conn, who.user.id);
     const self = await lockSelf(conn, who.user.id);
     if (self.fullName === body.fullName) throw new ApiError(409, 'NO_CHANGE');
     await conn.execute('UPDATE users SET full_name = ? WHERE id = ?', [body.fullName, self.id]);
@@ -214,20 +210,18 @@ async function checkOtp(
 }
 
 /**
- * Current password (counts toward the normal lockout), then ONE transaction: OTP check, change,
- * audit. A wrong OTP commits only its attempt count and audit row, then fails.
+ * ONE transaction: OTP check, change, audit. A wrong OTP commits only its attempt count and audit
+ * row, then fails.
  */
 async function withOtp(
   pool: Pool,
   who: Actor,
   purpose: OtpPurpose,
-  body: { otp: string; password: string },
+  body: { otp: string },
   secret: string,
   change: (conn: PoolConnection, self: Awaited<ReturnType<typeof lockSelf>>) => Promise<void>,
 ): Promise<void> {
-  await requireReauth(pool, who.user.id, body.password, who.ip);
   const failed = await inTx(pool, async (conn) => {
-    await resetFailedLogins(conn, who.user.id);
     const self = await lockSelf(conn, who.user.id);
     const check = await checkOtp(conn, who, purpose, body.otp, secret);
     if (!check.ok) return check.error;
@@ -241,7 +235,7 @@ async function withOtp(
 export async function changeUsername(
   pool: Pool,
   who: Actor,
-  body: { newUsername: string; otp: string; password: string },
+  body: { newUsername: string; otp: string },
   secret: string,
 ): Promise<void> {
   if (!USERNAME_PATTERN.test(body.newUsername)) throw new ApiError(400, 'USERNAME_INVALID');
@@ -272,7 +266,7 @@ export async function changeUsername(
 export async function changePassword(
   pool: Pool,
   who: Actor,
-  body: { otp: string; password: string; newPassword: string; confirmPassword: string },
+  body: { otp: string; newPassword: string; confirmPassword: string },
   secret: string,
   currentSessionId: string,
 ): Promise<void> {

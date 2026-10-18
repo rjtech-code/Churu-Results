@@ -65,8 +65,7 @@ test.describe(() => {
     await page.getByLabel('1. Excel फ़ाइल चुनें (.xlsx, अधिकतम 5 MB)').setInputFiles(PARTIES);
     await check.click();
     await expect(page.getByText('नई पार्टियाँ: 1')).toBeVisible();
-    await page.getByRole('button', { name: '4. सेव करें' }).click();
-    await confirmWithPassword(page, 'हाँ, सेव करें');
+    await page.getByRole('button', { name: '4. सेव करें' }).click(); // parties: no password
     await expect(page.getByText('सूची सेव हो गई')).toBeVisible();
     await expect(page.getByTestId('party-list')).toContainText('E2EJP');
 
@@ -101,8 +100,7 @@ test.describe(() => {
     await page.getByLabel('पंक्ति 2 नाम').fill('सीता देवी');
     await page.getByRole('button', { name: 'सूची सेव करें' }).click();
     await expect(page.getByText('सूची सेव हो गई')).toBeVisible();
-    await page.getByRole('button', { name: 'सूची तैयार है' }).click();
-    await confirmWithPassword(page, 'हाँ, सूची तैयार है', 'RO');
+    await page.getByRole('button', { name: 'सूची तैयार है' }).click(); // no password, no popup
     await expect(page.getByText('सूची तैयार बता दी गई')).toBeVisible();
     await expect(page.getByLabel('पंक्ति 2 नाम')).toHaveValue('सीता देवी');
   });
@@ -215,7 +213,7 @@ test.describe(() => {
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('पुराना खाता बंद होगा');
     await dialog.getByLabel('नए RO का पूरा नाम').fill('नया बीदासर अधिकारी');
-    await confirmWithPassword(page, 'RO बदलें');
+    await dialog.getByRole('button', { name: 'RO बदलें' }).click(); // a plain confirmation
     const username = (await page.getByTestId('otp-username').textContent()) ?? '';
     const password = (await page.getByTestId('otp-password').getAttribute('data-password')) ?? '';
     expect(username).toMatch(/^ro_bid_[a-z2-9]{4}$/);

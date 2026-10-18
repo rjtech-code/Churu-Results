@@ -10,6 +10,7 @@ import {
   PS1_NAME,
   adminApp,
   apiClient,
+  auditWhoWhen,
   buildAdminWorld,
   masterSnapshot,
   xlsxBase64,
@@ -170,6 +171,35 @@ describe('candidate details in the Excel import', () => {
     expect(await detailsOf(w.psW5)).toEqual([
       { pos: 1, dob: null, age_stated: null, education: null, mobile: null },
       { pos: 2, dob: null, age_stated: null, education: null, mobile: null },
+    ]);
+  });
+});
+
+describe("DM edits one candidate's details (विवरण बदलें)", () => {
+  it('no password (a body with one is refused); the change is audited with user and time', async () => {
+    const saved = await dm.post('/api/admin/candidates/save', {
+      fileName: 'c.xlsx',
+      fileBase64: await xlsxBase64(CANDIDATE_HEADERS, [
+        [PS1_NAME, 'PS', 5, 1, 'राम', 'P1', 'M', 'सामान्य'],
+      ]),
+      password: PASSWORD,
+    });
+    expect(saved.status).toBe(200);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT id FROM candidate WHERE ward_id = ? AND is_nota = 0',
+      [w.psW5],
+    );
+    const id = Number(rows[0]?.id);
+    const path = `/api/admin/candidates/${id}/details`;
+
+    const extra = await dm.post(path, { mobile: '9876543210', password: PASSWORD });
+    expect(extra.status).toBe(400);
+    expect((await detailsOf(w.psW5))[0]).toMatchObject({ mobile: null });
+
+    expect((await dm.post(path, { mobile: '9876543210' })).status).toBe(200);
+    expect((await detailsOf(w.psW5))[0]).toMatchObject({ mobile: '9876543210' });
+    expect(await auditWhoWhen(pool, 'CANDIDATE_DETAILS_CHANGED')).toEqual([
+      { userId: w.users.dm, entityId: id, at: 'date' },
     ]);
   });
 });
