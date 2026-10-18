@@ -41,7 +41,9 @@
     "screens:show": "tsx scripts/screens-show.ts",
     "screens:set": "tsx scripts/screens-set.ts",
     "demo:simulate": "tsx scripts/demo-simulate.ts",
-    "ps:set-hindi-names": "tsx scripts/ps-set-hindi-names.ts"
+    "ps:set-hindi-names": "tsx scripts/ps-set-hindi-names.ts",
+    "reset-candidates": "tsx scripts/reset-candidates.ts",
+    "test-candidate-excel": "tsx scripts/make-test-candidate-excel.ts"
   },
   "dependencies": {
     "bcrypt": "6.0.0",
