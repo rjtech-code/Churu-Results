@@ -16,7 +16,7 @@ test.describe('as the Churu PS RO', () => {
 test('login: wrong password message, then own wards only, then logout', async ({ page }) => {
   await loginUi(page, world().users.roOther, 'not-the-password-1');
   await expect(page.getByRole('alert')).toContainText('गलत यूज़रनेम या पासवर्ड');
-  await expect(page.getByLabel('पासवर्ड')).toHaveValue('');
+  await expect(page.getByLabel('पासवर्ड', { exact: true })).toHaveValue('');
   await loginUi(page, world().users.roOther);
   await expect(page.getByRole('heading', { name: 'मेरे वार्ड' })).toBeVisible();
   await expect(page.locator('table.list tbody tr')).toHaveCount(1);

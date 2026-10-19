@@ -106,7 +106,7 @@ export { expect };
 export async function loginUi(page: Page, username: string, password = world().password): Promise<void> {
   await page.goto('/login');
   await page.getByLabel('यूज़रनेम').fill(username);
-  await page.getByLabel('पासवर्ड').fill(password);
+  await page.getByLabel('पासवर्ड', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'लॉगिन करें' }).click();
 }
 
