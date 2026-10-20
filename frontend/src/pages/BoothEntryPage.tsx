@@ -6,6 +6,7 @@ import type { EntryPreview } from '../api/types';
 import { getLastRound, setLastRound } from '../auth/lastRound';
 import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox, WarningBox } from '../components/ErrorBox';
+import { LastBoothNotice } from '../components/LastBoothNotice';
 import { SplitLayout } from '../components/SplitLayout';
 import { LeaveGuard } from '../components/LeaveGuard';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
@@ -50,12 +51,16 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
   const [preview, setPreview] = useState<EntryPreview | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [noticeClosed, setNoticeClosed] = useState(false);
   const allowLeave = useRef(false);
 
   if (loadError) return <ErrorBox error={loadError} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;
   const { ward, booth, ballot, booths } = data;
   const sheet = values ?? sheetValues(ballot);
+  // The ward's last booth still to be entered for this ballot. Not on the PS_RO's ZP tab: it lists
+  // only the booths of the RO's own PS, so it cannot tell the last booth of the whole ZP ward.
+  const lastBooth = !psZp && !booth.entered && booths.booths.every((b) => b.entered || b.boothId === boothId);
   const dirty = Object.values(sheet.votes).some((v) => v !== '') || sheet.total !== '';
   const body = (check: ReturnType<typeof checkSheet>) => ({
     wardId,
@@ -114,6 +119,13 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
   return (
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
+      {lastBooth && !noticeClosed && (
+        <LastBoothNotice
+          onClose={() => {
+            setNoticeClosed(true);
+          }}
+        />
+      )}
       <p className="backlink">
         <Link to={wardPath}>
           ← {psZp ? 'जिला परिषद ' : ''}

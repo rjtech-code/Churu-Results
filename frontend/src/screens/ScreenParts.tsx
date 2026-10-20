@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { fmt, istClock, tickerText } from './format';
-import { pageLabel } from './paging';
-import type { Page } from './paging';
+import { dotLabel, pageLabel } from './paging';
+import type { Page, PageGroup } from './paging';
 import type { RecentItem, Summary } from './types';
 
 export const SCREEN_NAMES = { 1: 'स्क्रीन 1', 2: 'स्क्रीन 2', 3: 'ज़िला परिषद' } as const;
@@ -40,6 +41,57 @@ export function ScopeStrip({ names }: { names: readonly string[] }) {
   );
 }
 
+/**
+ * "इस स्क्रीन पर" on the PS screens: the same chips as ScopeStrip, but static buttons. A click jumps to
+ * the first page of that PS; the PS on show is marked (▸, underline, light chip). If the names do not
+ * fit, the row scrolls sideways inside itself and keeps the marked PS in view.
+ */
+export function PsStrip({
+  groups,
+  current,
+  onPick,
+}: {
+  groups: readonly PageGroup[];
+  current: string | null;
+  onPick: (page: number) => void;
+}) {
+  const row = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = row.current;
+    const on = el?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!el || !on) return;
+    if (on.offsetLeft < el.scrollLeft) el.scrollLeft = on.offsetLeft;
+    else if (on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)
+      el.scrollLeft = on.offsetLeft + on.offsetWidth - el.clientWidth;
+  }, [current]);
+  if (groups.length === 0) return <div className="tv-scope" aria-hidden="true" />;
+  return (
+    <nav className="tv-scope" data-testid="ps-strip" aria-label="इस स्क्रीन पर">
+      <span className="tv-scope-label">इस स्क्रीन पर</span>
+      {/* data-clamp: may scroll sideways on purpose when the names do not fit, see e2e/layout-check.ts */}
+      <div className="tv-scope-window tv-scope-static" data-clamp ref={row}>
+        {groups.map((g) => {
+          const on = g.key === current;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              className={on ? 'tv-scope-chip tv-scope-chip-on' : 'tv-scope-chip'}
+              aria-current={on ? 'true' : undefined}
+              onClick={() => {
+                onPick(g.first);
+              }}
+            >
+              {on && <span aria-hidden="true">▸ </span>}
+              {g.name}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 export function ScreenHeader({
   name,
   scope,
@@ -48,7 +100,8 @@ export function ScreenHeader({
   progress,
 }: {
   name: string;
-  scope: readonly string[];
+  /** The middle of the header: PsStrip on the PS screens, ScopeStrip on the ZP screen. */
+  scope: ReactNode;
   generatedAt: string | null;
   live: boolean;
   progress: { declared: number; total: number } | null;
@@ -59,7 +112,7 @@ export function ScreenHeader({
         <h1 className="tv-title">चूरू पंचायत चुनाव 2026 — परिणाम</h1>
         <span className="tv-screen-name">{name}</span>
       </div>
-      <ScopeStrip names={scope} />
+      {scope}
       <div className="tv-header-group tv-header-right">
         {progress !== null && (
           <span className="tv-progress" data-testid="progress">
@@ -138,17 +191,53 @@ export function PageHeader({ page }: { page: Page }) {
   );
 }
 
-export function PagerFooter({ pages, index }: { pages: Page[]; index: number }) {
+/** One dot per page; each is a button that jumps to its page (the hit area fills the footer height). */
+export function PageDots({
+  pages,
+  index,
+  onPick,
+}: {
+  pages: readonly Page[];
+  index: number;
+  onPick: (page: number) => void;
+}) {
+  return (
+    <span className="tv-dots" data-testid="page-dots">
+      {pages.map((p, i) => {
+        const label = dotLabel(p, i, pages.length);
+        return (
+          <button
+            key={p.key}
+            type="button"
+            className={i === index ? 'tv-page-dot tv-page-dot-on' : 'tv-page-dot'}
+            aria-label={label}
+            title={label}
+            aria-current={i === index ? 'page' : undefined}
+            onClick={() => {
+              onPick(i);
+            }}
+          >
+            ●
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
+export function PagerFooter({
+  pages,
+  index,
+  onPick,
+}: {
+  pages: Page[];
+  index: number;
+  onPick: (page: number) => void;
+}) {
   const next = pages[(index + 1) % pages.length];
   return (
     <footer className="tv-footer">
-      <span className="tv-dots" aria-label={`पेज ${index + 1}/${pages.length}`}>
-        {pages.map((p, i) => (
-          <span key={p.key} className={i === index ? 'tv-page-dot tv-page-dot-on' : 'tv-page-dot'}>
-            ●
-          </span>
-        ))}
-      </span>
+      <PageDots pages={pages} index={index} onPick={onPick} />
       {pages.length > 1 && next !== undefined && <span className="tv-next">अगला: {pageLabel(next)}</span>}
     </footer>
   );

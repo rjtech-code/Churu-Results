@@ -203,6 +203,36 @@ html.hide-cursor * {
   border: 1px solid rgba(255, 255, 255, 0.28);
   white-space: nowrap;
 }
+/* PS screens: the same chips, static and clickable (buttons); scrolls sideways inside only if needed */
+.tv-scope-static {
+  display: flex;
+  gap: 12px;
+  position: relative; /* offsetLeft of the chips is measured from here */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.tv-scope-static::-webkit-scrollbar {
+  display: none;
+}
+button.tv-scope-chip {
+  margin: 0;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.tv-scope-chip-on {
+  background: #fff;
+  color: var(--tv-header);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 3px;
+}
+.tv-scope-chip:focus-visible {
+  outline: 3px solid #ffd400;
+  outline-offset: -3px;
+}
 @keyframes tv-scope-scroll {
   from {
     transform: translateX(0);
@@ -680,11 +710,25 @@ html.hide-cursor * {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  align-self: stretch;
+  display: flex;
+  margin-left: -4px; /* the dots' hit areas start 4px left of the first dot, which stays where it was */
 }
+/* A button per dot: the hit area fills the footer height and the gap to the next dot (same spacing) */
 .tv-page-dot {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
   font-size: 16px;
+  line-height: 1;
   color: #b8c2d0;
-  margin-right: 8px;
+  cursor: pointer;
+}
+.tv-page-dot:focus-visible {
+  outline: 3px solid var(--tv-header);
+  outline-offset: -3px;
 }
 .tv-page-dot-on {
   color: var(--tv-header);

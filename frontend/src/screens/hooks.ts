@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiveFeed } from './liveFeed';
 import type { FeedState } from './liveFeed';
 import { fetchPublic } from './publicApi';
@@ -33,13 +33,22 @@ export function useLiveFeed(screen: ScreenNo): FeedState {
   return state;
 }
 
+export interface ScreenPager {
+  /** Index of the page on show. */
+  index: number;
+  /** Shows page `i` (wraps around) and gives it a full turn; rotation then goes on as usual. */
+  goTo: (i: number) => void;
+}
+
 /**
- * Index of the page on show. Each page has its own duration (seconds); data refreshes do NOT restart
- * the countdown of the page on show (only its remaining time is re-planned).
+ * The page on show. Each page has its own duration (seconds); data refreshes do NOT restart the
+ * countdown of the page on show (only its remaining time is re-planned). A jump (dot, PS name or
+ * Left/Right arrow key) restarts the countdown from the chosen page.
  */
-export function usePager(durationsS: readonly number[]): number {
+export function useScreenPager(durationsS: readonly number[]): ScreenPager {
   const count = durationsS.length;
   const [index, setIndex] = useState(0);
+  const [jumps, setJumps] = useState(0); // a jump to the page already on show must restart its countdown too
   const shownSince = useRef(0); // set when the first page is shown (an effect: render stays pure)
   const current = count === 0 ? 0 : index % count;
   const duration = durationsS[current] ?? 15;
@@ -54,8 +63,32 @@ export function usePager(durationsS: readonly number[]): number {
     return () => {
       clearTimeout(t);
     };
-  }, [count, current, duration]);
-  return current;
+  }, [count, current, duration, jumps]);
+
+  const goTo = useCallback(
+    (i: number) => {
+      if (count === 0) return;
+      shownSince.current = Date.now();
+      setIndex(((i % count) + count) % count);
+      setJumps((j) => j + 1);
+    },
+    [count],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault(); // no sideways scroll of the PS strip
+      goTo(current + (e.key === 'ArrowRight' ? 1 : -1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [goTo, current]);
+
+  return { index: current, goTo };
 }
 
 /** Scales the 1920x1080 stage to the window (one CSS variable; the transform lives in CSS). */

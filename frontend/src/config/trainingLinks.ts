@@ -13,7 +13,7 @@ export const TRAINING_LINKS: readonly TrainingLink[] = [
     id: 'training',
     labelEn: 'SLMT / ALMT / RO Training Material',
     labelHi: 'प्रशिक्षण सामग्री देखें',
-    url: 'https://chunav.vultusgo.in',
+    url: 'https://churuvote.vercel.app/',
   },
 ];
 

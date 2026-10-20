@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { psTitle } from './format';
-import { useHideCursor, useLiveFeed, usePager, useStageScale } from './hooks';
+import { useHideCursor, useLiveFeed, useScreenPager, useStageScale } from './hooks';
 import { cardsOf } from './liveFeed';
 import type { FeedState } from './liveFeed';
 import {
   PS_CARDS_PER_PAGE,
   ZP_CARDS_PER_PAGE,
   pageDuration,
+  pageGroups,
   parseInterval,
   psPages,
   screenProgress,
@@ -17,7 +18,16 @@ import type { Page } from './paging';
 import { PartyNames } from './partyContext';
 import { CardGrid } from './WardCardView';
 import { LatestWinners, SeatPie, SeatTable } from './ZpWidgets';
-import { PageHeader, PagerFooter, SCREEN_NAMES, ScreenHeader, StaleBanner, Ticker } from './ScreenParts';
+import {
+  PageHeader,
+  PagerFooter,
+  PsStrip,
+  SCREEN_NAMES,
+  ScopeStrip,
+  ScreenHeader,
+  StaleBanner,
+  Ticker,
+} from './ScreenParts';
 import type { ScreenBundle, ScreenNo } from './types';
 import '../styles/screens.css';
 
@@ -81,7 +91,7 @@ function LiveScreen({ screen }: { screen: ScreenNo }) {
             })),
             PS_CARDS_PER_PAGE,
           );
-  const index = usePager(pages.map((p) => pageDuration(p, intervalS)));
+  const { index, goTo } = useScreenPager(pages.map((p) => pageDuration(p, intervalS)));
   const page = pages[index];
   const names = bundle === null ? [] : shortNamesOf(bundle);
 
@@ -91,9 +101,11 @@ function LiveScreen({ screen }: { screen: ScreenNo }) {
         <ScreenHeader
           name={SCREEN_NAMES[screen]}
           scope={
-            screen === 3
-              ? [SCREEN_NAMES[3]]
-              : (bundle?.ps?.panchayatSamitis ?? []).map((b) => psTitle(b.panchayatSamiti.name))
+            screen === 3 ? (
+              <ScopeStrip names={[SCREEN_NAMES[3]]} />
+            ) : (
+              <PsStrip groups={pageGroups(pages)} current={page?.group ?? null} onPick={goTo} />
+            )
           }
           generatedAt={bundle?.generatedAt ?? null}
           live={bundle !== null && !feed.stale}
@@ -121,7 +133,7 @@ function LiveScreen({ screen }: { screen: ScreenNo }) {
             <CardGrid cards={page.wards} changed={feed.changed} className="tv-grid-ps" columns={4} />
           </section>
         )}
-        {pages.length > 0 && <PagerFooter pages={pages} index={index} />}
+        {pages.length > 0 && <PagerFooter pages={pages} index={index} onPick={goTo} />}
       </Stage>
     </PartyNames.Provider>
   );

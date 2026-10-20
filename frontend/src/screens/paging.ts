@@ -1,4 +1,4 @@
-import { isQuiet } from './format';
+import { isQuiet, psShortName } from './format';
 import type { PsBlock, Summary, WardCard } from './types';
 
 export const DEFAULT_INTERVAL_S = 15;
@@ -37,6 +37,10 @@ export interface Page {
   sub: string | null;
   summary: Summary;
   wards: WardCard[];
+  /** PS pages: the PS id (all pages of one PS share it). null on the ZP screen. */
+  group: string | null;
+  /** PS pages: the short Hindi PS name ("रतनगढ़") for the PS strip and the dot labels. */
+  groupName: string | null;
 }
 
 /** One cycle of pages: every PS in layout order, each split evenly into sub-pages. */
@@ -49,6 +53,8 @@ export function psPages(blocks: readonly PsBlock[], perPage = PS_CARDS_PER_PAGE)
       sub: parts.length > 1 ? `${i + 1}/${parts.length}` : null,
       summary: b.summary,
       wards,
+      group: String(b.panchayatSamiti.id),
+      groupName: psShortName(b.panchayatSamiti.name),
     }));
   });
 }
@@ -61,7 +67,32 @@ export function zpPages(wards: readonly WardCard[], summary: Summary, perPage = 
     sub: parts.length > 1 ? `${i + 1}/${parts.length}` : null,
     summary,
     wards: w,
+    group: null,
+    groupName: null,
   }));
+}
+
+export interface PageGroup {
+  key: string;
+  name: string;
+  /** Index of the group's first page. */
+  first: number;
+}
+
+/** The PS of a screen in page order, each with its first page (empty on the ZP screen). */
+export function pageGroups(pages: readonly Pick<Page, 'group' | 'groupName'>[]): PageGroup[] {
+  const out: PageGroup[] = [];
+  pages.forEach((p, i) => {
+    if (p.group !== null && !out.some((g) => g.key === p.group))
+      out.push({ key: p.group, name: p.groupName ?? '', first: i });
+  });
+  return out;
+}
+
+/** Label of a page dot: "पेज 3 / 16 — रतनगढ़" (without the PS name on the ZP screen). */
+export function dotLabel(page: Pick<Page, 'groupName'>, index: number, count: number): string {
+  const base = `पेज ${String(index + 1)} / ${String(count)}`;
+  return page.groupName === null ? base : `${base} — ${page.groupName}`;
 }
 
 export function pageLabel(p: Pick<Page, 'title' | 'sub'>): string {
