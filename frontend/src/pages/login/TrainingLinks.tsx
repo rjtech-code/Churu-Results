@@ -1,20 +1,20 @@
 import type { TrainingLink } from '../../config/trainingLinks';
 import { visibleTrainingLinks } from '../../config/trainingLinks';
-import { ArrowIcon } from './icons';
+import { ArrowIcon, BookIcon } from './icons';
 import { LOGIN_TEXTS as T } from './loginTexts';
 
 export function TrainingLinks({ links }: { links: readonly TrainingLink[] }) {
   const shown = visibleTrainingLinks(links);
   if (shown.length === 0) return null;
   return (
-    <section className="training-card" aria-labelledby="training-title">
-      <h2 id="training-title">
-        {T.trainingTitleHi} / <span lang="en">{T.trainingTitleEn}</span>
-      </h2>
+    <section className="training-card" aria-label={T.trainingTitleEn}>
       <ul className="training-list">
         {shown.map((link) => (
           <li key={link.id}>
             <a className="training-link" href={link.url} target="_blank" rel="noopener noreferrer">
+              <span className="training-icon">
+                <BookIcon />
+              </span>
               <span className="training-text">
                 <span className="training-en" lang="en">
                   {link.labelEn}

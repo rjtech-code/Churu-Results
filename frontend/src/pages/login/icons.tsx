@@ -24,7 +24,16 @@ function Icon({ className, children }: { className: string; children: ReactNode 
 export function ArrowIcon() {
   return (
     <Icon className="training-arrow">
-      <path d="M7 17 17 7M9 7h8v8" />
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </Icon>
+  );
+}
+
+export function BookIcon() {
+  return (
+    <Icon className="training-book">
+      <path d="M12 6.5C10.3 5.2 8 4.5 4 4.5v13c4 0 6.3.7 8 2 1.7-1.3 4-2 8-2v-13c-4 0-6.3.7-8 2Z" />
+      <path d="M12 6.5v13" />
     </Icon>
   );
 }

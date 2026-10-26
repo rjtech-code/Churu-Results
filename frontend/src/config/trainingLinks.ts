@@ -11,7 +11,7 @@ export interface TrainingLink {
 export const TRAINING_LINKS: readonly TrainingLink[] = [
   {
     id: 'training',
-    labelEn: 'SLMT / ALMT / RO Training Material',
+    labelEn: 'Training Material',
     labelHi: 'प्रशिक्षण सामग्री देखें',
     url: 'https://churuvote.vercel.app/',
   },

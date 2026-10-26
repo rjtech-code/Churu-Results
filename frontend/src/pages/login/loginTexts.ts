@@ -12,7 +12,6 @@ export const LOGIN_TEXTS = {
   brandTitle: 'पंचायती राज चुनाव 2026',
   brandSubtitle: 'ज़िला चूरू · मतगणना परिणाम पोर्टल',
   brandEn: 'Churu Panchayati Raj Elections 2026 · Results Portal',
-  trainingTitleHi: 'प्रशिक्षण सामग्री',
   trainingTitleEn: 'Training Material',
   opensInNewTab: '(नए टैब में खुलेगा)',
 } as const;
