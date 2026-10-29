@@ -71,6 +71,17 @@ $DC exec app npm run users:create -- --role DM    --username dm_q8t3    --full-n
 ```
 (13 PS ke liye PS_RO wali line 13 baar, har PS ka naam alag.)
 
+Super Admin (setup panel, ek hi baar; iske baad terminal ki zaroorat nahi):
+```bash
+$DC exec app npm run users:create -- --role SUPER_ADMIN --username super_k7m2 --full-name "Naam" --commit
+```
+Login page par neeche chhota "Super Admin" link hai (`/superadmin/login`). Panel: DM khata, candidates
+clear, full reset, booth add/delete, "गिनती लॉक". Har reset / booth badlav se pehle app khud backup leta
+hai (volume `churu_backups`, container mein `/app/backend/backups`; sirf naye 20 rakhe jaate hain). Full
+reset ke liye `.env.production` mein `DB_MIGRATION_USER` / `DB_MIGRATION_PASSWORD` hone chahiye (pehle se
+hain); app inhe sirf full reset mein use karta hai. Super Admin khud lock ho jaye
+ya password bhool jaye: `users:unlock` / `users:reset-password` (yahi do kaam terminal se).
+
 Demo scripts (`demo:seed`, `demo:reset`, `demo:simulate`) `NODE_ENV=production` mein chalne se mana kar dete hain
 (`scripts/lib/demo-guard.ts`). Server par kabhi mat chalana.
 
@@ -108,6 +119,15 @@ Restore (purana data replace hota hai — pehle soch lo):
 gunzip -c /root/churu-backups/churu-YYYY-MM-DD_HHMM.sql.gz | $DC exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME"'
 ```
 Backup file ko kabhi kabhi doosri machine par bhi copy karo (`scp`).
+
+Super Admin panel ke automatic backups (`churu-full-reset-…sql.gz`, `churu-candidates-reset-…`,
+`churu-booth-…`) sirf DATA hain (schema nahi): usi migrated database mein restore karo. Restore table
+drop nahi karta (triggers bane rehte hain) aur audit_log kabhi khali nahi karta. Bahar nikalna / restore:
+```bash
+$DC exec app ls -l /app/backend/backups
+$DC cp app:/app/backend/backups/<file>.sql.gz /root/churu-backups/
+gunzip -c /root/churu-backups/<file>.sql.gz | $DC exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME"'
+```
 
 ## 11. Logs
 ```bash

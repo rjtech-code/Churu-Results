@@ -1,6 +1,6 @@
 // Shapes of the backend JSON this dashboard uses (see README API tables).
 
-export type Role = 'PS_RO' | 'ZP_RO' | 'DM';
+export type Role = 'PS_RO' | 'ZP_RO' | 'DM' | 'SUPER_ADMIN';
 
 export interface Me {
   id: number;

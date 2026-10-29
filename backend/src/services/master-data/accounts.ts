@@ -9,11 +9,24 @@ import { countOf } from './db-count.js';
 import { encryptPassword } from './password-vault.js';
 import { generatePassword, hashPassword } from './passwords.js';
 
-export type Role = 'PS_RO' | 'ZP_RO' | 'DM';
-export const ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM'];
+export type Role = 'PS_RO' | 'ZP_RO' | 'DM' | 'SUPER_ADMIN';
+export const ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM', 'SUPER_ADMIN'];
 
-/** Exactly 15 logins in total: 13 PS_RO (one per PS), 1 ZP_RO, 1 DM. Disabled accounts count. */
-export const ROLE_LIMITS: Readonly<Record<Role, number>> = { PS_RO: 13, ZP_RO: 1, DM: 1 };
+/**
+ * 15 election logins (13 PS_RO, one per PS; 1 ZP_RO; 1 DM) plus the one SUPER_ADMIN setup login.
+ * Disabled accounts count.
+ */
+export const ROLE_LIMITS: Readonly<Record<Role, number>> = {
+  PS_RO: 13,
+  ZP_RO: 1,
+  DM: 1,
+  SUPER_ADMIN: 1,
+};
+
+/** Accounts that never get an encrypted password copy (bcrypt hash only). */
+export function hasNoPasswordCopy(role: Role): boolean {
+  return role === 'DM' || role === 'SUPER_ADMIN';
+}
 
 export const USERNAME_PATTERN = /^[a-z0-9_]{4,30}$/;
 export const MAX_FULL_NAME_LENGTH = 100;
@@ -99,8 +112,8 @@ export async function insertAccount(
   vaultKey: Buffer,
 ): Promise<{ id: number; password: string }> {
   const password = generatePassword();
-  // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM.
-  const copy = account.role === 'DM' ? null : encryptPassword(password, vaultKey);
+  // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM or the Super Admin.
+  const copy = hasNoPasswordCopy(account.role) ? null : encryptPassword(password, vaultKey);
   const [inserted] = await conn.execute<ResultSetHeader>(
     `INSERT INTO users (username, full_name, phone, password_hash, password_enc, role, panchayat_samiti_id)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -125,7 +138,7 @@ export async function setNewPassword(
 ): Promise<string> {
   const password = generatePassword();
   await conn.execute(
-    `UPDATE users SET password_hash = ?, password_enc = IF(role = 'DM', NULL, ?),
+    `UPDATE users SET password_hash = ?, password_enc = IF(role IN ('DM', 'SUPER_ADMIN'), NULL, ?),
        failed_login_count = 0, locked_until = NULL WHERE id = ?`,
     [await hashPassword(password), encryptPassword(password, vaultKey), userId],
   );
@@ -140,7 +153,7 @@ export async function setChosenPassword(
   vaultKey: Buffer,
 ): Promise<void> {
   await conn.execute(
-    `UPDATE users SET password_hash = ?, password_enc = IF(role = 'DM', NULL, ?),
+    `UPDATE users SET password_hash = ?, password_enc = IF(role IN ('DM', 'SUPER_ADMIN'), NULL, ?),
        failed_login_count = 0, locked_until = NULL WHERE id = ?`,
     [await hashPassword(password), encryptPassword(password, vaultKey), userId],
   );

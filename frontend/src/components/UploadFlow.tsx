@@ -23,6 +23,7 @@ export function UploadFlow<P>({
   checkPath,
   savePath,
   templateHref,
+  templateLabel = 'खाली फ़ाइल (टेम्पलेट) डाउनलोड करें',
   saveExplain,
   successText,
   renderPreview,
@@ -32,6 +33,7 @@ export function UploadFlow<P>({
   checkPath: string;
   savePath: string;
   templateHref: string;
+  templateLabel?: string;
   /** One sentence for the save confirmation box. */
   saveExplain: (preview: P) => string;
   successText: string;
@@ -129,7 +131,7 @@ export function UploadFlow<P>({
       <StepBar steps={STEPS} current={step} />
       <p>
         <a className="btn btn-secondary" href={templateHref} download>
-          खाली फ़ाइल (टेम्पलेट) डाउनलोड करें
+          {templateLabel}
         </a>
       </p>
 

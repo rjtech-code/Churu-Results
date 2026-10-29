@@ -1,0 +1,365 @@
+/* Candidate list (RO ward page) and the candidate details fields (RO and DM). Same tokens as the
+   dashboard (app.css): brand blue, red / green / amber messages, Noto Sans Devanagari. */
+
+.cw-page {
+  --cw-border: #d5dbe5;
+  --cw-soft: #f4f6fa;
+  --cw-radius: 10px;
+  --cw-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 10%);
+  max-width: 1280px;
+  padding-bottom: 6rem; /* room above the sticky save bar */
+}
+
+/* Heading + summary */
+.cw-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.8rem 1.5rem;
+  margin-bottom: 0.4rem;
+}
+.cw-head h1 {
+  margin: 0.2rem 0 0.4rem;
+}
+.cw-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+.cw-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  background: var(--cw-soft);
+  border: 1px solid var(--cw-border);
+  font-size: 0.9rem;
+}
+.cw-page .page-hint {
+  margin: 0.6rem 0 0.4rem;
+}
+.cw-stats {
+  display: flex;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cw-stats li {
+  display: flex;
+  flex-direction: column;
+  min-width: 7.5rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--cw-border);
+  border-radius: var(--cw-radius);
+  background: #fff;
+  box-shadow: var(--cw-shadow);
+}
+.cw-stats strong {
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.cw-stats span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* One card per candidate */
+.cw-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.cw-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  background: #fff;
+  border: 1px solid var(--cw-border);
+  border-left: 5px solid var(--brand);
+  border-radius: var(--cw-radius);
+  box-shadow: var(--cw-shadow);
+}
+.cw-card:focus-within {
+  border-color: var(--brand);
+  box-shadow:
+    0 0 0 2px rgb(11 61 145 / 18%),
+    var(--cw-shadow);
+}
+.cw-card-bad {
+  border-color: var(--bad);
+  border-left-color: var(--bad);
+}
+.cw-order {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+.cw-no {
+  display: grid;
+  place-items: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.cw-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.cw-icon {
+  width: 2.2rem;
+  height: 2rem;
+  font: inherit;
+  font-weight: 700;
+  border: 1px solid var(--cw-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--brand);
+  cursor: pointer;
+}
+.cw-icon:hover:not(:disabled) {
+  background: var(--cw-soft);
+  border-color: var(--brand);
+}
+.cw-icon:disabled {
+  color: #b5bcc8;
+  cursor: default;
+}
+.cw-body {
+  flex: 1;
+  min-width: 0;
+}
+.cw-main {
+  display: grid;
+  grid-template-columns: minmax(14rem, 2fr) minmax(12rem, 1.4fr) minmax(7rem, 0.7fr) auto;
+  gap: 0.6rem 1rem;
+  align-items: start;
+  padding-bottom: 0.8rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px dashed var(--cw-border);
+}
+
+/* Fields: label on top, one size everywhere */
+.cw-field,
+.cd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.cw-field label,
+.cd-field label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #3b4250;
+}
+.cw-field input,
+.cw-field select,
+.cd-field input,
+.cd-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 1rem;
+  border: 1px solid #9aa3b2;
+  border-radius: 8px;
+  background: #fff;
+}
+.cw-name input {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.cw-field input:focus,
+.cw-field select:focus,
+.cd-field input:focus,
+.cd-field select:focus {
+  border-color: var(--brand);
+}
+.cw-field input[aria-invalid='true'],
+.cd-field input[aria-invalid='true'] {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+.cw-field :disabled,
+.cd-field :disabled {
+  background: var(--cw-soft, #f4f6fa);
+  color: #3b4250;
+}
+.cw-err,
+.cd-err {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.cw-remove {
+  align-self: start;
+  margin-top: 1.45rem; /* lines up with the inputs, whatever error shows under the name */
+  min-height: 42px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bad);
+  background: #fff;
+  border: 1px solid #e7b3b3;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cw-remove:hover {
+  background: var(--bad-bg);
+  border-color: var(--bad);
+}
+
+/* The optional details grid (also on the DM's candidate page) */
+.cd-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.6rem 1rem;
+}
+.cd-dob {
+  grid-column: span 1;
+}
+.cd-age input {
+  max-width: 6rem;
+}
+.cd-wide {
+  grid-column: span 3;
+}
+
+/* NOTA, empty state, add */
+.cw-nota {
+  align-items: center;
+  border-left-color: #9aa3b2;
+  background: var(--cw-soft);
+  box-shadow: none;
+}
+.cw-nota .cw-no {
+  background: #9aa3b2;
+}
+.cw-nota p {
+  margin: 0;
+  color: #3b4250;
+  font-weight: 700;
+}
+.cw-empty {
+  margin: 1rem 0;
+  padding: 1.5rem;
+  border: 2px dashed var(--cw-border);
+  border-radius: var(--cw-radius);
+  text-align: center;
+  color: var(--muted);
+}
+.cw-add {
+  display: block;
+  width: 100%;
+  margin: 0.8rem 0;
+  padding: 0.9rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--brand);
+  background: #fff;
+  border: 2px dashed var(--brand);
+  border-radius: var(--cw-radius);
+  cursor: pointer;
+}
+.cw-add:hover {
+  background: #e8eefa;
+}
+
+/* Sticky save bar */
+.cw-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  background: #fff;
+  border: 1px solid var(--cw-border);
+  border-radius: var(--cw-radius) var(--cw-radius) 0 0;
+  box-shadow: 0 -4px 12px rgb(16 24 40 / 10%);
+}
+.cw-bar-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1rem;
+  margin: 0;
+}
+.cw-bar-state .msg {
+  margin: 0;
+}
+.cw-unsaved {
+  color: var(--warn);
+  font-weight: 700;
+}
+.cw-bar-actions .btn {
+  margin: 0;
+}
+
+/* Smaller screens */
+@media (max-width: 1100px) {
+  .cw-main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .cw-name {
+    grid-column: span 2;
+  }
+  .cw-remove {
+    grid-column: 2;
+    justify-self: end;
+    margin-top: 0;
+  }
+  .cd-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cd-wide {
+    grid-column: span 3;
+  }
+}
+@media (max-width: 640px) {
+  .cw-card {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .cw-order,
+  .cw-move {
+    flex-direction: row;
+  }
+  .cw-main,
+  .cd-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cw-name,
+  .cd-wide,
+  .cw-remove {
+    grid-column: auto;
+  }
+}
+
+/* Inside the DM's details dialog (about 40rem wide): two columns. */
+.password-dialog .cd-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.password-dialog .cd-wide {
+  grid-column: span 2;
+}

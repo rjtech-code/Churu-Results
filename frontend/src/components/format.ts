@@ -4,6 +4,7 @@ export const ROLE_HINDI = {
   PS_RO: 'पंचायत समिति आरओ',
   ZP_RO: 'जिला परिषद आरओ',
   DM: 'जिला निर्वाचन अधिकारी',
+  SUPER_ADMIN: 'Super Admin',
 } as const;
 
 export const STATUS_HINDI: Record<WardStatus, string> = {

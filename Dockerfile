@@ -27,7 +27,8 @@ COPY --chown=node:node backend/src ./src
 COPY --chown=node:node backend/scripts ./scripts
 COPY --from=build --chown=node:node /app/frontend/dist /app/frontend/dist
 COPY --chown=node:node docs /app/docs
-RUN mkdir -p reports && chown node:node reports
+# backups: Super Admin panel's automatic backups (a named volume in docker-compose.prod.yml).
+RUN mkdir -p reports backups && chown node:node reports backups
 USER node
 EXPOSE 3100
 CMD ["node", "dist/server.js"]

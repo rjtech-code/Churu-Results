@@ -32,6 +32,9 @@ services:
       DB_PORT: "3306"
     ports:
       - "127.0.0.1:3100:3100"
+    volumes:
+      # Super Admin panel backups (BACKUP_DIR, default backend/backups); survives app rebuilds.
+      - churu_backups:/app/backend/backups
     depends_on:
       mysql:
         condition: service_healthy
@@ -39,3 +42,4 @@ services:
 
 volumes:
   churu_mysql_data:
+  churu_backups:

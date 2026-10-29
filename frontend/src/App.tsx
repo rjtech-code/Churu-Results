@@ -28,8 +28,11 @@ import { WardCategoryPage } from './pages/admin/WardCategoryPage';
 import { RoCandidateWardPage } from './pages/candidates/RoCandidateWardPage';
 import { RoCandidateWardsPage } from './pages/candidates/RoCandidateWardsPage';
 import { ZpWardPage } from './pages/ZpWardPage';
+import { GuidePage } from './pages/superadmin/GuidePage';
+import { SuperAdminPage } from './pages/superadmin/SuperAdminPage';
 import { WardDetailPage } from './pages/WardDetailPage';
 import { WardListPage } from './pages/WardListPage';
+import { homePath } from './auth/home';
 
 function Root() {
   return (
@@ -43,7 +46,7 @@ function Home() {
   const { user } = useAuth();
   if (user === undefined) return <p className="loading">लोड हो रहा है…</p>;
   if (user === null) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === 'DM' ? '/reports' : '/wards'} replace />;
+  return <Navigate to={homePath(user.role)} replace />;
 }
 
 export const router = createBrowserRouter([
@@ -53,6 +56,7 @@ export const router = createBrowserRouter([
     element: <Root />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/superadmin/login', element: <LoginPage superAdmin /> },
       { path: '/', element: <Home /> },
       {
         element: <RequireRole roles={['PS_RO', 'ZP_RO']} />,
@@ -100,7 +104,16 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <RequireRole roles={['PS_RO', 'ZP_RO', 'DM']} />,
+        // The Super Admin setup panel: nothing else is open to this role.
+        element: <RequireRole roles={['SUPER_ADMIN']} />,
+        children: [{ path: '/superadmin', element: <SuperAdminPage /> }],
+      },
+      {
+        element: <RequireRole roles={['DM', 'SUPER_ADMIN']} />,
+        children: [{ path: '/guide', element: <GuidePage /> }],
+      },
+      {
+        element: <RequireRole roles={['PS_RO', 'ZP_RO', 'DM', 'SUPER_ADMIN']} />,
         children: [{ path: '/not-allowed', element: <NotAllowedPage /> }],
       },
       { path: '*', element: <NotFoundPage /> },

@@ -11,3 +11,4 @@ frontend/screenshots
 frontend/e2e
 backups
 *.log
+backend/backups

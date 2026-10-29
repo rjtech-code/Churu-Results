@@ -1,0 +1,563 @@
+/* Super Admin panel. Same tokens as the operator dashboard (app.css): brand blue, red for danger,
+   green / amber messages, Noto Sans Devanagari. Cards, a separate red danger zone, 360px to desktop. */
+
+.sa-page {
+  --sa-radius: 10px;
+  --sa-border: #d5dbe5;
+  --sa-soft: #f4f6fa;
+  --sa-danger-soft: #fdf2f2;
+  --sa-shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 10%);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.sa-head h1 {
+  margin-bottom: 0.2rem;
+}
+.sa-section-title {
+  font-size: 1.15rem;
+  margin: 1.8rem 0 0.8rem;
+}
+
+/* Buttons: a little bigger, clear focus and hover, never squeezed. */
+.sa-btn {
+  min-height: 44px;
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+.sa-btn:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+  background: #e9ecf1;
+  border-color: #c7ccd6;
+  color: #59606b;
+}
+.sa-btn.btn-primary:hover:not(:disabled) {
+  background: #082c6b;
+}
+.sa-btn.btn-danger:hover:not(:disabled) {
+  background: #7a0000;
+}
+.sa-btn.btn-secondary:hover:not(:disabled) {
+  background: var(--sa-soft, #f4f6fa);
+}
+.sa-btn-small {
+  min-height: 36px;
+  padding: 0.25rem 0.8rem;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.sa-action {
+  margin: 0.9rem 0 0.2rem;
+}
+.sa-reason {
+  margin: 0.35rem 0 0;
+  color: #59606b;
+  font-size: 0.92rem;
+}
+.sa-reason-error {
+  color: var(--bad);
+  font-weight: 700;
+}
+.sa-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+.sa-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.3rem 0;
+}
+.sa-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  border: 2px solid #9aa3b2;
+  border-radius: 8px;
+  background: #fff;
+}
+.sa-input:focus {
+  border-color: var(--brand);
+}
+
+/* Status bar */
+.sa-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr);
+  gap: 1rem;
+  margin: 0.8rem 0 0.4rem;
+}
+.sa-lock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: var(--sa-radius);
+  border: 2px solid;
+}
+.sa-lock p {
+  margin: 0;
+}
+.sa-lock .sa-btn {
+  white-space: nowrap;
+  flex: none;
+}
+.sa-lock-on {
+  background: var(--warn-bg);
+  border-color: #c99a00;
+  color: var(--warn);
+}
+.sa-lock-off {
+  background: var(--sa-soft);
+  border-color: var(--sa-border);
+}
+.sa-lock-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sa-lock-state {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.sa-lock-text {
+  font-size: 0.9rem;
+}
+.sa-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sa-count,
+.sa-check-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--sa-border);
+  border-radius: var(--sa-radius);
+  background: #fff;
+  box-shadow: var(--sa-shadow);
+}
+.sa-count-n {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.sa-count-l {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Cards */
+.sa-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.sa-card {
+  background: #fff;
+  border: 1px solid var(--sa-border);
+  border-radius: var(--sa-radius);
+  box-shadow: var(--sa-shadow);
+  padding: 1.1rem 1.3rem 1.2rem;
+  min-width: 0;
+}
+.sa-grid-cards + .sa-card {
+  margin-top: 1rem;
+}
+.sa-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.15rem;
+  margin: 0 0 0.4rem;
+}
+.sa-card-icon {
+  font-size: 1.3rem;
+}
+.sa-card-intro p {
+  margin: 0.2rem 0 0.6rem;
+}
+.sa-card-danger {
+  border-color: #e7b3b3;
+}
+.sa-card-danger .sa-card-title {
+  color: var(--bad);
+}
+
+/* Danger zone */
+.sa-danger-zone {
+  margin-top: 2rem;
+  padding: 0.2rem 1.2rem 1.4rem;
+  border: 2px solid var(--bad);
+  border-radius: calc(var(--sa-radius) + 4px);
+  background: var(--sa-danger-soft);
+}
+.sa-danger-zone .sa-section-title {
+  color: var(--bad);
+  margin-top: 1rem;
+}
+.sa-danger-note {
+  margin: -0.4rem 0 1rem;
+}
+
+/* Impact summary: what goes, what stays */
+.sa-impact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+.sa-impact-col {
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+}
+.sa-impact-col h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+}
+.sa-impact-col ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.sa-impact-col p {
+  margin: 0 0 0.3rem;
+}
+.sa-impact-del {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.sa-impact-keep {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.sa-audit-note {
+  font-weight: 700;
+}
+
+/* Files: drag and drop */
+.sa-drop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+  margin: 0.6rem 0;
+}
+.sa-drop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sa-drop-label {
+  font-weight: 700;
+}
+.sa-sample {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.sa-drop {
+  margin-top: 0.35rem;
+  padding: 0.9rem;
+  border: 2px dashed #9aa3b2;
+  border-radius: var(--sa-radius);
+  background: var(--sa-soft);
+  text-align: center;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.sa-drop p {
+  margin: 0.2rem 0;
+}
+.sa-drop-over {
+  border-color: var(--brand);
+  background: #e8eefa;
+}
+.sa-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid var(--ok);
+  border-radius: var(--sa-radius);
+  background: var(--ok-bg);
+}
+.sa-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+.sa-advanced {
+  margin: 0.6rem 0;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--sa-border);
+  border-radius: var(--sa-radius);
+  background: #fff;
+}
+.sa-advanced summary,
+.sa-warnings summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.sa-check {
+  display: block;
+  margin: 0.4rem 0;
+}
+
+/* Dry-run result */
+.sa-check-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0.8rem 0;
+  padding: 0;
+}
+.sa-check-card.sa-ok {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+.sa-check-card.sa-warn {
+  border-color: #c99a00;
+  background: var(--warn-bg);
+}
+.sa-check-mark {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.sa-problem-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+/* Booths */
+.sa-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 0.8rem;
+}
+.sa-span2 {
+  grid-column: span 2;
+}
+.sa-booth-list {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.sa-booth {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--sa-border);
+  border-radius: 8px;
+  margin: 0.3rem 0;
+  cursor: pointer;
+  background: #fff;
+}
+.sa-booth:has(input:checked) {
+  border-color: var(--brand);
+  background: #e8eefa;
+}
+.sa-booth input {
+  margin-top: 0.35rem;
+}
+.sa-booth-closed {
+  color: #59606b;
+}
+.sa-booth-meta {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* DM */
+.sa-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 1rem;
+  margin: 0.2rem 0 0.4rem;
+}
+.sa-facts dt {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.sa-facts dd {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.sa-text-bad {
+  color: var(--bad);
+}
+.sa-text-ok {
+  color: var(--ok);
+}
+.sa-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 0.8rem;
+  margin-top: 0.4rem;
+}
+.sa-inline .field {
+  flex: 1 1 14rem;
+  margin-bottom: 0;
+}
+
+/* Dialog states */
+.sa-dialog {
+  width: 100%;
+}
+.sa-dialog input:not([type='checkbox']):not([type='radio']) {
+  width: 100%;
+}
+dialog.dialog:has(.sa-dialog) {
+  width: min(38rem, calc(100vw - 1.5rem));
+  max-width: none;
+  box-sizing: border-box;
+  border-color: var(--brand);
+  border-radius: var(--sa-radius, 10px);
+}
+dialog.dialog:has(.sa-dialog-danger) {
+  border-color: var(--bad);
+}
+.sa-dialog h2 {
+  margin-top: 0;
+}
+.sa-dialog-danger h2 {
+  color: var(--bad);
+}
+.sa-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.sa-word {
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-weight: 700;
+}
+.sa-working {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-weight: 700;
+}
+.sa-spinner {
+  width: 44px;
+  height: 44px;
+  border: 5px solid #d5dbe5;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: sa-spin 0.9s linear infinite;
+}
+@keyframes sa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-spinner {
+    animation-duration: 3s;
+  }
+}
+.sa-done {
+  text-align: center;
+}
+.sa-dialog-danger .sa-done h2 {
+  color: var(--ok);
+}
+.sa-done-mark {
+  width: 56px;
+  height: 56px;
+  margin: 0.4rem auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 2rem;
+  font-weight: 700;
+}
+.sa-done-lines {
+  display: inline-block;
+  text-align: left;
+  margin: 0.4rem 0;
+}
+.sa-backup code,
+.sa-done code {
+  overflow-wrap: anywhere;
+}
+.sa-done .otp-box {
+  text-align: left;
+}
+
+/* Guide page */
+.sa-guide li {
+  margin: 0.3rem 0;
+}
+
+/* Phones */
+@media (max-width: 720px) {
+  .sa-status {
+    grid-template-columns: 1fr;
+  }
+  .sa-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sa-grid-cards {
+    grid-template-columns: 1fr;
+  }
+  .sa-impact,
+  .sa-grid,
+  .sa-facts {
+    grid-template-columns: 1fr;
+  }
+  .sa-span2 {
+    grid-column: auto;
+  }
+  .sa-danger-zone {
+    padding: 0.2rem 0.7rem 1rem;
+  }
+  .sa-card {
+    padding: 0.9rem 0.9rem 1rem;
+  }
+  .sa-lock {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  dialog.dialog:has(.sa-dialog) {
+    padding: 1rem 0.9rem;
+  }
+  .sa-dialog-actions .sa-btn {
+    flex: 1 1 auto;
+  }
+}

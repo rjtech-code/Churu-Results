@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import type { Role } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { Header } from './Header';
+import { homePath } from '../auth/home';
 
 /** Pages for logged-in users of the given roles; others are sent to their own start page. */
 export function RequireRole({
@@ -16,12 +17,7 @@ export function RequireRole({
   if (user === undefined) return <p className="loading">लोड हो रहा है…</p>;
   if (user === null) return <Navigate to="/login" replace />;
   if (!roles.includes(user.role)) {
-    return (
-      <Navigate
-        to={denied === 'not-allowed' ? '/not-allowed' : user.role === 'DM' ? '/reports' : '/wards'}
-        replace
-      />
-    );
+    return <Navigate to={denied === 'not-allowed' ? '/not-allowed' : homePath(user.role)} replace />;
   }
   return (
     <>

@@ -43,7 +43,7 @@ function WardTable<T extends WardRow>({
   caption: string;
 }) {
   return (
-    <div className="st-table-wrap">
+    <div className="st-table-wrap rp-scroll">
       <table className="rp-table st-table">
         <thead>
           <tr>

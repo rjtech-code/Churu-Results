@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import type { Express, Router } from 'express';
 import type { Pool } from 'mysql2/promise';
 import type { AppConfig } from './config/app-config.js';
-import { dmWriteGuard } from './middleware/auth.js';
+import { dmWriteGuard, superAdminGuard } from './middleware/auth.js';
 import { csrfCheck } from './middleware/csrf.js';
 import { currentUser } from './middleware/current-user.js';
 import { errorHandler, notFound } from './middleware/errors.js';
@@ -23,6 +23,10 @@ import { frontendStatic } from './modules/frontend/static.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { profileRouter } from './modules/profile/profile.routes.js';
 import { publicRouter } from './modules/public/public.routes.js';
+import {
+  SUPERADMIN_UPLOAD_PATHS,
+  superAdminRouter,
+} from './modules/superadmin/superadmin.routes.js';
 import { SseHub } from './modules/public/sse.js';
 import { consoleMailer } from './services/mailer.js';
 import type { Mailer } from './services/mailer.js';
@@ -102,11 +106,11 @@ export function createApp({
   // 4. Generous global per-IP limit on the API.
   app.use('/api', apiRateLimit(config.apiRateLimit));
 
-  // 5. JSON bodies, max 100 kb. The DM's Excel uploads (base64, up to 5 MB) are the only
-  //    exception: their router parses them itself, AFTER the DM role check (admin.routes.ts).
+  // 5. JSON bodies, max 100 kb. The DM's and the Super Admin's file uploads (base64) are the only
+  //    exceptions: their routers parse them themselves, AFTER the role check.
   const json = express.json({ limit: '100kb' });
   app.use((req, res, next) => {
-    if (UPLOAD_PATHS.has(req.path)) {
+    if (UPLOAD_PATHS.has(req.path) || SUPERADMIN_UPLOAD_PATHS.has(req.path)) {
       next();
       return;
     }
@@ -127,6 +131,8 @@ export function createApp({
 
   // 10. A DM can never change data, whatever a later route forgets.
   app.use(dmWriteGuard);
+  // 11. The Super Admin may use only /api/auth and /api/superadmin.
+  app.use(superAdminGuard);
 
   // 11. Routes. The login route has its own login rate limiter before validation.
   app.use('/api/auth', authRouter(pool, config));
@@ -137,6 +143,7 @@ export function createApp({
   app.use('/api/ward-forms', wardFormsRouter(pool));
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
+  app.use('/api/superadmin', superAdminRouter(pool, config));
   app.use(
     '/api/profile',
     profileRouter(

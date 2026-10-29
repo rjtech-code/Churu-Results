@@ -75,6 +75,12 @@ export const appEnvSchema = z.object({
   SMTP_USER: nonEmpty.optional(),
   SMTP_PASS: nonEmpty.optional(),
   MAIL_FROM: z.email().optional(),
+  /** Super Admin panel: automatic backups (before every reset / booth change) go here. */
+  BACKUP_DIR: z.string().trim().min(1).default('backups'),
+  /** Super Admin panel: ONLY the full reset uses the MIGRATION user (TRUNCATE needs DROP, which
+   *  the app user never has). Both or none; none = the full reset is refused. */
+  DB_MIGRATION_USER: identifier.optional(),
+  DB_MIGRATION_PASSWORD: password.optional(),
 });
 export type AppEnv = z.infer<typeof appEnvSchema>;
 
@@ -88,6 +94,13 @@ export const serverEnvSchema = appEnvSchema.superRefine((env, ctx) => {
       code: 'custom',
       path: ['SESSION_IDLE_MINUTES'],
       message: 'must be at least 5 in production',
+    });
+  }
+  if ((env.DB_MIGRATION_USER === undefined) !== (env.DB_MIGRATION_PASSWORD === undefined)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['DB_MIGRATION_USER'],
+      message: 'set both DB_MIGRATION_USER and DB_MIGRATION_PASSWORD, or neither',
     });
   }
   const smtp = [env.SMTP_HOST, env.SMTP_PORT, env.SMTP_USER, env.SMTP_PASS, env.MAIL_FROM];

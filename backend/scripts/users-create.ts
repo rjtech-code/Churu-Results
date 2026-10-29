@@ -1,4 +1,4 @@
-// npm run users:create -- --role <PS_RO|ZP_RO|DM> --username <u> [--ps <name>] --full-name "<name>" [--commit]
+// npm run users:create -- --role <PS_RO|ZP_RO|DM|SUPER_ADMIN> --username <u> [--ps <name>] --full-name "<name>" [--commit]
 import {
   accountIssueTextEn,
   checkNewAccount,
@@ -46,7 +46,7 @@ export async function runUsersCreate(
   else if (fullName.length > 100) report.error('--full-name must be at most 100 characters.');
   if (role === 'PS_RO' && options.ps === undefined)
     report.error('A PS_RO needs --ps <Panchayat Samiti name>.');
-  if ((role === 'ZP_RO' || role === 'DM') && options.ps !== undefined) {
+  if (role !== 'PS_RO' && options.ps !== undefined) {
     report.error(`A ${role} must not have --ps (it is not tied to one Panchayat Samiti).`);
   }
 

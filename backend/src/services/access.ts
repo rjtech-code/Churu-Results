@@ -35,6 +35,7 @@ export function ballotWriteAllowed(
     case 'ZP_RO':
       return ballotFor === 'ZP';
     case 'DM':
+    case 'SUPER_ADMIN':
       return false;
   }
 }
@@ -50,6 +51,7 @@ export function wardWriteAllowed(user: AccessUser, ward: WardScope): boolean {
     case 'ZP_RO':
       return ward.wardType === 'ZP';
     case 'DM':
+    case 'SUPER_ADMIN':
       return false;
   }
 }
@@ -58,6 +60,8 @@ export function wardReadAllowed(user: AccessUser, ward: WardScope): boolean {
   switch (user.role) {
     case 'DM':
       return true;
+    case 'SUPER_ADMIN':
+      return false;
     case 'PS_RO':
     case 'ZP_RO':
       return wardWriteAllowed(user, ward);
@@ -86,7 +90,7 @@ export async function canWriteBallot(
   boothId: number,
   ballotFor: BallotFor,
 ): Promise<boolean> {
-  if (user.role === 'DM') return false;
+  if (user.role === 'DM' || user.role === 'SUPER_ADMIN') return false;
   const [rows] = await db.execute<RowDataPacket[]>(
     'SELECT panchayat_samiti_id FROM booth WHERE id = ?',
     [boothId],
@@ -98,7 +102,7 @@ export async function canWriteBallot(
 
 /** May this user write ward-level data (postal ballots, declare)? Unknown ward = no. */
 export async function canWriteWard(db: Db, user: AccessUser, wardId: number): Promise<boolean> {
-  if (user.role === 'DM') return false;
+  if (user.role === 'DM' || user.role === 'SUPER_ADMIN') return false;
   const scope = await wardScope(db, wardId);
   return scope !== null && wardWriteAllowed(user, scope);
 }

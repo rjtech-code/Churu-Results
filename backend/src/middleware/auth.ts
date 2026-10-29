@@ -78,3 +78,18 @@ export const dmWriteGuard: RequestHandler = (req, res, next) => {
   }
   next();
 };
+
+/** The only /api paths a Super Admin may use (any method): login/logout/me and the setup panel. */
+const SUPER_ADMIN_PATHS = /^\/api\/(?:auth|superadmin)(?:\/|$)/;
+
+/**
+ * Global guard: the Super Admin sees nothing of the election work (no counting, reports, DM tools,
+ * profile). Mounted before all routes, like dmWriteGuard. Public screens and health come earlier.
+ */
+export const superAdminGuard: RequestHandler = (req, res, next) => {
+  if (req.user?.role === 'SUPER_ADMIN' && !SUPER_ADMIN_PATHS.test(req.path)) {
+    res.status(403).json({ error: 'FORBIDDEN' });
+    return;
+  }
+  next();
+};

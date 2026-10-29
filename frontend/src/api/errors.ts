@@ -98,6 +98,18 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   OTP_EXPIRED: 'OTP का समय (10 मिनट) खत्म हो गया, नया OTP भेजें',
   OTP_INVALID: (d) => `गलत OTP — ${n(d.attemptsLeft)} कोशिश बाकी`,
   OTP_LOCKED: '5 बार गलत OTP — यह OTP बंद हो गया, नया OTP भेजें',
+  // Super Admin panel
+  COUNTING_LOCKED: 'Counting Lock ON है — पहले Lock OFF करें',
+  PASSWORD_REQUIRED: 'अपना password लिखें (15 मिनट पूरे हो गए)',
+  SETUP_NOT_CONFIGURED: 'Server पर backup/reset setup पूरा नहीं है — technical team को बताएँ',
+  DM_NOT_FOUND: 'कोई active DM account नहीं है',
+  NOT_JSON: 'यह सही JSON file नहीं है — sample file जैसी file चुनें',
+  WARD_HAS_ENTRIES: 'इस ward में counting data है — अब booth नहीं बदल सकते',
+  BOOTH_EXISTS: 'इस Panchayat Samiti में यह booth no. पहले से है',
+  PS_NOT_FOUND: 'Panchayat Samiti नहीं मिली',
+  PS_WARD_NOT_FOUND: 'इस Panchayat Samiti में यह PS ward नहीं है',
+  ZP_WARD_NOT_FOUND: 'यह ZP ward नहीं है',
+  CONFIRM_MISMATCH: 'लिखा गया booth no. match नहीं करता',
 };
 
 /** Hindi text for any error (unknown codes: generic text + the code, so it can be reported). */

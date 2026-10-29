@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { findFrontendDist } from '../modules/frontend/static.js';
+import type { DbConnectionConfig } from './db.js';
 import type { AppEnv } from './env.js';
 
 export interface RateLimitConfig {
@@ -25,6 +26,17 @@ export interface AppConfig {
   publicApi: PublicApiConfig;
   /** Folder with the built dashboard (index.html), or null to serve the API only. */
   frontendDist: string | null;
+  /** Super Admin panel. Left out: its backups, resets and booth changes are refused. */
+  setup?: SetupConfig;
+}
+
+/** What the Super Admin panel needs besides the app pool. */
+export interface SetupConfig {
+  /** Absolute folder for the automatic backups (and the reports of panel runs). */
+  backupDir: string;
+  /** The MIGRATION user, used only by the full reset (TRUNCATE), or null when not configured. */
+  migrationDb: DbConnectionConfig | null;
+  nodeEnv: string;
 }
 
 /** Public media-room screens (Part 7). */
@@ -78,5 +90,19 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
       minSnapshotIntervalMs: env.PUBLIC_MIN_SNAPSHOT_INTERVAL_MS,
     }),
     frontendDist: findFrontendDist(resolve(process.cwd(), env.FRONTEND_DIST)),
+    setup: {
+      backupDir: resolve(process.cwd(), env.BACKUP_DIR),
+      migrationDb:
+        env.DB_MIGRATION_USER === undefined || env.DB_MIGRATION_PASSWORD === undefined
+          ? null
+          : {
+              host: env.DB_HOST,
+              port: env.DB_PORT,
+              database: env.DB_NAME,
+              user: env.DB_MIGRATION_USER,
+              password: env.DB_MIGRATION_PASSWORD,
+            },
+      nodeEnv: env.NODE_ENV,
+    },
   };
 }

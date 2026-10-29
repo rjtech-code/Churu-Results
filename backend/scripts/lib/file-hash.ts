@@ -1,8 +1,2 @@
-import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-
-export async function sha256File(path: string): Promise<string> {
-  return createHash('sha256')
-    .update(await readFile(path))
-    .digest('hex');
-}
+// Moved to src/services/setup/file-hash.ts (shared by the CLI and the Super Admin panel).
+export * from '../../src/services/setup/file-hash.js';

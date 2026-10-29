@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import type { SubmitEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/api';
 import { messageFor } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import { LoginAlert } from './LoginAlert';
 import { LOGIN_TEXTS as T } from './loginTexts';
 import { PasswordInput } from './PasswordInput';
+import { homePath } from '../../auth/home';
 
-export function LoginCard() {
+/** superAdmin: the same login, titled for the Super Admin setup panel (/superadmin/login). */
+export function LoginCard({ superAdmin = false }: { superAdmin?: boolean }) {
   const { login, notice } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -26,7 +28,7 @@ export function LoginCard() {
     setPassword(''); // the password is not kept longer than the request
     try {
       const me = await login(username.trim(), typed);
-      void navigate(me.role === 'DM' ? '/reports' : '/wards', { replace: true });
+      void navigate(homePath(me.role), { replace: true });
     } catch (err) {
       // A malformed username is just "wrong username or password" for the operator.
       setError(
@@ -40,10 +42,10 @@ export function LoginCard() {
   return (
     <section className="login-card" aria-labelledby="login-title">
       <h1 id="login-title" lang="en">
-        {T.cardTitleEn}
+        {superAdmin ? T.superTitleEn : T.cardTitleEn}
       </h1>
       <p className="login-help" lang="en">
-        {T.cardHelpEn}
+        {superAdmin ? T.superHelpEn : T.cardHelpEn}
       </p>
       {notice && <LoginAlert kind="warn" text={notice} />}
       {error && <LoginAlert kind="error" text={error} />}
@@ -85,6 +87,11 @@ export function LoginCard() {
           {busy ? T.submitBusy : T.submit}
         </button>
       </form>
+      <p className="login-other">
+        <Link to={superAdmin ? '/login' : '/superadmin/login'}>
+          {superAdmin ? T.normalLink : T.superLink}
+        </Link>
+      </p>
     </section>
   );
 }

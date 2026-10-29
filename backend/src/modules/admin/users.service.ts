@@ -16,6 +16,7 @@ import {
   phoneLast4,
   setAccountActive,
 } from '../../services/master-data/accounts.js';
+import type { Role } from '../../services/master-data/accounts.js';
 import { hashPassword, generatePassword } from '../../services/master-data/passwords.js';
 import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
@@ -38,7 +39,7 @@ interface AccountRow {
   username: string;
   fullName: string | null;
   phone: string | null;
-  role: 'PS_RO' | 'ZP_RO' | 'DM';
+  role: Role;
   psId: number | null;
   isActive: boolean;
   lastLoginAt: Date | null;
@@ -118,7 +119,7 @@ async function seatPs(conn: Pool | PoolConnection, seat: Seat) {
   return ps;
 }
 
-/** Locks and reads one RO account. The DM account (or an unknown id) is never managed here. */
+/** Locks and reads one RO account. The DM / Super Admin account (or an unknown id) is never managed here. */
 async function lockRoAccount(conn: PoolConnection, userId: number): Promise<AccountRow> {
   const [rows] = await conn.execute<RowDataPacket[]>(
     `SELECT ${ACCOUNT_COLUMNS} FROM users WHERE id = ? FOR UPDATE`,
@@ -127,7 +128,7 @@ async function lockRoAccount(conn: PoolConnection, userId: number): Promise<Acco
   const row = rows[0];
   if (!row) throw new ApiError(404, 'NOT_FOUND');
   const account = toAccount(row);
-  if (account.role === 'DM') throw new ApiError(403, 'FORBIDDEN');
+  if (account.role !== 'PS_RO' && account.role !== 'ZP_RO') throw new ApiError(403, 'FORBIDDEN');
   return account;
 }
 
@@ -364,7 +365,7 @@ export async function updateCredentials(
     userId,
   ]);
   if (!rows[0]) throw new ApiError(404, 'NOT_FOUND');
-  if (rows[0].role === 'DM') throw new ApiError(403, 'FORBIDDEN');
+  if (rows[0].role !== 'PS_RO' && rows[0].role !== 'ZP_RO') throw new ApiError(403, 'FORBIDDEN');
   const chosen = body.newPassword;
   if (chosen !== undefined) {
     const problem = checkChosenPassword(chosen, chosen, body.username)[0];

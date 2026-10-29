@@ -39,6 +39,8 @@ export default defineConfig({
       APP_ORIGIN: BASE_URL,
       FRONTEND_DIST: resolve(import.meta.dirname, 'dist'),
       REQUIRE_VOTER_COUNTS: 'false',
+      // Super Admin panel backups go to the git-ignored e2e state folder, never backend/backups.
+      BACKUP_DIR: resolve(import.meta.dirname, 'e2e/.state/backups'),
     },
   },
 });

@@ -1,15 +1,31 @@
+import { useState } from 'react';
 import {
   CANDIDATE_CATEGORIES,
   EDUCATION_HINDI,
   MAX_ADDRESS_LENGTH,
   MAX_OCCUPATION_LENGTH,
 } from '../api/adminTypes';
+import '../styles/candidates.css';
 import type { CandidateCategory, CandidateDetails, Education } from '../api/adminTypes';
 
 const EDUCATIONS = Object.keys(EDUCATION_HINDI) as Education[];
 
-/** "15/05/1980" from the stored YYYY-MM-DD. */
-const dmy = (iso: string) => iso.split('-').reverse().join('/');
+/** "15/05/1980" from the stored YYYY-MM-DD (text already typed as DD/MM/YYYY stays as it is). */
+const dmy = (dob: string) => (/^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob.split('-').reverse().join('/') : dob);
+/** What the server accepts as typed: D/M/YYYY with / . or - (it checks the real date and age). */
+const DOB_TYPED = /^\d{1,2}[/.-]\d{1,2}[/.-]\d{4}$/;
+
+/** Every optional detail filled (the "पूरी जानकारी" count). */
+export function detailsComplete(d: CandidateDetails): boolean {
+  return (
+    (d.dob !== null || d.ageStated !== null) &&
+    d.education !== null &&
+    d.mobile !== null &&
+    d.candidateCategory !== null &&
+    d.address !== null &&
+    d.occupation !== null
+  );
+}
 
 /** One line for a list: "जन्म 15/05/1980 · स्नातक · 98765 43210", or "—". */
 export function detailsSummary(d: CandidateDetails): string {
@@ -41,7 +57,7 @@ function TextDetail({
   onChange: (value: string | null) => void;
 }) {
   return (
-    <span className="field-inline">
+    <span className="cd-field cd-wide">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
@@ -53,6 +69,48 @@ function TextDetail({
           onChange(e.target.value === '' ? null : e.target.value);
         }}
       />
+    </span>
+  );
+}
+
+/**
+ * Date of birth typed as DD/MM/YYYY (like the Excel import). While it is being typed the text is
+ * kept as it is; the server reads DD/MM/YYYY or YYYY-MM-DD and checks the real date and the age.
+ */
+function DobField({
+  id,
+  ariaLabel,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  ariaLabel: string;
+  value: string | null;
+  disabled: boolean;
+  onChange: (dob: string | null) => void;
+}) {
+  const [text, setText] = useState(() => (value === null ? '' : dmy(value)));
+  const bad = text !== '' && !DOB_TYPED.test(text);
+  return (
+    <span className="cd-field cd-dob">
+      <label htmlFor={id}>जन्म तिथि</label>
+      <input
+        id={id}
+        aria-label={ariaLabel}
+        aria-invalid={bad}
+        inputMode="numeric"
+        placeholder="DD/MM/YYYY"
+        maxLength={10}
+        disabled={disabled}
+        value={text}
+        onChange={(e) => {
+          const t = e.target.value.replace(/[^\d/.-]/g, '');
+          setText(t);
+          onChange(t === '' ? null : t);
+        }}
+      />
+      {bad && <span className="cd-err">DD/MM/YYYY में लिखें</span>}
     </span>
   );
 }
@@ -77,26 +135,21 @@ export function CandidateDetailsFields({
   onChange: (patch: Partial<CandidateDetails>) => void;
 }) {
   return (
-    <div className="cand-details">
-      <span className="field-inline">
-        <label htmlFor={`${idPrefix}-dob`}>जन्म तिथि</label>
-        <input
-          id={`${idPrefix}-dob`}
-          aria-label={`${label} जन्म तिथि`}
-          type="date"
-          disabled={disabled}
-          value={value.dob ?? ''}
-          onChange={(e) => {
-            onChange({ dob: e.target.value === '' ? null : e.target.value, ageStated: null });
-          }}
-        />
-      </span>
-      <span className="field-inline">
+    <div className="cd-grid">
+      <DobField
+        id={`${idPrefix}-dob`}
+        ariaLabel={`${label} जन्म तिथि`}
+        value={value.dob}
+        disabled={disabled}
+        onChange={(dob) => {
+          onChange({ dob, ageStated: null });
+        }}
+      />
+      <span className="cd-field cd-age">
         <label htmlFor={`${idPrefix}-age`}>या उम्र</label>
         <input
           id={`${idPrefix}-age`}
           aria-label={`${label} उम्र`}
-          className="num num-small"
           inputMode="numeric"
           disabled={disabled || value.dob !== null}
           value={value.ageStated === null ? '' : String(value.ageStated)}
@@ -106,7 +159,7 @@ export function CandidateDetailsFields({
           }}
         />
       </span>
-      <span className="field-inline">
+      <span className="cd-field">
         <label htmlFor={`${idPrefix}-edu`}>शिक्षा</label>
         <select
           id={`${idPrefix}-edu`}
@@ -125,13 +178,14 @@ export function CandidateDetailsFields({
           ))}
         </select>
       </span>
-      <span className="field-inline">
+      <span className="cd-field">
         <label htmlFor={`${idPrefix}-mobile`}>मोबाइल</label>
         <input
           id={`${idPrefix}-mobile`}
           aria-label={`${label} मोबाइल`}
           inputMode="tel"
           maxLength={16}
+          placeholder="10 अंक"
           disabled={disabled}
           value={value.mobile ?? ''}
           onChange={(e) => {
@@ -139,8 +193,8 @@ export function CandidateDetailsFields({
           }}
         />
       </span>
-      <span className="field-inline">
-        <label htmlFor={`${idPrefix}-category`}>Category / श्रेणी</label>
+      <span className="cd-field">
+        <label htmlFor={`${idPrefix}-category`}>Category</label>
         <select
           id={`${idPrefix}-category`}
           aria-label={`${label} Category`}

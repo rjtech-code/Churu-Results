@@ -10,6 +10,10 @@ const DM_MENU = [
   ['/admin/booths', 'बूथ / वार्ड'],
   ['/admin/parties', 'पार्टी सूची'],
 ] as const;
+const SUPER_ADMIN_MENU = [
+  ['/superadmin', 'Super Admin'],
+  ['/guide', 'Guide'],
+] as const;
 const RO_MENU = [
   ['/wards', 'मेरे वार्ड'],
   ['/candidates', 'उम्मीदवार'],
@@ -46,7 +50,7 @@ export function Header() {
         चूरू पंचायत चुनाव 2026 — मतगणना
       </Link>
       {/* In the header row itself: the menu takes no extra height (forms must fit one screen). */}
-      <Menu items={user.role === 'DM' ? DM_MENU : RO_MENU} />
+      <Menu items={user.role === 'DM' ? DM_MENU : user.role === 'SUPER_ADMIN' ? SUPER_ADMIN_MENU : RO_MENU} />
       <div className="who">
         {user.role === 'DM' ? (
           <Link to="/profile" className="who-link" title="मेरी प्रोफ़ाइल">

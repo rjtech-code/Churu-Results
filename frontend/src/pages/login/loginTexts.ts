@@ -2,6 +2,10 @@
 export const LOGIN_TEXTS = {
   cardTitleEn: 'DM / RO Login',
   cardHelpEn: 'Sign in with the username and password given by the DM office.',
+  superTitleEn: 'Super Admin Login',
+  superHelpEn: 'Setup panel of the election office (not for counting).',
+  superLink: 'Super Admin',
+  normalLink: '← DM / RO लॉगिन',
   username: 'यूज़रनेम',
   password: 'पासवर्ड',
   showPassword: 'पासवर्ड दिखाएँ',

@@ -8,6 +8,8 @@ declare module 'express-session' {
     /** Epoch milliseconds of the login; enforces the absolute session lifetime. */
     loginAt: number;
     csrfToken: string;
+    /** Super Admin only: epoch ms of the last password check for a dangerous action (15-min window). */
+    superAdminConfirmedAt?: number;
   }
 }
 

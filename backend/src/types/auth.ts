@@ -1,4 +1,4 @@
-export type Role = 'PS_RO' | 'ZP_RO' | 'DM';
+export type Role = 'PS_RO' | 'ZP_RO' | 'DM' | 'SUPER_ADMIN';
 
 /** The logged-in user, re-loaded from the database on every request. */
 export interface AuthUser {

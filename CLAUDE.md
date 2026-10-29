@@ -30,7 +30,8 @@ Counting day: 20 November 2026. This is election data for the government.
 - Booth identity = (Panchayat Samiti + booth number). Booth numbers restart in every PS.
 - Each booth belongs to exactly one PS ward and one ZP ward. 9 ZP wards span more than one PS.
 - Each booth has two ballots: PS and ZP (`ballot_for` = 'PS' | 'ZP').
-- Exactly 15 logins: 13 `PS_RO` (one per PS), 1 `ZP_RO`, 1 `DM`. No other roles exist.
+- Exactly 15 election logins: 13 `PS_RO` (one per PS), 1 `ZP_RO`, 1 `DM`, plus ONE `SUPER_ADMIN` setup login (created once by `users:create`). No other roles exist.
+- `SUPER_ADMIN` can use only `/api/superadmin` (setup panel: DM account reset/unlock/email, clear candidates, full reset, booth add/delete, counting lock) — never counting, reports or DM tools. While the counting lock is ON, clear candidates, full reset and booth add/delete are refused for everyone.
 - `PS_RO` can touch PS ballots of booths in their own PS, and (Part 14, one parchi carries both) create/edit/void the ZP-ballot booth entries of booths in their own PS — never ZP postal ballots, ZP declare, ZP lottery or ZP correction, never after the ZP ward is declared, and never ZP ward totals or leader. `ZP_RO` can touch ZP ballots (all PS), including every ZP booth entry, plus all ZP ward-level work. `DM`: reports, plus the Part 13 admin tools only (parties/candidate upload, lock, RO management, booth/ward details before counting). The DM can never enter votes, edit/void entries, declare or correct.
 - Setup work (imports, creating users) is done by CLI scripts on the server, or by the DM's admin pages (/api/admin) with password re-entry and audit.
 - Nobody enters data from EVMs directly. Counting officials approve a result sheet (parchi); the RO types it into the system.

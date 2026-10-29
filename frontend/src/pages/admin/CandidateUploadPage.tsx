@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { GENDER_HINDI } from '../../api/adminTypes';
 import type { CandidateWardPreview, CandidatesPreview } from '../../api/adminTypes';
 import { PageIntro } from '../../components/AdminParts';
@@ -89,10 +90,14 @@ export function CandidateUploadPage() {
   return (
     <>
       <PageIntro title="उम्मीदवार सूची अपलोड" hint="यहाँ उम्मीदवार सूची की Excel फ़ाइल चुनें।" />
+      <p>
+        <Link to="/guide#file-candidates">मार्गदर्शिका</Link>
+      </p>
       <UploadFlow<CandidatesPreview>
         checkPath="/api/admin/candidates/check"
         savePath="/api/admin/candidates/save"
         templateHref="/api/admin/templates/candidates.xlsx"
+        templateLabel="नमूना फ़ाइल डाउनलोड करें"
         successText="सूची सेव हो गई"
         saveExplain={(p) =>
           `${p.totals.wards} वार्डों की सूची सेव होगी${p.totals.replaced > 0 ? ` (${p.totals.replaced} वार्डों की पुरानी सूची बदलेगी)` : ''}।`
