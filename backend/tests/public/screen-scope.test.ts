@@ -6,7 +6,7 @@ import { createTestAppPool, createTestMigrationPool, resetData } from '../helper
 import { buildWorld, clientFor, v, zW1Sheet } from '../counting/helpers.js';
 import type { World } from '../counting/helpers.js';
 import { confirmBody, declareClient, fillPsW1, previewResult } from '../declare/helpers.js';
-import { getJson, publicApp, waitFor } from './helpers.js';
+import { getJson, publicApp, useWorldLayout, waitFor } from './helpers.js';
 import type { PublicHarness } from './helpers.js';
 
 let pool: Pool;
@@ -25,6 +25,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await resetData(migrator);
   w = await buildWorld(pool);
+  await useWorldLayout(pool);
   h = await publicApp(pool);
 });
 afterEach(() => {

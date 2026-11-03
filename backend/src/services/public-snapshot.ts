@@ -205,7 +205,10 @@ export async function buildPublicSnapshot(
     const checked = validateScreenLayout(parsed, english);
     if (checked.layout !== null) layout = checked.layout;
     else if (english.length > 0) {
-      log(`screen_layout setting is invalid: ${checked.problems.join(' ')}`);
+      log(
+        `SCREEN LAYOUT INVALID: TV screens 1/2 show only the valid PS until this is fixed ` +
+          `(npm run screens:show, then screens:set). Problems: ${checked.problems.join(' ')}`,
+      );
       // Best effort: keep the valid, known names in their order.
       const known = new Set(english);
       const obj = parsed as Partial<Record<'1' | '2', unknown>>;
@@ -217,7 +220,11 @@ export async function buildPublicSnapshot(
       }
     }
   } catch (err) {
-    log('screen_layout setting is not valid JSON', err);
+    log(
+      'SCREEN LAYOUT INVALID: screen_layout setting is not valid JSON; TV screens 1/2 show no PS ' +
+        'until this is fixed (npm run screens:set -- --default --commit)',
+      err,
+    );
   }
   const psIdByEnglish = new Map([...psById.values()].map((p) => [p.english, p.id]));
   const psBlocks = (names: readonly string[]): PsBlock[] =>

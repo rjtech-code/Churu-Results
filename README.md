@@ -631,9 +631,10 @@ curl -s http://localhost:3000/api/public/screens/1 | head -c 600
 ### Screen layout (which PS appears on screen 1 and 2)
 - **Storage:** JSON in `app_settings.screen_layout`.
 - **Defaults** (in this order):
-  - Screen 1: Churu, Churu North HQ Churu, Sardarshahar, Sardarshahar East, Taranagar East,
-    Taranagar West (Bhaleri) HQ Taranagar, Ratangarh.
-  - Screen 2: Sujangarh, Bidasar, Bhanipura, Rajgarh, Chandgothi HQ Rajgarh, Siddhmukh.
+  - Screen 1: Bidasar, Rajgarh, Sardarshahar, Siddhmukh, Sardarshahar East, Bhanipura,
+    Chandgothi HQ Rajgarh.
+  - Screen 2: Churu, Ratangarh, Sujangarh, Taranagar East, Churu North HQ Churu,
+    Taranagar West (Bhaleri) HQ Taranagar.
 - Screen 3 is always Zila Parishad.
 
 ```bash

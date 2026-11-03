@@ -68,6 +68,37 @@ describe('screen layout', () => {
     expect(JSON.parse(String(rows[0]?.setting_value))).toEqual(DEFAULT_SCREEN_LAYOUT);
   });
 
+  it('the default is the official grouping and order: 7 PS on screen 1, 6 on screen 2', async () => {
+    expect(DEFAULT_SCREEN_LAYOUT['1']).toEqual([
+      'BIDASAR PANCHAYAT SAMITI',
+      'RAJGARH PANCHAYAT SAMITI',
+      'SARDARSHAHAR PANCHAYAT SAMITI',
+      'SIDDHMUKH PANCHAYAT SAMITI',
+      'SARDARSHAHAR EAST PANCHAYAT SAMITI',
+      'BHANIPURA PANCHAYAT SAMITI',
+      'CHANDGOTHI HQ RAJGARH PANCHAYAT SAMITI',
+    ]);
+    expect(DEFAULT_SCREEN_LAYOUT['2']).toEqual([
+      'CHURU PANCHAYAT SAMITI',
+      'RATANGARH PANCHAYAT SAMITI',
+      'SUJANGARH PANCHAYAT SAMITI',
+      'TARANAGAR EAST PANCHAYAT SAMITI',
+      'CHURU NORTH HQ CHURU PANCHAYAT SAMITI',
+      'TARANAGAR WEST(BHALERI) HQ TARANAGAR PANCHAYAT SAMITI',
+    ]);
+    // Against the real PS list used by the geography import: none on both screens, none missing,
+    // none unknown (validateScreenLayout names each offending PS).
+    const real = Object.keys(
+      JSON.parse(
+        await readFile(resolve(import.meta.dirname, '../../../docs/ps-names.json'), 'utf8'),
+      ) as Record<string, string>,
+    );
+    expect(real).toHaveLength(13);
+    expect(validateScreenLayout(DEFAULT_SCREEN_LAYOUT, real).problems).toEqual([]);
+    const one = new Set(DEFAULT_SCREEN_LAYOUT['1']);
+    expect(DEFAULT_SCREEN_LAYOUT['2'].filter((n) => one.has(n))).toEqual([]);
+  });
+
   it('the public screens follow the layout order', async () => {
     pub = await publicApp(h.app);
     const s1 = (await getJson(pub.app, '/api/public/screens/1')).body as {
@@ -124,8 +155,8 @@ describe('screen layout', () => {
     // Let the poller record the current stamp first.
     await new Promise((r) => setTimeout(r, 400));
     const moved = {
-      '1': [...DEFAULT_SCREEN_LAYOUT['1'], 'RAJGARH PANCHAYAT SAMITI'],
-      '2': DEFAULT_SCREEN_LAYOUT['2'].filter((n) => n !== 'RAJGARH PANCHAYAT SAMITI'),
+      '1': [...DEFAULT_SCREEN_LAYOUT['1'], 'SUJANGARH PANCHAYAT SAMITI'],
+      '2': DEFAULT_SCREEN_LAYOUT['2'].filter((n) => n !== 'SUJANGARH PANCHAYAT SAMITI'),
     };
     const res = await runScreensSet(
       { file: await layoutFile(moved), commit: true },
@@ -145,12 +176,74 @@ describe('screen layout', () => {
       const list = s1.panchayatSamitis.map((b) => b.panchayatSamiti.name);
       return list.length === 8 ? list : undefined;
     }, 3000);
-    expect(names[7]).toBe('RAJGARH PANCHAYAT SAMITI (हि)');
+    expect(names[7]).toBe('SUJANGARH PANCHAYAT SAMITI (हि)');
     const meta = (await getJson(pub.app, '/api/public/meta')).body as {
       screens: Record<string, unknown>;
     };
     expect((meta.screens['1'] as number[]).length).toBe(8);
     expect((meta.screens['2'] as number[]).length).toBe(5);
+  });
+
+  describe('screens:set --default', () => {
+    const swapped = { '1': DEFAULT_SCREEN_LAYOUT['2'], '2': DEFAULT_SCREEN_LAYOUT['1'] };
+    const stored = async () => {
+      const [rows] = await h.app.execute<RowDataPacket[]>(
+        'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+        [SCREEN_LAYOUT_KEY],
+      );
+      return JSON.parse(String(rows[0]?.setting_value)) as unknown;
+    };
+    const audits = async () => {
+      const [rows] = await h.app.query<RowDataPacket[]>(
+        "SELECT old_value, new_value FROM audit_log WHERE action = 'SCREEN_LAYOUT_CHANGED'",
+      );
+      return rows;
+    };
+    beforeEach(async () => {
+      await h.app.execute('UPDATE app_settings SET setting_value = ? WHERE setting_key = ?', [
+        JSON.stringify(swapped),
+        SCREEN_LAYOUT_KEY,
+      ]);
+    });
+
+    it('dry run checks the default and changes nothing', async () => {
+      const { ctx, output } = makeCtx(h);
+      const res = await runScreensSet({ useDefault: true }, ctx);
+      expect(res).toMatchObject({ ok: true, committed: false });
+      expect(output.join('\n')).toContain('1. BIDASAR PANCHAYAT SAMITI');
+      expect(await stored()).toEqual(swapped);
+      expect(await audits()).toHaveLength(0);
+    });
+
+    it('refuses when the database PS do not match the default, and writes nothing', async () => {
+      await h.app.execute(
+        "INSERT INTO panchayat_samiti (district_id, name_english, name_hindi) SELECT district_id, 'EXTRA PANCHAYAT SAMITI', 'अतिरिक्त' FROM panchayat_samiti LIMIT 1",
+      );
+      const { ctx, output } = makeCtx(h);
+      const res = await runScreensSet({ useDefault: true, commit: true }, ctx);
+      expect(res).toMatchObject({ ok: false, committed: false });
+      expect(output.join('\n')).toContain('"EXTRA PANCHAYAT SAMITI" is missing');
+      expect(await stored()).toEqual(swapped);
+      expect(await audits()).toHaveLength(0);
+    });
+
+    it('refuses --file together with --default', async () => {
+      const res = await runScreensSet(
+        { file: await layoutFile(DEFAULT_SCREEN_LAYOUT), useDefault: true, commit: true },
+        makeCtx(h).ctx,
+      );
+      expect(res.ok).toBe(false);
+      expect(await stored()).toEqual(swapped);
+    });
+
+    it('commit saves the default and writes an audit entry', async () => {
+      const res = await runScreensSet({ useDefault: true, commit: true }, makeCtx(h).ctx);
+      expect(res).toMatchObject({ ok: true, committed: true });
+      expect(await stored()).toEqual(DEFAULT_SCREEN_LAYOUT);
+      const rows = await audits();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ old_value: swapped, new_value: DEFAULT_SCREEN_LAYOUT });
+    });
   });
 
   it('screens:show prints the layout and checks it', async () => {

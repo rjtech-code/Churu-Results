@@ -213,6 +213,7 @@ test.describe(() => {
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('पुराना खाता बंद होगा');
     await dialog.getByLabel('नए RO का पूरा नाम').fill('नया बीदासर अधिकारी');
+    await dialog.getByLabel('मोबाइल नंबर').fill('9876543210'); // required since the RO mobile change
     await dialog.getByRole('button', { name: 'RO बदलें' }).click(); // a plain confirmation
     const username = (await page.getByTestId('otp-username').textContent()) ?? '';
     const password = (await page.getByTestId('otp-password').getAttribute('data-password')) ?? '';

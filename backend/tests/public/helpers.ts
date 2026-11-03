@@ -6,6 +6,7 @@ import { defaultPublicApiConfig } from '../../src/config/app-config.js';
 import type { PublicApiConfig } from '../../src/config/app-config.js';
 import { SseHub } from '../../src/modules/public/sse.js';
 import { PublicSnapshotService } from '../../src/services/public-snapshot.js';
+import { SCREEN_LAYOUT_KEY } from '../../src/services/screen-layout.js';
 import { testAppConfig } from '../auth/helpers.js';
 
 /** Fast timings for tests (production: 500 ms debounce, 2 s minimum interval, 60 s safety, 15 s heartbeat). */
@@ -16,6 +17,17 @@ export const FAST: Partial<PublicApiConfig> = {
   layoutPollMs: 150,
   sseHeartbeatMs: 150,
 };
+
+/**
+ * The two-PS test world on fixed screens (CHURU on 1, RAJGARH on 2), so these tests do not
+ * depend on the official order in DEFAULT_SCREEN_LAYOUT.
+ */
+export async function useWorldLayout(pool: Pool): Promise<void> {
+  await pool.execute('UPDATE app_settings SET setting_value = ? WHERE setting_key = ?', [
+    JSON.stringify({ '1': ['CHURU PANCHAYAT SAMITI'], '2': ['RAJGARH PANCHAYAT SAMITI'] }),
+    SCREEN_LAYOUT_KEY,
+  ]);
+}
 
 export interface PublicHarness {
   app: Express;

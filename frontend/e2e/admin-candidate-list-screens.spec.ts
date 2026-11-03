@@ -4,8 +4,8 @@ import type { Page } from '@playwright/test';
 import { expect, loginUi, test, world } from './support';
 
 // The RO's candidate list page at 1920, 1366 and 768 (tablet), for visual review
-// (frontend/screenshots/, git-ignored). Nothing is saved. When the full suite has already locked
-// the list (admin.spec), the read-only view is captured instead.
+// (frontend/screenshots/, git-ignored). Runs before admin.spec (which later replaces this RO and
+// locks the list) and saves nothing.
 const DIR = resolve(import.meta.dirname, '../screenshots');
 const SIZES = [
   { name: '1920', width: 1920, height: 1080 },

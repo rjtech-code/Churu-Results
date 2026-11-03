@@ -59,7 +59,8 @@ test.describe('at 1366x768', () => {
 
   test('the row being typed is highlighted', async ({ page }) => {
     await page.goto(entryUrl());
-    await page.getByLabel('भरत कुमार के मत').focus();
+    // A click (not .focus()): the "अंतिम बूथ" popup may open first and is dismissed by the fixture.
+    await page.getByLabel('भरत कुमार के मत').click();
     const row = page.getByRole('row').filter({ has: page.getByLabel('भरत कुमार के मत') });
     const other = page.getByRole('row').filter({ has: page.getByLabel('हरि ओम के मत') });
     const bg = (r: typeof row) =>

@@ -1,9 +1,14 @@
-// npm run screens:set -- --file <json> [--commit]
+// npm run screens:set -- (--file <json> | --default) [--commit]
 // Sets which Panchayat Samitis appear on media-room screens 1 and 2 (screen 3 is always ZP).
+// --default writes DEFAULT_SCREEN_LAYOUT (the official order) instead of a file.
 // The running server notices the change within ~2 seconds and rebuilds the public snapshot.
 import { readFile } from 'node:fs/promises';
 import type { RowDataPacket } from 'mysql2/promise';
-import { SCREEN_LAYOUT_KEY, validateScreenLayout } from '../src/services/screen-layout.js';
+import {
+  DEFAULT_SCREEN_LAYOUT,
+  SCREEN_LAYOUT_KEY,
+  validateScreenLayout,
+} from '../src/services/screen-layout.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
 import { inTransaction } from './lib/db.js';
@@ -13,26 +18,36 @@ import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
 
 export async function runScreensSet(
-  options: { file?: string | undefined; commit?: boolean | undefined },
+  options: {
+    file?: string | undefined;
+    useDefault?: boolean | undefined;
+    commit?: boolean | undefined;
+  },
   ctx: ScriptContext,
 ): Promise<ScriptResult> {
   const startedAt = ctx.now();
   const report = new Report('screens-set', options.commit === true ? 'commit' : 'dry-run');
   let committed = false;
-  if (options.file === undefined) {
+  if (options.file !== undefined && options.useDefault === true) {
+    report.error('Use either --file or --default, not both.');
+    return finishReport(ctx, report, startedAt, false);
+  }
+  if (options.file === undefined && options.useDefault !== true) {
     report.error(
-      '--file <json> is required, e.g. {"1": ["CHURU PANCHAYAT SAMITI", ...], "2": [...]}.',
+      '--file <json> or --default is required, e.g. {"1": ["CHURU PANCHAYAT SAMITI", ...], "2": [...]}.',
     );
     return finishReport(ctx, report, startedAt, false);
   }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(await readFile(options.file, 'utf8')) as unknown;
-  } catch (err) {
-    report.error(
-      `Cannot read "${options.file}" as JSON: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return finishReport(ctx, report, startedAt, false);
+  let raw: unknown = DEFAULT_SCREEN_LAYOUT;
+  if (options.file !== undefined) {
+    try {
+      raw = JSON.parse(await readFile(options.file, 'utf8')) as unknown;
+    } catch (err) {
+      report.error(
+        `Cannot read "${options.file}" as JSON: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return finishReport(ctx, report, startedAt, false);
+    }
   }
   try {
     const result = await inTransaction(ctx.pool, async (conn) => {
@@ -98,12 +113,13 @@ export async function runScreensSet(
 export async function main(argv: string[], ctx: ScriptContext): Promise<{ ok: boolean }> {
   const { values } = parseCli(
     argv,
-    { file: { type: 'string' }, commit: { type: 'boolean' } },
-    'npm run screens:set -- --file <json> [--commit]',
+    { file: { type: 'string' }, default: { type: 'boolean' }, commit: { type: 'boolean' } },
+    'npm run screens:set -- (--file <json> | --default) [--commit]',
   );
   return runScreensSet(
     {
       file: values.file === undefined ? undefined : resolveUserPath(values.file),
+      useDefault: values.default,
       commit: values.commit,
     },
     ctx,
