@@ -171,6 +171,11 @@ describe('ps:set-hindi-names', () => {
     const path = resolve(import.meta.dirname, '../../../docs/ps-names.json');
     const provisional = JSON.parse(await readFile(path, 'utf8')) as Record<string, string>;
     expect(Object.keys(provisional)).toHaveLength(13);
+    // Official short names; the West PS carries no "मुख्यालय तारानगर".
+    expect(provisional['TARANAGAR EAST PANCHAYAT SAMITI']).toBe('तारानगर');
+    expect(provisional['TARANAGAR WEST(BHALERI) HQ TARANAGAR PANCHAYAT SAMITI']).toBe(
+      'तारानगर पश्चिम (भालेरी)',
+    );
     const [d] = await h.app.execute<RowDataPacket[]>('SELECT id FROM district');
     for (const english of Object.keys(provisional)) {
       if (english === RATANGARH || english === RAJGARH) continue;
