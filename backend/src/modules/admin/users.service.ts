@@ -21,6 +21,7 @@ import { hashPassword, generatePassword } from '../../services/master-data/passw
 import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
 import { loadPanchayatSamitis } from '../../services/master-data/lookups.js';
+import type { PsRow } from '../../services/master-data/lookups.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { requireReauth, resetFailedLogins } from '../auth/auth.service.js';
 import { busyAsConflict } from './http.js';
@@ -34,7 +35,7 @@ export function parseSeat(text: string): Seat | null {
   return m ? { role: 'PS_RO', psId: Number(m[1]) } : null;
 }
 
-interface AccountRow {
+export interface AccountRow {
   id: number;
   username: string;
   fullName: string | null;
@@ -75,15 +76,25 @@ const publicAccount = (a: AccountRow) => ({
   locked: a.lockedNow,
 });
 
-/** Every seat with the account shown for it: the active one, else the newest disabled one. */
-export async function listSeats(pool: Pool) {
-  const psList = [...(await loadPanchayatSamitis(pool)).values()].sort((a, b) =>
-    a.name_hindi.localeCompare(b.name_hindi, 'hi'),
-  );
-  const [rows] = await pool.execute<RowDataPacket[]>(
+/** Every PS_RO / ZP_RO account (active, disabled and replaced ones), oldest first. */
+export async function loadRoAccounts(conn: Pool | PoolConnection): Promise<AccountRow[]> {
+  const [rows] = await conn.execute<RowDataPacket[]>(
     `SELECT ${ACCOUNT_COLUMNS} FROM users WHERE role IN ('PS_RO', 'ZP_RO') ORDER BY id`,
   );
-  const accounts = rows.map(toAccount);
+  return rows.map(toAccount);
+}
+
+/** The PS list in the order the DM's pages show it (Hindi name). */
+export async function psInPageOrder(conn: Pool | PoolConnection) {
+  return [...(await loadPanchayatSamitis(conn)).values()].sort((a, b) =>
+    a.name_hindi.localeCompare(b.name_hindi, 'hi'),
+  );
+}
+
+/** Every seat with the account shown for it: the active one, else the newest disabled one. */
+export async function listSeats(pool: Pool) {
+  const psList = await psInPageOrder(pool);
+  const accounts = await loadRoAccounts(pool);
   const shown = (list: AccountRow[]) =>
     list.find((a) => a.isActive) ?? [...list].sort((a, b) => b.id - a.id)[0] ?? null;
   const seat = (key: string, label: string, list: AccountRow[]) => {
@@ -163,7 +174,7 @@ async function freeUsername(conn: PoolConnection, seat: Seat, psEnglish: string 
 }
 
 /** An account write that needs the DM's password again (create, credentials, lockout). */
-async function inUserWrite<T>(
+export async function inUserWrite<T>(
   pool: Pool,
   who: Actor,
   password: string,
@@ -186,6 +197,57 @@ export interface NewCredentials {
   password: string;
 }
 
+/**
+ * One new account on a seat that never had one, inside the caller's transaction: a free random
+ * username, the Part 2 limits (409 SEAT_TAKEN), a fresh password (bcrypt + encrypted copy) and the
+ * USER_CREATE audit row (never the password). Used by "नया RO बनाएँ" and the Excel bulk add.
+ */
+export async function createSeatAccountIn(
+  conn: PoolConnection,
+  who: Actor,
+  account: { seat: Seat; ps: PsRow | null; fullName: string; phone: string },
+  vaultKey: Buffer,
+  via: 'web' | 'web-bulk',
+): Promise<NewCredentials & { id: number }> {
+  const { seat, ps } = account;
+  const role = seat.role;
+  const username = await freeUsername(conn, seat, ps?.name_english ?? null);
+  const issues = await checkNewAccount(conn, {
+    role,
+    username,
+    psId: ps?.id ?? null,
+    psName: ps?.name_english ?? null,
+  });
+  if (issues.length > 0) throw new ApiError(409, 'SEAT_TAKEN');
+  const created = await insertAccount(
+    conn,
+    {
+      username,
+      fullName: account.fullName,
+      role,
+      psId: ps?.id ?? null,
+      phone: account.phone,
+    },
+    vaultKey,
+  );
+  await writeAudit(conn, {
+    userId: who.user.id,
+    action: 'USER_CREATE',
+    entity: 'users',
+    entityId: created.id,
+    newValue: {
+      via,
+      username,
+      full_name: account.fullName,
+      phone_last4: phoneLast4(account.phone),
+      role,
+      panchayat_samiti: ps?.name_english ?? null,
+    },
+    ip: who.ip,
+  });
+  return { id: created.id, username, password: created.password };
+}
+
 /** "नया RO बनाएँ": only for a seat that never had an account (the Part 2 limits, unchanged). */
 export async function createSeatAccount(
   pool: Pool,
@@ -195,42 +257,14 @@ export async function createSeatAccount(
 ): Promise<NewCredentials> {
   const ps = await seatPs(pool, body.seat);
   return inUserWrite(pool, who, body.password, async (conn) => {
-    const role = body.seat.role;
-    const username = await freeUsername(conn, body.seat, ps?.name_english ?? null);
-    const issues = await checkNewAccount(conn, {
-      role,
-      username,
-      psId: ps?.id ?? null,
-      psName: ps?.name_english ?? null,
-    });
-    if (issues.length > 0) throw new ApiError(409, 'SEAT_TAKEN');
-    const created = await insertAccount(
+    const created = await createSeatAccountIn(
       conn,
-      {
-        username,
-        fullName: body.fullName,
-        role,
-        psId: ps?.id ?? null,
-        phone: body.phone,
-      },
+      who,
+      { seat: body.seat, ps, fullName: body.fullName, phone: body.phone },
       vaultKey,
+      'web',
     );
-    await writeAudit(conn, {
-      userId: who.user.id,
-      action: 'USER_CREATE',
-      entity: 'users',
-      entityId: created.id,
-      newValue: {
-        via: 'web',
-        username,
-        full_name: body.fullName,
-        phone_last4: phoneLast4(body.phone),
-        role,
-        panchayat_samiti: ps?.name_english ?? null,
-      },
-      ip: who.ip,
-    });
-    return { username, password: created.password };
+    return { username: created.username, password: created.password };
   });
 }
 
@@ -434,8 +468,11 @@ export async function updateCredentials(
   });
 }
 
-/** The saved password again (for the "copy" screen after a rename without a password change). */
-async function currentPassword(conn: PoolConnection, userId: number, vaultKey: Buffer) {
+/**
+ * The saved password again (the "copy" screen after a rename, the DM's password export), or null
+ * when the account has no readable encrypted copy.
+ */
+export async function currentPassword(conn: PoolConnection, userId: number, vaultKey: Buffer) {
   const [rows] = await conn.execute<RowDataPacket[]>(
     'SELECT password_enc FROM users WHERE id = ?',
     [userId],

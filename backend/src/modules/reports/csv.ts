@@ -5,10 +5,14 @@ export type Cell = string | number | null;
 const BOM = '﻿';
 const DANGEROUS = /^[=+\-@\t\r]/u;
 
+/** Formula injection guard: text starting with = + - @ (or tab / CR) gets a leading apostrophe. */
+export function neutralizeText(value: string): string {
+  return DANGEROUS.test(value) ? `'${value}` : value;
+}
+
 export function csvCell(value: Cell): string {
   if (value === null) return '""';
-  const text =
-    typeof value === 'number' ? String(value) : DANGEROUS.test(value) ? `'${value}` : value;
+  const text = typeof value === 'number' ? String(value) : neutralizeText(value);
   return `"${text.replace(/"/g, '""')}"`;
 }
 

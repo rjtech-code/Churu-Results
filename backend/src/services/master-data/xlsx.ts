@@ -168,25 +168,51 @@ function pickSheet(
   };
 }
 
+export interface SheetDropdown {
+  /** The header the dropdown belongs to. */
+  column: string;
+  /** An Excel list formula: '"PS,ZP"' or a range such as 'lists!$A$1:$A$13'. */
+  formula: string;
+  /** How many data rows (below the header) get the dropdown. */
+  rows: number;
+}
+
 export interface SheetSpec {
   name: string;
   headers: readonly string[];
   rows: readonly (readonly Cell[])[];
   /** Excel filter dropdowns on the header row. */
   autoFilter?: boolean;
+  /** A bold red line ABOVE the header (e.g. a confidentiality warning); the header moves to row 2. */
+  notice?: string;
+  /** In-cell dropdown lists for data entry (templates). */
+  dropdowns?: readonly SheetDropdown[];
+  /** A helper sheet (e.g. the values behind a dropdown), hidden from the officer. */
+  hidden?: boolean;
 }
 
 function buildWorkbook(sheets: readonly SheetSpec[]): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Churu results portal';
   for (const spec of sheets) {
-    const sheet = workbook.addWorksheet(spec.name, { views: [{ state: 'frozen', ySplit: 1 }] });
+    const headerRow = spec.notice === undefined ? 1 : 2;
+    const sheet = workbook.addWorksheet(spec.name, {
+      views: [{ state: 'frozen', ySplit: headerRow }],
+      ...(spec.hidden === true ? { state: 'hidden' as const } : {}),
+    });
+    if (spec.notice !== undefined) {
+      sheet.addRow([spec.notice]);
+      sheet.mergeCells(1, 1, 1, Math.max(1, spec.headers.length));
+      sheet.getRow(1).font = { bold: true, color: { argb: 'FFC00000' } };
+      sheet.getRow(1).alignment = { wrapText: true, vertical: 'middle' };
+      sheet.getRow(1).height = 36;
+    }
     sheet.addRow([...spec.headers]);
-    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(headerRow).font = { bold: true };
     if (spec.autoFilter === true)
       sheet.autoFilter = {
-        from: { row: 1, column: 1 },
-        to: { row: 1, column: spec.headers.length },
+        from: { row: headerRow, column: 1 },
+        to: { row: headerRow, column: spec.headers.length },
       };
     for (const row of spec.rows) sheet.addRow([...row]);
     spec.headers.forEach((header, i) => {
@@ -196,6 +222,17 @@ function buildWorkbook(sheets: readonly SheetSpec[]): ExcelJS.Workbook {
       );
       sheet.getColumn(i + 1).width = width;
     });
+    for (const dropdown of spec.dropdowns ?? []) {
+      const col = spec.headers.indexOf(dropdown.column) + 1;
+      if (col === 0) throw new Error(`dropdown for unknown column ${dropdown.column}`);
+      for (let r = headerRow + 1; r <= headerRow + dropdown.rows; r++) {
+        sheet.getCell(r, col).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [dropdown.formula],
+        };
+      }
+    }
   }
   return workbook;
 }

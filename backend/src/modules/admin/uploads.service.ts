@@ -53,10 +53,11 @@ export interface CheckOutcome<P> {
 const message = (text: string): HindiIssue => ({ rows: [], message: text });
 
 /** Decodes and reads the uploaded sheet. Problems with the file itself come back as `errors`. */
-async function readUpload(
+export async function readUpload(
   body: UploadBody,
   required: readonly string[],
   optional: readonly string[] = [],
+  maxRows = MAX_SHEET_ROWS,
 ): Promise<{ rows: SheetRow[] | null; errors: HindiIssue[]; sha256: string }> {
   const { data, sha256 } = decodeXlsxUpload(body.fileBase64);
   const sheet = await readSheetFromBuffer(data, required, optional);
@@ -69,21 +70,21 @@ async function readUpload(
       ],
       sha256,
     };
-  if (sheet.rows.length > MAX_SHEET_ROWS)
+  if (sheet.rows.length > maxRows)
     return {
       rows: null,
-      errors: [message(`फ़ाइल में ${MAX_SHEET_ROWS} से अधिक पंक्तियाँ हैं — सही फ़ाइल चुनें`)],
+      errors: [message(`फ़ाइल में ${maxRows} से अधिक पंक्तियाँ हैं — सही फ़ाइल चुनें`)],
       sha256,
     };
   return { rows: sheet.rows, errors: [], sha256 };
 }
 
 /** The file name only, for the audit log (never a path). */
-function safeFileName(name: string): string {
+export function safeFileName(name: string): string {
   return basename(name.replaceAll('\\', '/')).slice(0, 200);
 }
 
-function checkFailed(errors: readonly HindiIssue[]): ApiError {
+export function checkFailed(errors: readonly HindiIssue[]): ApiError {
   return new ApiError(400, 'CHECK_FAILED', { errors });
 }
 
