@@ -7,6 +7,7 @@ import { CredentialsDialog } from '../../components/CredentialsDialog';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
+import { RoExportButtons } from './RoExportButtons';
 import '../../styles/admin.css';
 
 export function seatState(seat: Seat): string {
@@ -24,6 +25,12 @@ export function UsersPage() {
   return (
     <>
       <PageIntro title="RO सूची" hint="यहाँ RO के खाते देखें। किसी पद का खाता बदलने के लिए 'खोलें' दबाएँ।" />
+      <div className="ro-toolbar no-print">
+        <Link className="btn btn-primary btn-big" to="/admin/users/bulk">
+          Excel से RO जोड़ें
+        </Link>
+        <RoExportButtons />
+      </div>
       <ErrorBox error={error} />
       <SuccessBox text={done} />
       {credentials && (
@@ -52,6 +59,11 @@ export function UsersPage() {
             setEditing(null);
           }}
         />
+      )}
+      {data !== null && data.seats.every((s) => s.account === null) && (
+        <p className="page-hint" data-testid="no-ro-yet">
+          अभी कोई RO खाता नहीं बना है — "Excel से RO जोड़ें" से सभी RO एक साथ जोड़ें।
+        </p>
       )}
       {data === null ? (
         <p className="loading">लोड हो रहा है…</p>

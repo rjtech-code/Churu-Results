@@ -13,6 +13,7 @@ test.describe.configure({ mode: 'serial' });
 
 const PARTIES = join(STATE_DIR, 'parties.xlsx');
 const CANDIDATES = join(STATE_DIR, 'candidates.xlsx');
+const RO_BULK = join(STATE_DIR, 'ro-bulk.xlsx');
 const DM_STATE = join(STATE_DIR, 'admin-dm.json');
 /** API clients start without any session (not the describe's stored one). */
 const NO_SESSION = { cookies: [], origins: [] };
@@ -222,6 +223,51 @@ test.describe(() => {
     await page.getByRole('button', { name: 'हो गया' }).click();
     await expect(page.getByTestId('seat-state')).toHaveText('चालू');
     await expect(page.getByText(/1 पुराने \(बंद\) खाते/)).toBeVisible();
+  });
+});
+
+test.describe(() => {
+  test.use({ storageState: DM_STATE });
+
+  // Every RO seat of the e2e world is taken: an empty PS is added for this story and removed after.
+  test.beforeAll(() => {
+    backendScript('ro-bulk-ps.ts', ['add']);
+  });
+  test.afterAll(() => {
+    backendScript('ro-bulk-ps.ts', ['remove']);
+  });
+
+  test('DM adds ROs from Excel: preview -> confirm -> login file; RO details download', async ({ page }) => {
+    await page.goto('/admin/users');
+    await page.getByRole('link', { name: 'Excel से RO जोड़ें' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Excel से RO जोड़ें');
+    await expect(page.getByRole('link', { name: 'खाली Excel (टेम्पलेट) डाउनलोड करें' })).toHaveAttribute(
+      'href',
+      '/api/admin/users/bulk-template.xlsx',
+    );
+
+    await page.getByLabel(/Excel फ़ाइल यहाँ छोड़ें या चुनें/).setInputFiles(RO_BULK);
+    await page.getByRole('button', { name: '2. जाँच करें' }).click();
+    await expect(page.getByTestId('bulk-totals')).toContainText('1 नए बनेंगे');
+    await expect(page.getByTestId('bulk-totals')).toContainText('3 पहले से मौजूद');
+    await expect(page.getByTestId('bulk-rows')).toContainText('पहले से मौजूद है, छोड़ा गया');
+
+    const loginFile = page.waitForEvent('download');
+    await page.getByRole('button', { name: '4. सेव करें' }).click();
+    await confirmWithPassword(page, 'हाँ, खाते बनाएँ');
+    expect((await loginFile).suggestedFilename()).toMatch(/^ro-login-\d{8}-\d{6}\.xlsx$/);
+    const created = page.getByTestId('bulk-created').getByRole('row').nth(1).getByRole('cell');
+    const username = (await created.nth(2).textContent()) ?? '';
+    const password = (await created.nth(3).textContent()) ?? '';
+    expect(username).toMatch(/^ro_tar_[a-z2-9]{4}$/);
+    expect(password).toMatch(/^[A-Za-z2-9]{16}$/); // login with it: backend tests (no login here, see ro-bulk-ps.ts)
+
+    await page.getByRole('link', { name: 'RO सूची पर वापस जाएँ' }).click();
+    await expect(page.getByTestId('seat-table')).toContainText(username);
+    const details = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'RO details download' }).click();
+    expect((await details).suggestedFilename()).toMatch(/^ro-details-\d{8}-\d{6}\.xlsx$/);
+    await expect(page.getByText('RO details की Excel डाउनलोड हो गई (बिना पासवर्ड)')).toBeVisible();
   });
 });
 

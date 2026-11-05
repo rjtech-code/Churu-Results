@@ -256,3 +256,74 @@ fieldset.choice .radio {
   border-top: none;
   padding-top: 0;
 }
+
+/* RO सूची: Excel bulk add and RO details download (same colours and buttons as the rest) */
+.ro-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.4rem 0 1rem;
+}
+.drop-zone {
+  border: 3px dashed var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  margin: 0.8rem 0;
+  max-width: 50rem;
+}
+.drop-zone label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+.drop-zone input[type='file'] {
+  max-width: 100%;
+}
+.drop-zone-active {
+  border-color: var(--brand);
+  background: #f2f5fa;
+}
+.bulk-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.bulk-new,
+.bulk-row-new .bulk-status {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.bulk-exists,
+.bulk-row-exists .bulk-status {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.bulk-error,
+.bulk-row-error .bulk-status {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.bulk-status {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.mono {
+  font-family: 'Consolas', 'DejaVu Sans Mono', monospace;
+  font-size: 1.2rem;
+}
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.check-line input {
+  width: 1.4rem;
+  height: 1.4rem;
+}

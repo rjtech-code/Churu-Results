@@ -107,6 +107,31 @@ function fileNameOf(res: Response, fallback: string): string {
   return m?.[1] ?? fallback;
 }
 
+/** Hands the browser a file to save (revoked once the click has started the download). */
+function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/**
+ * Saves an .xlsx that came inside a JSON answer (files with passwords: POST + no-store, so they are
+ * never cached and never fetched by a link). The bytes stay in memory only.
+ */
+export function saveBase64Xlsx(file: { fileName: string; fileBase64: string }): void {
+  const binary = atob(file.fileBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  saveBlob(new Blob([bytes], { type: XLSX_TYPE }), file.fileName);
+}
+
 /**
  * GETs a file (e.g. a PDF) and saves it. A refusal comes back as an ApiError, like api(), so the
  * page can show it in Hindi instead of saving an error as a file.
@@ -114,13 +139,5 @@ function fileNameOf(res: Response, fallback: string): string {
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const res = await send('GET', path, undefined, null);
   if (!res.ok) throw failure(res, await readJson(res));
-  const url = URL.createObjectURL(await res.blob());
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileNameOf(res, fallbackName);
-  link.click();
-  // Revoked after the click has started the download.
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 0);
+  saveBlob(await res.blob(), fileNameOf(res, fallbackName));
 }

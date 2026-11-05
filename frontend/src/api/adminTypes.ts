@@ -133,6 +133,53 @@ export interface Credentials {
   password: string;
 }
 
+/** "Excel से RO जोड़ें": one row of the uploaded file after the check. */
+export interface RoBulkRow {
+  rowNumber: number;
+  status: 'NEW' | 'EXISTS' | 'ERROR';
+  seat: string | null;
+  seatLabel: string | null;
+  fullName: string | null;
+  phone: string | null;
+  reasons: string[];
+}
+
+export interface RoBulkTotals {
+  total: number;
+  create: number;
+  exists: number;
+  errors: number;
+}
+
+export interface RoBulkCheck {
+  ok: boolean;
+  errors: Issue[];
+  rows: RoBulkRow[];
+  totals: RoBulkTotals;
+  expectedSeats: string[];
+  sha256: string;
+}
+
+/** A file inside a JSON answer (only files with passwords: never cached, never a GET). */
+export interface FileDownload {
+  fileName: string;
+  fileBase64: string;
+}
+
+export interface CreatedRo {
+  seatLabel: string;
+  fullName: string;
+  phone: string;
+  username: string;
+  password: string;
+}
+
+export interface RoBulkSaved {
+  totals: RoBulkTotals;
+  created: CreatedRo[];
+  credentialsFile: FileDownload;
+}
+
 export interface BoothRow {
   id: number;
   boothNo: number;
