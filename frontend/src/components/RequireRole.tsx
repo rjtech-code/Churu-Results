@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import type { Role } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { Header } from './Header';
+import { SiteFooter } from './SiteFooter';
 import { homePath } from '../auth/home';
 
 /** Pages for logged-in users of the given roles; others are sent to their own start page. */
@@ -20,11 +21,12 @@ export function RequireRole({
     return <Navigate to={denied === 'not-allowed' ? '/not-allowed' : homePath(user.role)} replace />;
   }
   return (
-    <>
+    <div className="site-shell">
       <Header />
       <main className="page">
         <Outlet />
       </main>
-    </>
+      <SiteFooter />
+    </div>
   );
 }

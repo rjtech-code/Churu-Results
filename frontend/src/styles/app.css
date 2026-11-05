@@ -410,8 +410,7 @@ dialog.dialog::backdrop {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   grid-template-areas: 'brand login';
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1; /* .login-shell holds the full screen height (login page + footer) */
   background: var(--lp-bg);
   color: var(--lp-ink);
 }
@@ -1020,4 +1019,88 @@ h1.compact {
   display: flex;
   gap: 8px;
   margin: 0 0 16px;
+}
+
+/* Page shell: header, page and the credit footer, filling at least one screen so the footer sits at
+   the bottom without ever overlapping content. */
+.site-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.site-shell > main {
+  flex: 1;
+}
+.login-shell {
+  background: #fbf7f0; /* same as --lp-bg, so the footer continues the login page background */
+}
+
+/* Credit footer (SiteFooter.tsx): one thin line, never wraps, never printed. Sizes in px because
+   html is 18px. Gold edges are darker than the middle so the 12px text stays readable on white. */
+.site-footer {
+  --sf-gold: linear-gradient(90deg, #8b6914, #b8860b 30%, #e6c86e 50%, #b8860b 70%, #8b6914);
+  position: relative;
+  padding: 7px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #6b6b6b;
+  animation: site-footer-in 0.6s ease-out both;
+}
+.site-footer::before {
+  /* hairline gold rule that fades out at both ends */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.45), transparent);
+}
+.site-footer-name {
+  font-weight: 600;
+  background: var(--sf-gold);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: site-footer-shimmer 8s linear infinite;
+}
+@keyframes site-footer-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes site-footer-shimmer {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+@media (max-width: 400px) {
+  /* small phones: shrink with the screen so the line never breaks */
+  .site-footer {
+    font-size: clamp(9px, 3vw, 12px);
+    letter-spacing: 0.01em;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-footer,
+  .site-footer-name {
+    animation: none;
+  }
+}
+@media print {
+  .site-footer {
+    display: none !important;
+  }
 }

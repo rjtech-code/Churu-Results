@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { SiteFooter } from '../components/SiteFooter';
 
 export function NotAllowedPage() {
   return (
@@ -14,11 +15,14 @@ export function NotAllowedPage() {
 
 export function NotFoundPage() {
   return (
-    <main className="page">
-      <h1>पेज नहीं मिला</h1>
-      <Link className="btn btn-primary" to="/">
-        मुख्य पेज पर जाएँ
-      </Link>
-    </main>
+    <div className="site-shell">
+      <main className="page">
+        <h1>पेज नहीं मिला</h1>
+        <Link className="btn btn-primary" to="/">
+          मुख्य पेज पर जाएँ
+        </Link>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
