@@ -56,6 +56,13 @@ import {
   savePartiesUpload,
 } from './uploads.service.js';
 import {
+  checkRoBulk,
+  roBulkTemplate,
+  roDetailsFile,
+  roDetailsWithPasswords,
+  saveRoBulk,
+} from './ro-bulk.service.js';
+import {
   createSeatAccount,
   listSeats,
   parseSeat,
@@ -74,6 +81,8 @@ export const UPLOAD_PATHS: ReadonlySet<string> = new Set([
   '/api/admin/parties/save',
   '/api/admin/candidates/check',
   '/api/admin/candidates/save',
+  '/api/admin/users/bulk/check',
+  '/api/admin/users/bulk/save',
 ]);
 /** 5 MB of file as base64 plus the JSON around it. */
 const UPLOAD_BODY_LIMIT = MAX_UPLOAD_BASE64 + 64 * 1024;
@@ -177,6 +186,17 @@ const createBody = z
   })
   .strict();
 const replaceBody = z.object({ fullName, phone }).strict();
+/** The seats the preview said would be created ("PS:<id>" / "ZP"); at most the 14 seats. */
+const seatKey = z.string().regex(/^(?:ZP|PS:[1-9]\d{0,9})$/);
+const bulkSave = z
+  .object({
+    fileName,
+    fileBase64,
+    password,
+    allowErrors: z.boolean(),
+    expectedSeats: z.array(seatKey).min(1).max(50),
+  })
+  .strict();
 const phoneBody = z.object({ phone }).strict();
 // Only sizes here; the username and password rules (with their own error codes) are in the service.
 const credentialsBody = z
@@ -297,6 +317,31 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     );
     noStore(res);
     res.status(201).json(out);
+  });
+  router.get('/users/bulk-template.xlsx', async (_req, res) => {
+    sendXlsx(res, await roBulkTemplate(pool), 'ro-bulk-template.xlsx');
+  });
+  router.post('/users/bulk/check', uploadJson, async (req, res) => {
+    res.json(await checkRoBulk(pool, parse(uploadCheck, req.body)));
+  });
+  router.post('/users/bulk/save', uploadJson, async (req, res) => {
+    const out = await saveRoBulk(pool, actor(req), parse(bulkSave, req.body), config.roPasswordKey);
+    noStore(res);
+    res.status(201).json(out);
+  });
+  router.get('/users/export.xlsx', async (req, res) => {
+    const out = await roDetailsFile(pool, actor(req));
+    sendXlsx(res, out.data, out.fileName);
+  });
+  router.post('/users/export-with-passwords', async (req, res) => {
+    const out = await roDetailsWithPasswords(
+      pool,
+      actor(req),
+      parse(passwordOnly, req.body),
+      config.roPasswordKey,
+    );
+    noStore(res);
+    res.json(out);
   });
   router.post('/users/generate-password', (_req, res) => {
     noStore(res);
