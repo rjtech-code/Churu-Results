@@ -59,35 +59,24 @@ export function Bar({ percent, label }: { percent: number | null; label: string 
   );
 }
 
-const DOWNLOADS = [
-  { key: 'pdf', label: 'PDF download', path: `${CS_API}.pdf`, fallback: 'counting-status.pdf' },
-  {
-    key: 'wards',
-    label: 'CSV download (ward-wise)',
-    path: `${CS_API}/wards.csv`,
-    fallback: 'counting-status-wards.csv',
-  },
-  {
-    key: 'booths',
-    label: 'CSV download (booth-wise)',
-    path: `${CS_API}/booths.csv`,
-    fallback: 'counting-status-booths.csv',
-  },
-] as const;
-
-/** The three downloads. One at a time: a second click while one runs does nothing. */
-export function CsDownloads() {
-  const [busy, setBusy] = useState<string | null>(null);
+/**
+ * "Download PDF" and "Download CSV" of the chosen scope (`query`; null = selection not complete).
+ * The CSV is ward-wise, or booth-wise for one ward / one booth. One download at a time: a second
+ * click while one runs does nothing.
+ */
+export function CsDownloads({ query, csv }: { query: string | null; csv: 'wards' | 'booths' }) {
+  const [busy, setBusy] = useState<'pdf' | 'csv' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false); // set synchronously, so a fast double click cannot start two
 
-  const start = async (d: (typeof DOWNLOADS)[number]) => {
-    if (running.current) return;
+  const start = async (kind: 'pdf' | 'csv') => {
+    if (running.current || query === null) return;
     running.current = true;
-    setBusy(d.key);
+    setBusy(kind);
     setError(null);
     try {
-      await downloadFile(d.path, d.fallback);
+      if (kind === 'pdf') await downloadFile(`${CS_API}.pdf?${query}`, 'counting-status.pdf');
+      else await downloadFile(`${CS_API}/${csv}.csv?${query}`, `counting-status-${csv}.csv`);
     } catch {
       setError('Download failed. Please try again.');
     } finally {
@@ -96,25 +85,29 @@ export function CsDownloads() {
     }
   };
 
+  const button = (kind: 'pdf' | 'csv', label: string) => (
+    <button
+      type="button"
+      className="cs-btn"
+      disabled={query === null || busy !== null}
+      aria-busy={busy === kind}
+      onClick={() => {
+        void start(kind);
+      }}
+    >
+      {busy === kind ? 'Preparing…' : label}
+    </button>
+  );
+
   return (
-    <div className="cs-downloads">
-      <div className="cs-download-row">
-        {DOWNLOADS.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            className="cs-btn"
-            disabled={busy !== null}
-            aria-busy={busy === d.key}
-            onClick={() => {
-              void start(d);
-            }}
-          >
-            {busy === d.key ? 'Preparing…' : d.label}
-          </button>
-        ))}
-      </div>
-      <ErrorBox error={error} />
-    </div>
+    <>
+      {button('pdf', 'Download PDF')}
+      {button('csv', 'Download CSV')}
+      {error !== null && (
+        <div className="cs-actions-error">
+          <ErrorBox error={error} />
+        </div>
+      )}
+    </>
   );
 }

@@ -13,7 +13,6 @@ import { LoginPage } from './pages/LoginPage';
 import { PostalPage } from './pages/PostalPage';
 import { NotAllowedPage, NotFoundPage } from './pages/SimplePages';
 import { CountingStatusPage } from './pages/reports/CountingStatusPage';
-import { CountingStatusWardPage } from './pages/reports/CountingStatusWardPage';
 import { ReportWardPage } from './pages/reports/ReportWardPage';
 import { ReportsHomePage } from './pages/reports/ReportsHomePage';
 import { BoothEditPage } from './pages/admin/BoothEditPage';
@@ -92,7 +91,6 @@ export const router = createBrowserRouter([
           { path: '/reports', element: <ReportsHomePage /> },
           { path: '/reports/wards/:wardId', element: <ReportWardPage /> },
           { path: '/reports/counting-status', element: <CountingStatusPage /> },
-          { path: '/reports/counting-status/wards/:wardId', element: <CountingStatusWardPage /> },
           { path: '/dm', element: <Navigate to="/reports" replace /> },
           // Part 13: the DM's master-data tools (never votes, entries, declare or correction).
           { path: '/admin/parties', element: <PartiesPage /> },

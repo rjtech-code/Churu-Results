@@ -1,14 +1,20 @@
-/* DM Counting Status Report. Calm slate base, one accent (the app's --brand), muted status tones:
-   green = Declared, amber = In Progress, grey = Not Started, blue = Ready, red only for Stalled.
-   Every colour is paired with its text label. No gradients, no shadows beyond a hairline. */
+/* DM Counting Status Report (report builder). Calm slate base, one accent (the app's --brand), muted
+   status tones: green = Declared, amber = In Progress, grey = Not Started, blue = Ready, red only for
+   Stalled. Every colour is paired with its text label. No gradients.
+   Responsive: desktop tables; on tablets the ward and booth tables, and on phones the PS table, turn
+   into cards (each cell shows its data-label). All classes are prefixed cs- so the app's global
+   table / form styles never leak in. */
 .cs-page {
   --cs-ink: #1c2533;
   --cs-muted: #5b6472;
-  --cs-line: #dde2e8;
+  --cs-faint: #8a929e;
+  --cs-line: #e1e5ea;
+  --cs-line-strong: #c9d0d8;
   --cs-soft: #f5f7f9;
-  --cs-zebra: #f8f9fb;
+  --cs-zebra: #fafbfc;
   --cs-head: #1f2d45;
   --cs-accent: var(--brand, #0b3d91);
+  --cs-accent-soft: #e8eef8;
   --cs-ok-bg: #e2f0e5;
   --cs-ok: #1d5a2e;
   --cs-warn-bg: #faefd3;
@@ -18,8 +24,10 @@
   --cs-muted-bg: #eceef1;
   --cs-bad-bg: #f8dede;
   --cs-bad: #8f1010;
+  --cs-radius: 10px;
 
   max-width: 1440px;
+  margin: 0 auto;
   color: var(--cs-ink);
   font-family:
     system-ui,
@@ -30,184 +38,389 @@
     Arial,
     'Noto Sans Devanagari',
     sans-serif;
+  font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
-  line-height: 1.45;
+  line-height: 1.5;
 }
-.cs-page h1 {
+.cs-page h1,
+.cs-page h2 {
   margin: 0;
-  font-size: 1.6rem;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
+.cs-page h1 {
+  font-size: 1.55rem;
+}
 .cs-page h2 {
-  margin: 0 0 12px;
   font-size: 1.05rem;
-  font-weight: 650;
 }
 .cs-loading,
 .cs-empty {
+  margin: 0;
+  padding: 20px 0;
   color: var(--cs-muted);
-  padding: 24px 0;
-}
-.cs-back {
-  margin: 0 0 8px;
-}
-.cs-back a {
-  color: var(--cs-accent);
-  text-decoration: none;
-}
-.cs-back a:hover {
-  text-decoration: underline;
 }
 
-/* ---- header */
-.cs-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px 32px;
-  padding-bottom: 20px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--cs-line);
+/* ---- page header */
+.cs-page-head {
+  margin: 4px 0 18px;
 }
-.cs-sub {
-  margin: 4px 0 0;
-  font-size: 1rem;
-}
-.cs-meta {
+.cs-page-head p {
   margin: 4px 0 0;
   color: var(--cs-muted);
-  font-size: 0.9rem;
 }
-.cs-download-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.cs-btn {
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 8px 14px;
-  border: 1px solid var(--cs-accent);
-  border-radius: 6px;
+
+/* ---- panels (builder, summary bands, ward summary) */
+.cs-panel,
+.cs-builder {
   background: #fff;
-  color: var(--cs-accent);
+  border: 1px solid var(--cs-line);
+  border-radius: var(--cs-radius);
+  box-shadow: 0 1px 2px rgba(28, 37, 51, 0.04);
+}
+
+/* ---- report builder */
+.cs-builder {
+  padding: 20px 22px;
+  margin-bottom: 28px;
+}
+.cs-builder-head {
+  margin-bottom: 16px;
+}
+.cs-builder-head p {
+  margin: 2px 0 0;
+  color: var(--cs-muted);
+  font-size: 0.85rem;
+}
+.cs-builder-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px 16px;
+  margin-bottom: 18px;
+}
+.cs-select {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  color: var(--cs-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cs-select select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 34px 8px 12px;
+  border: 1px solid var(--cs-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  appearance: none;
+  color: var(--cs-ink);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
   cursor: pointer;
 }
+/* The dropdown arrow, drawn with borders (no image file or inline image, per the CSP). */
+.cs-select {
+  position: relative;
+}
+.cs-select::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  bottom: 17px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid var(--cs-muted);
+  border-bottom: 1.6px solid var(--cs-muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.cs-select select:hover:not(:disabled) {
+  border-color: var(--cs-faint);
+}
+.cs-select select:disabled {
+  background-color: var(--cs-soft);
+  color: var(--cs-faint);
+  cursor: progress;
+}
+.cs-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--cs-line);
+}
+.cs-export {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+.cs-actions-error {
+  flex-basis: 100%;
+}
+
+/* ---- buttons */
+.cs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--cs-line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cs-ink);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
 .cs-btn:hover:not(:disabled) {
+  border-color: var(--cs-accent);
+  background: var(--cs-accent-soft);
+  color: var(--cs-accent);
+}
+.cs-btn-primary {
+  min-width: 140px;
+  border-color: var(--cs-accent);
   background: var(--cs-accent);
   color: #fff;
 }
+.cs-btn-primary:hover:not(:disabled) {
+  border-color: var(--cs-head);
+  background: var(--cs-head);
+  color: #fff;
+}
 .cs-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cs-btn[aria-busy='true'] {
+  opacity: 0.7;
   cursor: progress;
 }
 .cs-btn:focus-visible,
-.cs-seg-btn:focus-visible,
+.cs-link:focus-visible,
 .cs-select select:focus-visible {
   outline: 3px solid var(--focus, #ffbf00);
   outline-offset: 2px;
 }
 
-/* ---- summary */
-.cs-band {
-  margin-bottom: 28px;
+/* ---- report header */
+.cs-report-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 20px;
 }
-.cs-band-count {
+.cs-report-title {
+  min-width: 0;
+}
+.cs-scope {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+.cs-scope strong {
+  font-weight: 650;
+}
+.cs-scope-sep {
+  color: var(--cs-faint);
+}
+.cs-asof {
+  color: var(--cs-muted);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.cs-meta {
+  margin: 4px 0 0;
+  color: var(--cs-muted);
+  font-size: 0.82rem;
+}
+
+/* ---- summary band */
+.cs-band {
+  padding: 18px 20px 20px;
+  margin-bottom: 20px;
+}
+.cs-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 14px;
+}
+.cs-count {
   margin-left: 6px;
   color: var(--cs-muted);
-  font-weight: 400;
-  font-size: 0.95rem;
-}
-.cs-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 12px;
-}
-.cs-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--cs-line);
-  border-radius: 8px;
-  background: #fff;
-}
-.cs-card-wide {
-  grid-column: span 2;
-}
-.cs-card-label {
-  color: var(--cs-muted);
   font-size: 0.85rem;
   font-weight: 500;
 }
-.cs-card-value {
-  font-size: 2rem;
-  font-weight: 650;
-  line-height: 1.1;
-}
-.cs-card-of {
+.cs-last {
   color: var(--cs-muted);
-  font-size: 1.1rem;
-  font-weight: 500;
+  font-size: 0.82rem;
 }
-.cs-card-time {
-  font-size: 1rem;
+.cs-last strong {
+  margin-left: 4px;
+  color: var(--cs-ink);
   font-weight: 600;
 }
-.cs-card-note {
+.cs-mix {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--cs-muted-bg);
+}
+.cs-mix-seg {
+  flex-basis: 0;
+  min-width: 4px;
+}
+.cs-tone-NOT_STARTED {
+  background: #a9b0ba;
+}
+.cs-tone-IN_PROGRESS {
+  background: #d4a23a;
+}
+.cs-tone-READY {
+  background: #4f7dbd;
+}
+.cs-tone-DECLARED {
+  background: #3f8a55;
+}
+.cs-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.cs-tile,
+.cs-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--cs-soft);
+}
+.cs-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--cs-muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.cs-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.cs-tile-value {
+  font-size: 1.75rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+.cs-tile-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.cs-tile-note {
+  color: var(--cs-muted);
+  font-size: 0.8rem;
+}
+.cs-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+.cs-metric-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.cs-of {
+  color: var(--cs-muted);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.cs-metric-pct {
+  margin-left: auto;
+  color: var(--cs-accent);
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 .cs-bad-text {
   color: var(--cs-bad);
   font-weight: 600;
 }
-.cs-warn-text {
+.cs-alert {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--cs-warn-bg);
   color: var(--cs-warn);
+  font-size: 0.85rem;
   font-weight: 600;
 }
-/* A thin coloured edge marks each status card (with its label, never alone). */
-.cs-card-NOT_STARTED {
-  border-top: 3px solid #a3aab4;
+
+/* ---- ward summary (one ward) */
+.cs-ward-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
 }
-.cs-card-IN_PROGRESS {
-  border-top: 3px solid #c99a2e;
+.cs-panel > .cs-ward-tiles {
+  padding: 14px;
 }
-.cs-card-READY {
-  border-top: 3px solid #4f7dbd;
-}
-.cs-card-DECLARED {
-  border-top: 3px solid #3f8a55;
+.cs-tile-wide {
+  grid-column: span 2;
 }
 
 /* ---- progress bar */
 .cs-bar {
   display: block;
   width: 100%;
-  min-width: 80px;
+  min-width: 70px;
   height: 6px;
+  overflow: hidden;
   border-radius: 3px;
   background: var(--cs-muted-bg);
-  overflow: hidden;
 }
 .cs-bar-fill {
   display: block;
   height: 100%;
+  border-radius: 3px;
   background: var(--cs-accent);
 }
 .cs-bar-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .cs-pct {
-  min-width: 3.5em;
-  text-align: right;
+  min-width: 3.4em;
   color: var(--cs-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  text-align: right;
 }
 
 /* ---- chips */
@@ -218,10 +431,11 @@
 }
 .cs-chip {
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.76rem;
   font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
 }
 .cs-chip-ok {
@@ -245,132 +459,106 @@
   color: var(--cs-bad);
 }
 
-/* ---- sections and tables */
+/* ---- sections and tables (desktop) */
 .cs-section {
-  margin-bottom: 32px;
+  margin-top: 28px;
+}
+.cs-section > h2 {
+  margin-bottom: 12px;
 }
 .cs-table-wrap {
   overflow: auto;
   border: 1px solid var(--cs-line);
-  border-radius: 8px;
+  border-radius: var(--cs-radius);
   background: #fff;
 }
 .cs-table-tall {
-  max-height: 70vh;
+  max-height: 72vh;
 }
 .cs-table {
   width: 100%;
+  margin: 0;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 .cs-table th,
 .cs-table td {
-  padding: 8px 12px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--cs-line);
+  background: transparent;
   text-align: left;
   vertical-align: middle;
-  border-bottom: 1px solid var(--cs-line);
 }
 .cs-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
+  padding-top: 11px;
+  padding-bottom: 11px;
   background: var(--cs-head);
   color: #fff;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 .cs-table tbody th {
   font-weight: 600;
+  white-space: nowrap;
 }
-.cs-table tbody tr:nth-child(even) {
+.cs-table tbody tr:nth-child(even) > * {
   background: var(--cs-zebra);
 }
-.cs-table tbody tr:hover {
-  background: var(--cs-soft);
+.cs-table tbody tr:hover > * {
+  background: var(--cs-accent-soft);
+}
+.cs-table tbody tr:last-child > * {
+  border-bottom: 0;
 }
 .cs-table tfoot th,
 .cs-table tfoot td {
-  font-weight: 700;
   border-top: 2px solid var(--cs-head);
   border-bottom: 0;
+  background: var(--cs-soft);
+  font-weight: 700;
 }
-.cs-table .num {
+.cs-table .cs-num {
   text-align: right;
   white-space: nowrap;
 }
-.cs-table a {
-  color: var(--cs-accent);
-  text-decoration: none;
-}
-.cs-table a:hover {
-  text-decoration: underline;
-}
 .cs-bar-col {
-  min-width: 140px;
+  min-width: 150px;
 }
 .cs-nowrap {
   white-space: nowrap;
 }
 .cs-booth-name {
-  min-width: 220px;
+  min-width: 240px;
+}
+.cs-card-sub {
+  display: none;
 }
 .cs-row-stalled > :first-child {
   box-shadow: inset 3px 0 0 var(--cs-bad);
 }
-
-/* ---- filters */
-.cs-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px 16px;
-  margin-bottom: 12px;
-}
-.cs-seg {
-  display: inline-flex;
-  border: 1px solid var(--cs-accent);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.cs-seg-btn {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 7px 14px;
+.cs-link {
+  padding: 0;
   border: 0;
-  background: #fff;
+  background: none;
   color: var(--cs-accent);
+  font: inherit;
+  font-weight: 650;
   cursor: pointer;
 }
-.cs-seg-on {
-  background: var(--cs-accent);
-  color: #fff;
-}
-.cs-select {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 0.8rem;
-  color: var(--cs-muted);
-}
-.cs-select select {
-  font: inherit;
-  font-size: 0.9rem;
-  color: var(--cs-ink);
-  padding: 6px 8px;
-  border: 1px solid #b9c0c9;
-  border-radius: 6px;
-  background: #fff;
-}
-.cs-count {
-  margin-left: auto;
-  color: var(--cs-muted);
-  font-size: 0.85rem;
+.cs-link:hover {
+  text-decoration: underline;
 }
 .cs-note {
+  margin: 24px 0 0;
   color: var(--cs-muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 /* ---- pending booths */
@@ -385,41 +573,236 @@
 .cs-pending li {
   padding: 3px 10px;
   border: 1px solid var(--cs-line);
-  border-radius: 4px;
-  background: var(--cs-soft);
-  font-size: 0.9rem;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.84rem;
+  font-weight: 500;
 }
 
-/* ---- small screens */
+/* ---- tablet: ward and booth tables become cards */
+@media (max-width: 900px) {
+  .cs-wrap-md {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .cs-cards-md thead {
+    display: none;
+  }
+  .cs-cards-md {
+    display: block;
+  }
+  /* Cards side by side where there is room (tablet), one per row on phones. */
+  .cs-cards-md tbody {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+  }
+  .cs-cards-md tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 10px 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--cs-line);
+    border-radius: var(--cs-radius);
+    background: #fff;
+  }
+  .cs-cards-md tbody tr > *,
+  .cs-cards-md tbody tr:nth-child(even) > *,
+  .cs-cards-md tbody tr:hover > * {
+    background: transparent;
+  }
+  .cs-cards-md tbody th {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--cs-line);
+    font-size: 1rem;
+    white-space: normal;
+  }
+  .cs-cards-md .cs-card-sub {
+    display: inline;
+    color: var(--cs-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .cs-cards-md td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .cs-cards-md td::before {
+    content: attr(data-label);
+    color: var(--cs-faint);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .cs-cards-md td.cs-num {
+    text-align: left;
+  }
+  .cs-cards-md td[data-label='Status'],
+  .cs-cards-md td[data-label='Winner (party)'],
+  .cs-cards-md td[data-label='Booth name'] {
+    grid-column: 1 / -1;
+  }
+  .cs-cards-md .cs-hide-card {
+    display: none;
+  }
+  .cs-cards-md .cs-booth-name {
+    min-width: 0;
+  }
+  .cs-cards-md .cs-row-stalled,
+  .cs-cards-md tbody tr.cs-row-stalled {
+    border-left: 4px solid var(--cs-bad);
+  }
+  .cs-cards-md .cs-row-stalled > :first-child {
+    box-shadow: none;
+  }
+  .cs-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cs-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- phone */
 @media (max-width: 640px) {
   .cs-page h1 {
     font-size: 1.3rem;
   }
-  .cs-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .cs-builder {
+    padding: 16px;
   }
-  .cs-card-wide {
-    grid-column: span 2;
+  .cs-builder-fields {
+    grid-template-columns: 1fr;
   }
-  .cs-card-value {
-    font-size: 1.6rem;
-  }
-  .cs-count {
+  .cs-builder-actions,
+  .cs-export {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
     margin-left: 0;
   }
-  .cs-download-row .cs-btn {
-    flex: 1 1 100%;
+  .cs-btn {
+    width: 100%;
+  }
+  .cs-report-head .cs-btn {
+    width: auto;
+  }
+  .cs-scope {
+    font-size: 1.02rem;
+  }
+  .cs-band {
+    padding: 14px;
+  }
+  .cs-tile,
+  .cs-metric {
+    padding: 10px 12px;
+  }
+  .cs-tile-value {
+    font-size: 1.45rem;
+  }
+  .cs-tile-wide {
+    grid-column: 1 / -1;
+  }
+  .cs-ward-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* PS table becomes cards too. */
+  .cs-wrap-sm {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .cs-cards-sm thead {
+    display: none;
+  }
+  .cs-cards-sm,
+  .cs-cards-sm tbody,
+  .cs-cards-sm tfoot {
+    display: block;
+  }
+  .cs-cards-sm tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+    margin-bottom: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--cs-line);
+    border-radius: var(--cs-radius);
+    background: #fff;
+  }
+  .cs-cards-sm tr > *,
+  .cs-cards-sm tbody tr:nth-child(even) > *,
+  .cs-cards-sm tbody tr:hover > * {
+    background: transparent;
+  }
+  .cs-cards-sm tfoot tr {
+    border: 2px solid var(--cs-head);
+    background: var(--cs-soft);
+  }
+  .cs-cards-sm th {
+    grid-column: 1 / -1;
+    padding: 0 0 10px;
+    border: 0;
+    border-bottom: 1px solid var(--cs-line);
+    font-size: 1rem;
+    white-space: normal;
+  }
+  .cs-cards-sm td {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+  .cs-cards-sm tfoot td {
+    border: 0;
+  }
+  .cs-cards-sm td::before {
+    content: attr(data-label);
+    color: var(--cs-faint);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .cs-cards-sm td.cs-num {
+    text-align: left;
+  }
+  .cs-cards-sm td.cs-bar-col {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 }
 
 @media print {
-  .cs-downloads,
-  .cs-filters,
-  .cs-back {
+  .cs-builder,
+  .cs-report-head .cs-btn,
+  .cs-page-head p {
     display: none;
   }
   .cs-table-tall {
     max-height: none;
     overflow: visible;
+  }
+  .cs-panel {
+    box-shadow: none;
   }
 }

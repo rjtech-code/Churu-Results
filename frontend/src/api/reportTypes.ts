@@ -240,6 +240,7 @@ export interface CsWardRow {
 export interface CsBoothRow {
   wardId: number;
   kind: CsKind;
+  boothId: number;
   psId: number;
   psName: string;
   psNameFull: string;
@@ -291,6 +292,10 @@ export interface CsPsRow {
   zpBoothsPending: number;
 }
 
+export type CsLevel = 'DISTRICT' | 'ALL_PS' | 'ALL_ZP' | 'PS' | 'WARD' | 'BOOTH';
+export type CsStatusFilter = 'ALL' | CountingStatusCode | 'STALLED';
+
+/** GET /api/reports/counting-status?level=…: the report of the chosen scope. */
 export interface CountingStatusView {
   title: string;
   electionName: string;
@@ -301,12 +306,24 @@ export interface CountingStatusView {
   summary: Record<CsKind, CsKindSummary>;
   psTable: CsPsRow[];
   wards: CsWardRow[];
+  /** One ward or one booth only (empty otherwise). */
+  booths: CsBoothRow[];
+  /** The summary bands that belong to the scope. */
+  kinds: CsKind[];
+  scope: {
+    level: CsLevel;
+    psId: number | null;
+    wardId: number | null;
+    boothId: number | null;
+    status: CsStatusFilter;
+    label: string;
+  };
 }
 
-export interface CountingStatusWard {
-  asOf: string;
-  asOfText: string;
-  stalledAfterMinutes: number;
-  ward: CsWardRow;
-  booths: CsBoothRow[];
+export interface CountingStatusOptions {
+  ps: { id: number; name: string }[];
+  wards: { id: number; kind: CsKind; psId: number | null; wardNo: number }[];
+}
+export interface CountingStatusBoothOptions {
+  booths: { id: number; boothNo: number; name: string }[];
 }
