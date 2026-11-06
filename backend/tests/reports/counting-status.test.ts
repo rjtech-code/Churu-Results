@@ -20,12 +20,8 @@ import {
   istText,
   percentDown,
 } from '../../src/services/counting-status.js';
-import type {
-  BoothRow,
-  CountingStatusRaw,
-  CountingStatusReport,
-  WardRow,
-} from '../../src/services/counting-status.js';
+import type { BoothRow, CountingStatusRaw, WardRow } from '../../src/services/counting-status.js';
+import type { ScopedReport } from '../../src/services/counting-status.scope.js';
 import { DEFAULT_SCREEN_LAYOUT } from '../../src/services/screen-layout.js';
 import { buildApp, createUser, login, seedTwoPs } from '../auth/helpers.js';
 import { PASSWORD, countingApp } from '../counting/helpers.js';
@@ -33,12 +29,13 @@ import { declareClient } from '../declare/helpers.js';
 import type { DeclareClient } from '../declare/helpers.js';
 import { createTestAppPool, createTestMigrationPool, insert, resetData } from '../helpers/db.js';
 
-type View = Omit<CountingStatusReport, 'booths'>;
+type View = ScopedReport;
 interface WardView {
   ward: WardRow;
   booths: BoothRow[];
 }
 
+const CS = '/api/reports/counting-status';
 const LEADER = 'Leadingname Zeta'; // leads an UNDECLARED ward: must never appear anywhere
 const WINNER = 'Winnername Alpha'; // wins the declared ward: shown after declaration
 
@@ -221,12 +218,16 @@ async function view(): Promise<View> {
   expect(res.status).toBe(200);
   return res.body as View;
 }
+/** One ward's report (scope WARD): the ward row and its booth rows. */
 async function wardView(wardId: number): Promise<WardView> {
   const res = await (
     await as(users.dm)
-  ).get(`/api/reports/counting-status/wards/${String(wardId)}`);
+  ).get(`/api/reports/counting-status?level=WARD&wardId=${String(wardId)}`);
   expect(res.status).toBe(200);
-  return res.body as WardView;
+  const body = res.body as View;
+  const [ward] = body.wards;
+  if (ward === undefined || body.wards.length !== 1) throw new Error(`ward ${String(wardId)}`);
+  return { ward, booths: body.booths };
 }
 const wardOf = (v: { wards: WardRow[] }, id: number): WardRow => {
   const w = v.wards.find((x) => x.wardId === id);
@@ -434,7 +435,7 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
     expect(wr.headers['content-type']).toBe('text/csv; charset=utf-8');
     expect(pr.headers['content-type']).toBe('application/pdf');
     expect(pr.headers['content-disposition']).toMatch(
-      /^attachment; filename="counting-status-\d{8}-\d{6}-IST\.pdf"$/,
+      /^attachment; filename="counting-status-district-\d{8}-\d{6}-IST\.pdf"$/,
     );
     wardsCsv = csvObjects(wr.text);
     boothsCsv = csvObjects(br.text);
@@ -536,7 +537,7 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
       expect(tailAt).toBeGreaterThanOrEqual(0);
     }
     expect(pdf).toContain(
-      `Churu District - Counting Status Report   ·   Report time: ${v.asOfText}`,
+      `Churu District - Counting Status Report   ·   Scope: Whole District   ·   Report time: ${v.asOfText}`,
     );
     expect(pdf.some((t) => /^Page 1 of \d+$/.test(t))).toBe(true);
     expect(pdf).toContain(`${WINNER} (P1)`);
@@ -571,7 +572,9 @@ describe('(d) no leading candidate before declaration', () => {
     bodies.push(main.text);
     expect(keysOf(main.body).filter((k) => FORBIDDEN_KEYS.test(k))).toEqual([]);
     for (const w of (main.body as View).wards) {
-      const res = await dm.get(`/api/reports/counting-status/wards/${String(w.wardId)}`);
+      const res = await dm.get(
+        `/api/reports/counting-status?level=WARD&wardId=${String(w.wardId)}`,
+      );
       expect(keysOf(res.body).filter((k) => FORBIDDEN_KEYS.test(k))).toEqual([]);
       bodies.push(res.text);
       if (w.status !== 'DECLARED') expect(w.winner).toBeNull();
@@ -595,7 +598,9 @@ describe('(d) no leading candidate before declaration', () => {
 describe('(e) DM only', () => {
   const paths = () => [
     '/api/reports/counting-status',
-    `/api/reports/counting-status/wards/${String(ids.w1)}`,
+    `/api/reports/counting-status?level=WARD&wardId=${String(ids.w1)}`,
+    '/api/reports/counting-status/options',
+    `/api/reports/counting-status/options/wards/${String(ids.w1)}/booths`,
     '/api/reports/counting-status.pdf',
     '/api/reports/counting-status/wards.csv',
     '/api/reports/counting-status/booths.csv',
@@ -616,8 +621,19 @@ describe('(e) DM only', () => {
     const dm = await as(users.dm);
     expect((await dm.get('/api/reports/counting-status?x=1')).status).toBe(400);
     expect((await dm.get('/api/reports/counting-status.pdf?scope=ZP')).status).toBe(400);
-    expect((await dm.get('/api/reports/counting-status/wards/abc')).status).toBe(400);
-    expect((await dm.get('/api/reports/counting-status/wards/999999')).status).toBe(404);
+    expect((await dm.get(`${CS}?level=WARD&wardId=abc`)).status).toBe(400);
+    expect((await dm.get(`${CS}?level=WARD`)).status).toBe(400); // id missing
+    expect((await dm.get(`${CS}?level=PS&psId=1&wardId=1`)).status).toBe(400); // id of another level
+    expect((await dm.get(`${CS}?level=WARD&wardId=1&status=ALL`)).status).toBe(400);
+    expect((await dm.get(`${CS}?level=COUNTRY`)).status).toBe(400);
+    expect((await dm.get(`${CS}?status=WINNING`)).status).toBe(400);
+    expect((await dm.get(`${CS}?level=WARD&wardId=999999`)).status).toBe(404);
+    expect((await dm.get(`${CS}?level=PS&psId=999999`)).status).toBe(404);
+    expect((await dm.get(`${CS}?level=BOOTH&boothId=999999`)).status).toBe(404);
+    expect((await dm.get(`${CS}.pdf?level=BOOTH&boothId=999999`)).status).toBe(404);
+    expect((await dm.get(`${CS}/wards.csv?level=PS&psId=0`)).status).toBe(400);
+    expect((await dm.get(`${CS}/options/wards/${String(ids.zp1)}/booths`)).status).toBe(404); // a ZP ward
+    expect((await dm.get(`${CS}/options/wards/999999/booths`)).status).toBe(404);
   });
 
   it('every download is audited (who, when, which format); viewing is not', async () => {
@@ -642,6 +658,243 @@ describe('(e) DM only', () => {
     const after = await count();
     const diff = (f: string) => (after[f] ?? 0) - (before[f] ?? 0);
     expect([diff('pdf'), diff('csv-ward'), diff('csv-booth')]).toEqual([1, 1, 2]);
+  });
+});
+
+describe('scopes: the DM picks what to see', () => {
+  interface Scoped {
+    json: View;
+    wardsCsv: Record<string, string>[];
+    boothsCsv: Record<string, string>[];
+    pdf: string[];
+  }
+  /** The page JSON, both CSVs and the PDF text of one scope (same query string). */
+  async function scoped(query: string): Promise<Scoped> {
+    const dm = await as(users.dm);
+    const j = await dm.get(`${CS}?${query}`);
+    const w = await dm.get(`${CS}/wards.csv?${query}`);
+    const b = await dm.get(`${CS}/booths.csv?${query}`);
+    const p = await dm.get(`${CS}.pdf?${query}`).buffer(true);
+    expect([j.status, w.status, b.status, p.status], query).toEqual([200, 200, 200, 200]);
+    return {
+      json: j.body as View,
+      wardsCsv: csvObjects(w.text),
+      boothsCsv: csvObjects(b.text),
+      pdf: pdfTexts(p.body as Buffer),
+    };
+  }
+  const entryText = { YES: 'Entered', NO: 'Pending', NA: 'n/a' } as const;
+  /** (a) for any scope: CSV rows = JSON rows; the PDF draws the scope line and every ward row. */
+  function sameEverywhere(s: Scoped, boothRows: BoothRow[]) {
+    expect(s.wardsCsv.map((r) => [r.ward_type, r.ward_no, r.status, r.booths_done])).toEqual(
+      s.json.wards.map((w) => [
+        w.kind,
+        String(w.wardNo),
+        w.statusLabel,
+        w.boothsDone === null ? '' : String(w.boothsDone),
+      ]),
+    );
+    expect(
+      s.boothsCsv.map((r) => [r.ward_type, r.booth_ps_name, r.booth_no, r.entered, r.total_votes]),
+    ).toEqual(
+      boothRows.map((b) => [
+        b.kind,
+        b.psNameFull,
+        String(b.boothNo),
+        { YES: 'yes', NO: 'no', NA: 'n/a' }[b.entered],
+        b.totalVotes === null ? '' : String(b.totalVotes),
+      ]),
+    );
+    expect(s.pdf).toContain(`Scope: ${s.json.scope.label}`);
+    if (s.json.scope.level !== 'BOOTH') {
+      for (const w of s.json.wards) {
+        const head = [
+          ...(w.kind === 'PS' ? [w.psName ?? ''] : []),
+          String(w.wardNo),
+          w.statusLabel,
+        ];
+        expect(findRun(s.pdf, head), `${w.kind} ward ${String(w.wardNo)}`).toBeGreaterThanOrEqual(
+          0,
+        );
+      }
+    }
+  }
+
+  let district: View;
+  beforeAll(async () => {
+    district = await view();
+  });
+
+  it('no scope = the whole district; the page JSON carries no 2,700 booth rows', () => {
+    expect(district.scope).toMatchObject({
+      level: 'DISTRICT',
+      status: 'ALL',
+      label: 'Whole District',
+    });
+    expect(district.kinds).toEqual(['PS', 'ZP']);
+    expect(district.booths).toEqual([]);
+  });
+
+  it('(a)+(b) one PS: page = CSV = PDF, and its numbers = the district report’s PS row', async () => {
+    const s = await scoped(`level=PS&psId=${String(ids.ps1)}`);
+    const row = district.psTable.find((p) => p.psId === ids.ps1);
+    expect(s.json.psTable).toEqual([row]);
+    expect(s.json.scope.label).toBe('CHURU (Panchayat Samiti)');
+    expect(s.json.kinds).toEqual(['PS']);
+    expect(s.json.wards).toEqual(
+      district.wards.filter((w) => w.kind === 'PS' && w.psId === ids.ps1),
+    );
+    // The PS summary = the district PS row (booths, wards, declared).
+    expect(s.json.summary.PS).toMatchObject({
+      wardsTotal: row?.wardsTotal,
+      declared: row?.declared,
+      boothsDone: row?.psBoothsDone,
+      boothsTotal: row?.psBoothsTotal,
+      boothsPending: row?.psBoothsPending,
+      boothsPercent: row?.psBoothsPercent,
+    });
+    expect(row).toMatchObject({ zpBoothsDone: 2, zpBoothsTotal: 5 });
+    const booths: BoothRow[] = [];
+    for (const w of s.json.wards) booths.push(...(await wardView(w.wardId)).booths);
+    sameEverywhere(s, booths);
+    expect(
+      findRun(s.pdf, [
+        'CHURU',
+        n(row?.wardsTotal ?? 0),
+        n(row?.declared ?? 0),
+        n(row?.psBoothsDone ?? 0),
+        n(row?.psBoothsTotal ?? 0),
+      ]),
+    ).toBeGreaterThanOrEqual(0);
+    expect(s.pdf).not.toContain('All Panchayat Samitis');
+    expect(s.pdf.some((t) => t.includes('RAJGARH'))).toBe(false);
+  });
+
+  it('(c) one ward: a ZP ward shows all its booths across PS; page = CSV = PDF', async () => {
+    const s = await scoped(`level=WARD&wardId=${String(ids.zp1)}`);
+    expect(s.json.scope.label).toBe('Zila Parishad - Ward 1');
+    expect(s.json.wards).toEqual([wardOf(district, ids.zp1)]);
+    expect(s.json.summary.ZP).toMatchObject({ wardsTotal: 1, boothsDone: 2, boothsTotal: 3 });
+    expect(s.json.booths.map((b) => [b.psName, b.boothNo, b.entered])).toEqual([
+      ['CHURU', 1, 'YES'],
+      ['CHURU', 2, 'YES'],
+      ['RAJGARH', 1, 'NO'],
+    ]);
+    sameEverywhere(s, s.json.booths);
+    for (const b of s.json.booths) {
+      const at = findRun(s.pdf, [
+        b.kind,
+        String(b.wardNo),
+        b.psName,
+        String(b.boothNo),
+        b.boothName,
+        entryText[b.entered],
+        n(b.round),
+        b.enteredBy ?? '–',
+      ]);
+      expect(at, `booth ${b.psName} ${String(b.boothNo)}`).toBeGreaterThanOrEqual(0);
+      expect(s.pdf.slice(at, at + 14)).toContain(n(b.totalVotes));
+    }
+  });
+
+  it('(c) one booth: its PS ballot and its ZP ballot; page = CSV = PDF', async () => {
+    const b1 = (await wardView(ids.w1)).booths[0];
+    if (b1 === undefined) throw new Error('b1');
+    const s = await scoped(`level=BOOTH&boothId=${String(b1.boothId)}`);
+    expect(s.json.scope.label).toBe('CHURU - Booth 1');
+    expect(s.json.kinds).toEqual([]);
+    expect(
+      s.json.booths.map((b) => [b.kind, b.wardId, b.entered, b.round, b.totalVotes, b.enteredBy]),
+    ).toEqual([
+      ['PS', ids.w1, 'YES', 1, 505, `PS RO (CHURU) · ${users.ro1}`],
+      ['ZP', ids.zp1, 'YES', 1, 413, `ZP RO · ${users.zp}`],
+    ]);
+    // Each ballot row is exactly that booth's row of the district report.
+    const all = [...(await wardView(ids.w1)).booths, ...(await wardView(ids.zp1)).booths];
+    expect(s.json.booths).toEqual(all.filter((b) => b.boothId === b1.boothId));
+    sameEverywhere(s, s.json.booths);
+    expect(
+      findRun(s.pdf, ['PS', '1', 'CHURU', '1', b1.boothName, 'Entered', '1']),
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  it('status filter narrows the lists only; the summary stays the scope’s', async () => {
+    const s = await scoped('status=STALLED');
+    expect(s.json.wards.map((w) => w.wardId)).toEqual([ids.w1]);
+    expect(s.json.summary).toEqual(district.summary);
+    expect(s.json.scope.label).toBe('Whole District · Status: Stalled');
+    sameEverywhere(s, (await wardView(ids.w1)).booths);
+    const zp = await scoped('level=ALL_ZP&status=NOT_STARTED');
+    expect(zp.json.wards.map((w) => w.wardId)).toEqual([ids.zp2]);
+    expect(zp.json.psTable).toEqual([]);
+    expect(zp.json.kinds).toEqual(['ZP']);
+    const none = await scoped(`level=PS&psId=${String(ids.ps2)}&status=DECLARED`);
+    expect(none.json.wards).toEqual([]);
+    expect(none.wardsCsv).toEqual([]);
+    expect(none.pdf).toContain('No ward matches this scope.');
+  });
+
+  it('dropdown options: every PS, every ward, the booths of a PS ward', async () => {
+    const dm = await as(users.dm);
+    const o = (await dm.get(`${CS}/options`)).body as {
+      ps: { id: number; name: string }[];
+      wards: { id: number; kind: string; psId: number | null; wardNo: number }[];
+    };
+    expect(o.ps).toEqual([
+      { id: ids.ps1, name: 'CHURU' },
+      { id: ids.ps2, name: 'RAJGARH' },
+    ]);
+    expect(o.wards).toHaveLength(district.wards.length);
+    expect(o.wards.filter((w) => w.kind === 'ZP').map((w) => w.wardNo)).toEqual([1, 2]);
+    const booths = (await dm.get(`${CS}/options/wards/${String(ids.w1)}/booths`)).body as {
+      booths: { id: number; boothNo: number; name: string }[];
+    };
+    expect(booths.booths.map((b) => b.boothNo)).toEqual([1, 2, 3]);
+    expect(booths.booths[0]?.name).toBe('GOVT SCHOOL 1 (PART A)');
+  });
+
+  it('the audit row records the scope of a download', async () => {
+    const dm = await as(users.dm);
+    await dm.get(`${CS}.pdf?level=PS&psId=${String(ids.ps2)}&status=NOT_STARTED`);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT new_value FROM audit_log WHERE action = 'REPORT_EXPORTED' ORDER BY id DESC LIMIT 1`,
+    );
+    const v = rows[0]?.new_value as { format: string; scope: Record<string, unknown> };
+    expect(v.format).toBe('pdf');
+    expect(v.scope).toEqual({
+      level: 'PS',
+      psId: ids.ps2,
+      wardId: null,
+      boothId: null,
+      status: 'NOT_STARTED',
+      label: 'RAJGARH (Panchayat Samiti) · Status: Not Started',
+    });
+  });
+
+  it('(f) no scope leaks an undeclared ward’s candidates', async () => {
+    const b1 = (await wardView(ids.w1)).booths[0];
+    const queries = [
+      `level=PS&psId=${String(ids.ps1)}`,
+      `level=WARD&wardId=${String(ids.w1)}`,
+      `level=WARD&wardId=${String(ids.zp1)}`,
+      `level=BOOTH&boothId=${String(b1?.boothId ?? 0)}`,
+      'status=STALLED',
+    ];
+    for (const q of queries) {
+      const s = await scoped(q);
+      const all = [
+        JSON.stringify(s.json),
+        JSON.stringify(s.wardsCsv),
+        JSON.stringify(s.boothsCsv),
+        s.pdf.join('\n'),
+      ];
+      for (const text of all) {
+        expect(text, q).not.toContain('Leadingname');
+        expect(text, q).not.toContain('दूसरा');
+        expect(text, q).not.toContain('ज़ेड');
+      }
+      for (const w of s.json.wards) if (w.status !== 'DECLARED') expect(w.winner).toBeNull();
+    }
   });
 });
 

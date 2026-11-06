@@ -12,9 +12,14 @@ import { buildReport } from '../../services/reports.js';
 import type { ReportSummary, ScopeSections } from '../../services/reports.js';
 import { writeSheetToBuffer } from '../../services/master-data/xlsx.js';
 import { renderCountingStatusPdf } from '../../services/counting-status.pdf.js';
-import type { CountingStatusReport } from '../../services/counting-status.js';
+import {
+  STATUS_FILTERS,
+  ScopeNotFoundError,
+  scopeReport,
+} from '../../services/counting-status.scope.js';
+import type { ReportScope, ScopedReport } from '../../services/counting-status.scope.js';
 import { CANDIDATE_LIST_HEADERS, candidateListRows } from './candidates-list.js';
-import { readCountingStatus } from './counting-status.data.js';
+import { readCountingStatus, readPsWardBooths, readScopeOptions } from './counting-status.data.js';
 import { boothCsvRows, wardCsvRows } from './counting-status.export.js';
 import { istStampForFile, toCsv } from './csv.js';
 import type { Cell } from './csv.js';
@@ -312,10 +317,38 @@ function currentUserId(req: Request): number {
 const noQuery = z.object({}).strict();
 type CountingStatusFormat = 'pdf' | 'csv-ward' | 'csv-booth';
 
-/** The report without the 2,700 booth rows (the UI loads one ward's booths on demand). */
-export function countingStatusView(r: CountingStatusReport): Omit<CountingStatusReport, 'booths'> {
-  const { booths: _booths, ...view } = r;
-  return view;
+const positiveId = z
+  .string()
+  .regex(/^[1-9]\d{0,9}$/)
+  .transform(Number);
+const statusFilter = z.enum(STATUS_FILTERS).default('ALL');
+/** The report scope (query string). No level = the whole district. Unknown keys are refused. */
+export const countingStatusQuery = z.preprocess(
+  (q) => (typeof q === 'object' && q !== null && !('level' in q) ? { ...q, level: 'DISTRICT' } : q),
+  z.discriminatedUnion('level', [
+    z.object({ level: z.literal('DISTRICT'), status: statusFilter }).strict(),
+    z.object({ level: z.literal('ALL_PS'), status: statusFilter }).strict(),
+    z.object({ level: z.literal('ALL_ZP'), status: statusFilter }).strict(),
+    z.object({ level: z.literal('PS'), psId: positiveId, status: statusFilter }).strict(),
+    z.object({ level: z.literal('WARD'), wardId: positiveId }).strict(),
+    z.object({ level: z.literal('BOOTH'), boothId: positiveId }).strict(),
+  ]),
+);
+
+/** The scoped report: the one full report, then the scope (an unknown PS / ward / booth is 404). */
+async function readScoped(pool: Pool, req: Request): Promise<ScopedReport> {
+  const scope: ReportScope = parse(countingStatusQuery, req.query);
+  try {
+    return scopeReport(await readCountingStatus(pool), scope);
+  } catch (err) {
+    if (err instanceof ScopeNotFoundError) throw new ApiError(404, 'NOT_FOUND');
+    throw err;
+  }
+}
+
+/** JSON for the page: booth rows only for one ward or one booth (the rest is in the CSV). */
+export function countingStatusView(r: ScopedReport): ScopedReport {
+  return r.scope.level === 'WARD' || r.scope.level === 'BOOTH' ? r : { ...r, booths: [] };
 }
 
 export function reportsRouter(pool: Pool, config: AppConfig): Router {
@@ -356,30 +389,26 @@ export function reportsRouter(pool: Pool, config: AppConfig): Router {
       .send(body);
   });
 
-  // ---- Counting Status Report: JSON, PDF and both CSVs all come from readCountingStatus().
+  // ---- Counting Status Report: JSON, PDF and both CSVs all come from readCountingStatus(), then
+  // the same scopeReport().
   router.get('/counting-status', async (req, res) => {
-    parse(noQuery, req.query);
-    res.set('Cache-Control', 'no-store').json(countingStatusView(await readCountingStatus(pool)));
+    res.set('Cache-Control', 'no-store').json(countingStatusView(await readScoped(pool, req)));
   });
 
-  router.get('/counting-status/wards/:wardId', async (req, res) => {
+  router.get('/counting-status/options', async (req, res) => {
     parse(noQuery, req.query);
-    const wardId = parse(wardParam, req.params.wardId);
-    const r = await readCountingStatus(pool);
-    const ward = r.wards.find((w) => w.wardId === wardId);
-    if (ward === undefined) throw new ApiError(404, 'NOT_FOUND');
-    res.set('Cache-Control', 'no-store').json({
-      asOf: r.asOf,
-      asOfText: r.asOfText,
-      stalledAfterMinutes: r.stalledAfterMinutes,
-      ward,
-      booths: r.booths.filter((b) => b.wardId === wardId),
-    });
+    res.set('Cache-Control', 'no-store').json(await readScopeOptions(pool));
+  });
+
+  router.get('/counting-status/options/wards/:wardId/booths', async (req, res) => {
+    parse(noQuery, req.query);
+    const booths = await readPsWardBooths(pool, parse(positiveId, req.params.wardId));
+    if (booths === null) throw new ApiError(404, 'NOT_FOUND');
+    res.set('Cache-Control', 'no-store').json({ booths });
   });
 
   const sendCountingStatus = async (req: Request, res: Response, format: CountingStatusFormat) => {
-    parse(noQuery, req.query);
-    const r = await readCountingStatus(pool);
+    const r = await readScoped(pool, req);
     const body =
       format === 'pdf'
         ? await renderCountingStatusPdf(r)
@@ -389,14 +418,15 @@ export function reportsRouter(pool: Pool, config: AppConfig): Router {
       action: 'REPORT_EXPORTED',
       entity: 'report',
       entityId: null,
-      newValue: { section: 'counting-status', format, reportTime: r.asOf },
+      newValue: { section: 'counting-status', format, reportTime: r.asOf, scope: r.scope },
       ip: req.ip ?? null,
     });
     const stamp = istStampForFile(new Date(r.asOf));
+    const level = r.scope.level.toLowerCase().replace('_', '-');
     const file =
       format === 'pdf'
-        ? `counting-status-${stamp}-IST.pdf`
-        : `counting-status-${format === 'csv-ward' ? 'wards' : 'booths'}-${stamp}-IST.csv`;
+        ? `counting-status-${level}-${stamp}-IST.pdf`
+        : `counting-status-${level}-${format === 'csv-ward' ? 'wards' : 'booths'}-${stamp}-IST.csv`;
     res
       .status(200)
       .set({

@@ -117,6 +117,7 @@ export type EnteredFlag = 'YES' | 'NO' | 'NA';
 export interface BoothRow {
   wardId: number;
   kind: WardKind;
+  boothId: number;
   /** The booth's PS (id, display name, name as stored). */
   psId: number;
   psName: string;
@@ -258,6 +259,39 @@ const ENGINE_STATUS: Readonly<Record<ResultStatus, CountingStatus>> = {
   TIE_RESOLVED: 'DECLARED',
 };
 
+/**
+ * The summary of a list of ward rows (all of one kind). THE one place summary counts are made: the
+ * full report and every scoped report (counting-status.scope.ts) use it.
+ */
+export function summarizeWards(list: readonly WardRow[]): KindSummary {
+  const count = (pred: (w: WardRow) => boolean) => list.filter(pred).length;
+  const sum = (pick: (w: WardRow) => number | null) => list.reduce((s, w) => s + (pick(w) ?? 0), 0);
+  const boothsDone = sum((w) => w.boothsDone);
+  const boothsTotal = sum((w) => w.boothsTotal);
+  const lastDate = latest(
+    list.map((w) => (w.lastEntryAt === null ? null : new Date(w.lastEntryAt))),
+  );
+  return {
+    wardsTotal: list.length,
+    notStarted: count((w) => w.status === 'NOT_STARTED'),
+    inProgress: count((w) => w.status === 'IN_PROGRESS'),
+    ready: count((w) => w.status === 'READY'),
+    declared: count((w) => w.status === 'DECLARED'),
+    unopposed: count((w) => w.unopposed),
+    stalled: count((w) => w.stalled),
+    checkData: count((w) => w.checkData),
+    noCandidates: count((w) => w.noCandidates),
+    boothsDone,
+    boothsTotal,
+    boothsPending: boothsTotal - boothsDone,
+    boothsPercent: percentDown(boothsDone, boothsTotal),
+    postalDone: count((w) => w.postalDone === true),
+    postalTotal: count((w) => w.postalDone !== null),
+    lastEntryAt: lastDate === null ? null : istIso(lastDate),
+    lastEntryText: lastDate === null ? null : istText(lastDate),
+  };
+}
+
 // ---------------------------------------------------------------- builder
 
 export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusReport {
@@ -288,6 +322,7 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
       boothRows.push({
         wardId: w.id,
         kind: w.kind,
+        boothId: b.id,
         psId: b.psId,
         psName: displayPsName(psFull),
         psNameFull: psFull,
@@ -405,37 +440,6 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
   const rank = new Map(wardRows.map((w, i) => [w.wardId, i]));
   boothRows.sort((a, b) => (rank.get(a.wardId) ?? 0) - (rank.get(b.wardId) ?? 0));
 
-  const summarize = (kind: WardKind): KindSummary => {
-    const list = wardRows.filter((w) => w.kind === kind);
-    const count = (pred: (w: WardRow) => boolean) => list.filter(pred).length;
-    const sum = (pick: (w: WardRow) => number | null) =>
-      list.reduce((s, w) => s + (pick(w) ?? 0), 0);
-    const boothsDone = sum((w) => w.boothsDone);
-    const boothsTotal = sum((w) => w.boothsTotal);
-    const lastDate = latest(
-      list.map((w) => (w.lastEntryAt === null ? null : new Date(w.lastEntryAt))),
-    );
-    return {
-      wardsTotal: list.length,
-      notStarted: count((w) => w.status === 'NOT_STARTED'),
-      inProgress: count((w) => w.status === 'IN_PROGRESS'),
-      ready: count((w) => w.status === 'READY'),
-      declared: count((w) => w.status === 'DECLARED'),
-      unopposed: count((w) => w.unopposed),
-      stalled: count((w) => w.stalled),
-      checkData: count((w) => w.checkData),
-      noCandidates: count((w) => w.noCandidates),
-      boothsDone,
-      boothsTotal,
-      boothsPending: boothsTotal - boothsDone,
-      boothsPercent: percentDown(boothsDone, boothsTotal),
-      postalDone: count((w) => w.postalDone === true),
-      postalTotal: count((w) => w.postalDone !== null),
-      lastEntryAt: lastDate === null ? null : istIso(lastDate),
-      lastEntryText: lastDate === null ? null : istText(lastDate),
-    };
-  };
-
   const psTable: PsRow[] = raw.ps
     .map((p) => {
       const wards = wardRows.filter((w) => w.kind === 'PS' && w.psId === p.id);
@@ -469,7 +473,10 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
     asOf: istIso(raw.asOf),
     asOfText: istText(raw.asOf),
     stalledAfterMinutes: STALLED_AFTER_MINUTES,
-    summary: { PS: summarize('PS'), ZP: summarize('ZP') },
+    summary: {
+      PS: summarizeWards(wardRows.filter((w) => w.kind === 'PS')),
+      ZP: summarizeWards(wardRows.filter((w) => w.kind === 'ZP')),
+    },
     psTable,
     wards: wardRows,
     booths: boothRows,

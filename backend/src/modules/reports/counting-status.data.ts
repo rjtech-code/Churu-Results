@@ -3,7 +3,7 @@
 // every count and the stalled check all describe the same moment. Read only.
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { readElectionDate } from '../../services/election-date.js';
-import { buildCountingStatus } from '../../services/counting-status.js';
+import { buildCountingStatus, displayPsName } from '../../services/counting-status.js';
 import type {
   CountingStatusRaw,
   CountingStatusReport,
@@ -143,4 +143,54 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
 /** THE one source for the UI, the PDF and both CSVs: a fresh read every call (no cache). */
 export async function readCountingStatus(pool: Pool): Promise<CountingStatusReport> {
   return buildCountingStatus(await readCountingStatusRaw(pool));
+}
+
+// ---- The report builder's dropdowns: names and ids only (no counting data).
+
+export interface ScopeOptions {
+  ps: { id: number; name: string }[];
+  wards: { id: number; kind: 'PS' | 'ZP'; psId: number | null; wardNo: number }[];
+}
+
+/** Every PS (display name order) and every ward, for the cascading selects. */
+export async function readScopeOptions(pool: Pool): Promise<ScopeOptions> {
+  const [ps] = await pool.execute<RowDataPacket[]>('SELECT id, name_english FROM panchayat_samiti');
+  const [wards] = await pool.execute<RowDataPacket[]>(
+    'SELECT id, ward_type, panchayat_samiti_id, ward_no FROM ward ORDER BY ward_type, ward_no',
+  );
+  return {
+    ps: ps
+      .map((p) => ({ id: Number(p.id), name: displayPsName(str(p.name_english)) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en')),
+    wards: wards.map((w) => ({
+      id: Number(w.id),
+      kind: w.ward_type === 'ZP' ? 'ZP' : 'PS',
+      psId: w.panchayat_samiti_id === null ? null : Number(w.panchayat_samiti_id),
+      wardNo: Number(w.ward_no),
+    })),
+  };
+}
+
+/** The booths of one PS ward (every booth is in exactly one PS ward); null for an unknown ward. */
+export async function readPsWardBooths(
+  pool: Pool,
+  wardId: number,
+): Promise<{ id: number; boothNo: number; name: string }[] | null> {
+  const [ward] = await pool.execute<RowDataPacket[]>(
+    "SELECT id FROM ward WHERE id = ? AND ward_type = 'PS'",
+    [wardId],
+  );
+  if (ward.length === 0) return null;
+  const [booths] = await pool.execute<RowDataPacket[]>(
+    'SELECT id, booth_no, name_english, name_hindi FROM booth WHERE ps_ward_id = ? ORDER BY booth_no',
+    [wardId],
+  );
+  return booths.map((b) => {
+    const english = str(b.name_english).trim();
+    return {
+      id: Number(b.id),
+      boothNo: Number(b.booth_no),
+      name: english === '' ? str(b.name_hindi) : english,
+    };
+  });
 }
