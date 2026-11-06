@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/api';
 import type { ReportSummary } from '../../api/reportTypes';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -77,6 +78,9 @@ export function ReportsView({
         <span className="muted" data-testid="report-updated">
           अंतिम अपडेट {formatDateTime(data.generatedAt)}
         </span>
+        <Link to="/reports/counting-status" className="btn btn-secondary no-print">
+          Counting Status Report
+        </Link>
         <button
           type="button"
           className="btn btn-primary no-print"

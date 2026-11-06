@@ -203,3 +203,110 @@ export type WardFormName = 'part2' | 'prarup7';
 export interface WardFormsInfo {
   forms: Record<WardFormName, { available: boolean; reason: string | null }>;
 }
+
+// ---- Counting Status Report (/api/reports/counting-status): mirrors backend services/counting-status.ts.
+// Labels and IST times come from the server, so the page, the PDF and the CSVs read the same text.
+
+export type CountingStatusCode = 'NOT_STARTED' | 'IN_PROGRESS' | 'READY' | 'DECLARED';
+export type CsKind = 'PS' | 'ZP';
+
+export interface CsWardRow {
+  wardId: number;
+  kind: CsKind;
+  psId: number | null;
+  psName: string | null;
+  psNameFull: string | null;
+  wardNo: number;
+  status: CountingStatusCode;
+  statusLabel: string;
+  unopposed: boolean;
+  noCandidates: boolean;
+  tieNeedsLottery: boolean;
+  checkData: boolean;
+  stalled: boolean;
+  boothsDone: number | null;
+  boothsTotal: number | null;
+  boothsPending: number | null;
+  boothsPercent: number | null;
+  latestRound: number | null;
+  postalDone: boolean | null;
+  lastEntryAt: string | null;
+  lastEntryText: string | null;
+  winner: { name: string; party: string } | null;
+  margin: number | null;
+  pendingBooths: string;
+}
+
+export interface CsBoothRow {
+  wardId: number;
+  kind: CsKind;
+  psId: number;
+  psName: string;
+  psNameFull: string;
+  wardNo: number;
+  boothNo: number;
+  boothName: string;
+  entered: 'YES' | 'NO' | 'NA';
+  round: number | null;
+  enteredBy: string | null;
+  enteredAt: string | null;
+  enteredAtText: string | null;
+  lastEditedAt: string | null;
+  lastEditedAtText: string | null;
+  totalVotes: number | null;
+}
+
+export interface CsKindSummary {
+  wardsTotal: number;
+  notStarted: number;
+  inProgress: number;
+  ready: number;
+  declared: number;
+  unopposed: number;
+  stalled: number;
+  checkData: number;
+  noCandidates: number;
+  boothsDone: number;
+  boothsTotal: number;
+  boothsPending: number;
+  boothsPercent: number | null;
+  postalDone: number;
+  postalTotal: number;
+  lastEntryAt: string | null;
+  lastEntryText: string | null;
+}
+
+export interface CsPsRow {
+  psId: number;
+  psName: string;
+  psNameFull: string;
+  wardsTotal: number;
+  declared: number;
+  psBoothsDone: number;
+  psBoothsTotal: number;
+  psBoothsPending: number;
+  psBoothsPercent: number | null;
+  zpBoothsDone: number;
+  zpBoothsTotal: number;
+  zpBoothsPending: number;
+}
+
+export interface CountingStatusView {
+  title: string;
+  electionName: string;
+  electionDateText: string;
+  asOf: string;
+  asOfText: string;
+  stalledAfterMinutes: number;
+  summary: Record<CsKind, CsKindSummary>;
+  psTable: CsPsRow[];
+  wards: CsWardRow[];
+}
+
+export interface CountingStatusWard {
+  asOf: string;
+  asOfText: string;
+  stalledAfterMinutes: number;
+  ward: CsWardRow;
+  booths: CsBoothRow[];
+}
