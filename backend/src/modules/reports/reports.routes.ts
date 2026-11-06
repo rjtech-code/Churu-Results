@@ -1,7 +1,7 @@
 // /api/reports — the DM's read-only reports (Part 10). DM only: other roles 403, logged out 401.
 // GET only (the global DM guard refuses every write anyway). Viewing is not audited; CSV exports are.
 import { Router } from 'express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
@@ -11,7 +11,11 @@ import { writeAudit } from '../../services/audit.js';
 import { buildReport } from '../../services/reports.js';
 import type { ReportSummary, ScopeSections } from '../../services/reports.js';
 import { writeSheetToBuffer } from '../../services/master-data/xlsx.js';
+import { renderCountingStatusPdf } from '../../services/counting-status.pdf.js';
+import type { CountingStatusReport } from '../../services/counting-status.js';
 import { CANDIDATE_LIST_HEADERS, candidateListRows } from './candidates-list.js';
+import { readCountingStatus } from './counting-status.data.js';
+import { boothCsvRows, wardCsvRows } from './counting-status.export.js';
 import { istStampForFile, toCsv } from './csv.js';
 import type { Cell } from './csv.js';
 import { readReportData } from './reports.data.js';
@@ -305,6 +309,15 @@ function currentUserId(req: Request): number {
   return req.user.id;
 }
 
+const noQuery = z.object({}).strict();
+type CountingStatusFormat = 'pdf' | 'csv-ward' | 'csv-booth';
+
+/** The report without the 2,700 booth rows (the UI loads one ward's booths on demand). */
+export function countingStatusView(r: CountingStatusReport): Omit<CountingStatusReport, 'booths'> {
+  const { booths: _booths, ...view } = r;
+  return view;
+}
+
 export function reportsRouter(pool: Pool, config: AppConfig): Router {
   const router = Router();
   router.use(requireRole('DM'));
@@ -342,6 +355,62 @@ export function reportsRouter(pool: Pool, config: AppConfig): Router {
       })
       .send(body);
   });
+
+  // ---- Counting Status Report: JSON, PDF and both CSVs all come from readCountingStatus().
+  router.get('/counting-status', async (req, res) => {
+    parse(noQuery, req.query);
+    res.set('Cache-Control', 'no-store').json(countingStatusView(await readCountingStatus(pool)));
+  });
+
+  router.get('/counting-status/wards/:wardId', async (req, res) => {
+    parse(noQuery, req.query);
+    const wardId = parse(wardParam, req.params.wardId);
+    const r = await readCountingStatus(pool);
+    const ward = r.wards.find((w) => w.wardId === wardId);
+    if (ward === undefined) throw new ApiError(404, 'NOT_FOUND');
+    res.set('Cache-Control', 'no-store').json({
+      asOf: r.asOf,
+      asOfText: r.asOfText,
+      stalledAfterMinutes: r.stalledAfterMinutes,
+      ward,
+      booths: r.booths.filter((b) => b.wardId === wardId),
+    });
+  });
+
+  const sendCountingStatus = async (req: Request, res: Response, format: CountingStatusFormat) => {
+    parse(noQuery, req.query);
+    const r = await readCountingStatus(pool);
+    const body =
+      format === 'pdf'
+        ? await renderCountingStatusPdf(r)
+        : toCsv(format === 'csv-ward' ? wardCsvRows(r) : boothCsvRows(r));
+    await writeAudit(pool, {
+      userId: currentUserId(req),
+      action: 'REPORT_EXPORTED',
+      entity: 'report',
+      entityId: null,
+      newValue: { section: 'counting-status', format, reportTime: r.asOf },
+      ip: req.ip ?? null,
+    });
+    const stamp = istStampForFile(new Date(r.asOf));
+    const file =
+      format === 'pdf'
+        ? `counting-status-${stamp}-IST.pdf`
+        : `counting-status-${format === 'csv-ward' ? 'wards' : 'booths'}-${stamp}-IST.csv`;
+    res
+      .status(200)
+      .set({
+        'Content-Type': format === 'pdf' ? 'application/pdf' : 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${file}"`,
+        'Cache-Control': 'no-store',
+      })
+      .send(body);
+  };
+  router.get('/counting-status.pdf', (req, res) => sendCountingStatus(req, res, 'pdf'));
+  router.get('/counting-status/wards.csv', (req, res) => sendCountingStatus(req, res, 'csv-ward'));
+  router.get('/counting-status/booths.csv', (req, res) =>
+    sendCountingStatus(req, res, 'csv-booth'),
+  );
 
   const exportCandidates = async (req: Request, kind: 'csv' | 'xlsx') => {
     const rows = await candidateListRows(pool);
