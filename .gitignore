@@ -13,3 +13,15 @@ frontend/e2e/.state/
 frontend/screenshots/
 frontend/playwright-report/
 backend/backups/
+
+# Real election data files (mobile numbers, personal details): never commit.
+new data/
+new-data/
+new_data/
+Downloads/
+/data/
+*.xlsx
+!docs/**/*.xlsx
+!backend/tests/**/*.xlsx
+!frontend/**/*.xlsx
+!backend/src/assets/**/*.xlsx
