@@ -64,18 +64,29 @@ export function Bar({ percent, label }: { percent: number | null; label: string 
  * The CSV is ward-wise, or booth-wise for one ward / one booth. One download at a time: a second
  * click while one runs does nothing.
  */
-export function CsDownloads({ query, csv }: { query: string | null; csv: 'wards' | 'booths' }) {
-  const [busy, setBusy] = useState<'pdf' | 'csv' | null>(null);
+export function CsDownloads({
+  query,
+  csv,
+  zpByPs = false,
+}: {
+  query: string | null;
+  csv: 'wards' | 'booths';
+  /** Also offer the "ZP wards by Panchayat Samiti" CSV (scopes with ZP wards). */
+  zpByPs?: boolean;
+}) {
+  const [busy, setBusy] = useState<'pdf' | 'csv' | 'zp' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false); // set synchronously, so a fast double click cannot start two
 
-  const start = async (kind: 'pdf' | 'csv') => {
+  const start = async (kind: 'pdf' | 'csv' | 'zp') => {
     if (running.current || query === null) return;
     running.current = true;
     setBusy(kind);
     setError(null);
     try {
       if (kind === 'pdf') await downloadFile(`${CS_API}.pdf?${query}`, 'counting-status.pdf');
+      else if (kind === 'zp')
+        await downloadFile(`${CS_API}/zp-by-ps.csv?${query}`, 'counting-status-zp-by-ps.csv');
       else await downloadFile(`${CS_API}/${csv}.csv?${query}`, `counting-status-${csv}.csv`);
     } catch {
       setError('Download failed. Please try again.');
@@ -85,7 +96,7 @@ export function CsDownloads({ query, csv }: { query: string | null; csv: 'wards'
     }
   };
 
-  const button = (kind: 'pdf' | 'csv', label: string) => (
+  const button = (kind: 'pdf' | 'csv' | 'zp', label: string) => (
     <button
       type="button"
       className="cs-btn"
@@ -103,6 +114,7 @@ export function CsDownloads({ query, csv }: { query: string | null; csv: 'wards'
     <>
       {button('pdf', 'Download PDF')}
       {button('csv', 'Download CSV')}
+      {zpByPs && button('zp', 'Download CSV (ZP by PS)')}
       {error !== null && (
         <div className="cs-actions-error">
           <ErrorBox error={error} />

@@ -129,6 +129,10 @@ export function scopeReport(full: CountingStatusReport, scope: ReportScope): Sco
     const listed = new Set(wards.map((w) => w.wardId));
     booths = full.booths.filter((b) => listed.has(b.wardId));
   }
+  // "By Panchayat Samiti" of the listed ZP wards (a PS scope, a booth: none).
+  const listedZp = new Set(
+    scope.level === 'PS' || scope.level === 'BOOTH' ? [] : wards.map((w) => w.wardId),
+  );
   if (status !== 'ALL') label = `${label} · Status: ${STATUS_FILTER_LABEL[status]}`;
 
   return {
@@ -137,6 +141,7 @@ export function scopeReport(full: CountingStatusReport, scope: ReportScope): Sco
     psTable,
     wards,
     booths,
+    zpPsProgress: full.zpPsProgress.filter((z) => listedZp.has(z.wardId)),
     kinds,
     scope: {
       level: scope.level,
@@ -146,5 +151,24 @@ export function scopeReport(full: CountingStatusReport, scope: ReportScope): Sco
       status,
       label,
     },
+  };
+}
+
+/** Levels a ZP_RO may ask for; no level means All ZP wards. */
+export const ZP_RO_LEVELS: readonly ScopeLevel[] = ['ALL_ZP', 'WARD', 'BOOTH'];
+
+/**
+ * The ZP_RO's report: Zila Parishad data only, whatever was asked. Removes every PS-ward row, PS
+ * summary and PS table (a booth scope keeps only that booth's ZP ballot). The caller refuses a
+ * scope outside ZP_RO_LEVELS or a PS ward before this.
+ */
+export function restrictToZp(r: ScopedReport): ScopedReport {
+  return {
+    ...r,
+    summary: { PS: summarizeWards([]), ZP: r.summary.ZP },
+    psTable: [],
+    wards: r.wards.filter((w) => w.kind === 'ZP'),
+    booths: r.booths.filter((b) => b.kind === 'ZP'),
+    kinds: r.kinds.filter((k) => k === 'ZP'),
   };
 }

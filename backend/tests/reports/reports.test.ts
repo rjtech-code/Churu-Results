@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { csvCell, toCsv } from '../../src/modules/reports/csv.js';
 import { readReportData } from '../../src/modules/reports/reports.data.js';
-import { buildReport, isCloseContest } from '../../src/services/reports.js';
+import { isCloseContest } from '../../src/services/reports.js';
 import type { ReportSummary } from '../../src/services/reports.js';
 import { buildApp, csrfToken, login } from '../auth/helpers.js';
 import { PASSWORD } from '../counting/helpers.js';
@@ -215,31 +215,7 @@ describe('sections, against the hand-built district', () => {
     expect(kinds).toContainEqual(['DECLARATION_MISMATCH', id('mismatch')]);
     expect(kinds).toContainEqual(['UNAVAILABLE', id('broken')]);
     expect(kinds).toContainEqual(['NOTA_HIGHEST_DECLARED', id('notaHigh')]);
-    expect(kinds.filter(([k]) => k === 'VOTER_CHECK_DISABLED')).toEqual([]); // no startup audit row
     expect(s.alarms.find((a) => a.kind === 'UNAVAILABLE')?.scope).toBe(`PS:${world.ps1}`);
-  });
-});
-
-describe('voter-check alarm', () => {
-  it('only when the startup audit row exists AND the running server has the check off', async () => {
-    const raw = await readReportData(pool);
-    expect(raw.voterCheckDisabledAt).toBeNull();
-    await insert(
-      pool,
-      "INSERT INTO audit_log (user_id, action, entity, entity_id, new_value) VALUES (NULL, 'CONFIG_VOTER_CHECK_DISABLED', 'config', NULL, '{}')",
-      [],
-    );
-    const withRow = await readReportData(pool);
-    expect(withRow.voterCheckDisabledAt).not.toBeNull();
-    const off = buildReport(withRow, { voterCheckOff: true, now: new Date() });
-    expect(off.alarms.filter((a) => a.kind === 'VOTER_CHECK_DISABLED')).toHaveLength(1);
-    const on = buildReport(withRow, { voterCheckOff: false, now: new Date() });
-    expect(on.alarms.filter((a) => a.kind === 'VOTER_CHECK_DISABLED')).toEqual([]);
-    // through the API with a server running REQUIRE_VOTER_COUNTS=false
-    const agent = request.agent(buildApp(pool, { requireVoterCounts: false }));
-    await login(agent, world.users.dm, PASSWORD);
-    const body = (await agent.get('/api/reports/summary')).body as ReportSummary;
-    expect(body.alarms.map((a) => a.kind)).toContain('VOTER_CHECK_DISABLED');
   });
 });
 

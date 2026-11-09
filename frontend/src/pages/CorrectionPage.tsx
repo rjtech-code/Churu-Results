@@ -11,7 +11,7 @@ import {
   emptyDecision,
 } from '../components/DecisionFields';
 import type { Decision } from '../components/DecisionFields';
-import { ErrorBox, SuccessBox, WarningBox } from '../components/ErrorBox';
+import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
 import type { ReasonValue } from '../components/ReasonField';
 import { VoteSheet, checkSheet, sheetValues } from '../components/VoteSheet';
@@ -255,9 +255,6 @@ export function CorrectionPage() {
       {preview && (
         <section className="confirm">
           <h2>3. पुष्टि — नया संस्करण {preview.wouldStore.version}</h2>
-          {preview.warnings.includes('VOTER_COUNT_MISSING') && (
-            <WarningBox text="कुछ बूथों की मतदाता संख्या दर्ज नहीं है" />
-          )}
           <h3>संशोधन के बाद</h3>
           <ResultTable result={preview.after} />
           <p className="big">

@@ -89,12 +89,11 @@ export interface BoothRow {
   panchayatSamitiId: number;
   psWardId: number;
   zpWardId: number;
-  registeredVotersTotal: number | null;
 }
 
 export async function readBooth(conn: Db, boothId: number): Promise<BoothRow> {
   const [rows] = await conn.execute<RowDataPacket[]>(
-    'SELECT id, panchayat_samiti_id, ps_ward_id, zp_ward_id, registered_voters_total FROM booth WHERE id = ?',
+    'SELECT id, panchayat_samiti_id, ps_ward_id, zp_ward_id FROM booth WHERE id = ?',
     [boothId],
   );
   const row = rows[0];
@@ -104,8 +103,6 @@ export async function readBooth(conn: Db, boothId: number): Promise<BoothRow> {
     panchayatSamitiId: Number(row.panchayat_samiti_id),
     psWardId: Number(row.ps_ward_id),
     zpWardId: Number(row.zp_ward_id),
-    registeredVotersTotal:
-      row.registered_voters_total === null ? null : Number(row.registered_voters_total),
   };
 }
 

@@ -148,7 +148,6 @@ beforeAll(async () => {
   const app = countingApp(pool);
   const ro1 = await declareClient(app, users.ro1);
   ro2 = await declareClient(app, users.ro2);
-  const zp = await declareClient(app, users.zp);
   const rows = (key: string, votes: number[]) =>
     Object.values(cand[key] ?? {}).map((candidateId, i) => ({ candidateId, votes: votes[i] ?? 0 }));
   const enter = async (
@@ -204,9 +203,9 @@ beforeAll(async () => {
   // PS2 W1: both booths entered now.
   ids.b6Entry = await enter(ro2, 'v1', ids.v1, b6, 'PS', [50, 40, 1]);
   ids.b7Entry = await enter(ro2, 'v1', ids.v1, b7, 'PS', [20, 30, 2]);
-  // ZP1: b1 and b2 by the ZP RO; b6 (in PS2) pending.
-  await enter(zp, 'zp1', ids.zp1, b1, 'ZP', [210, 200, 3], 1);
-  await enter(zp, 'zp1', ids.zp1, b2, 'ZP', [110, 100, 1], 3);
+  // ZP1: b1 and b2 by ps1's RO (one parchi carries both ballots); b6 (in PS2) pending.
+  await enter(ro1, 'zp1', ids.zp1, b1, 'ZP', [210, 200, 3], 1);
+  await enter(ro1, 'zp1', ids.zp1, b2, 'ZP', [110, 100, 1], 3);
 });
 afterAll(async () => {
   await pool.end();
@@ -354,7 +353,15 @@ describe('definitions, on the hand-built district', () => {
 
   it('(c) ZP and PS wards count their own booths; a ZP ward spans two PS', async () => {
     const zp1 = wardOf(v, ids.zp1);
-    expect(zp1).toMatchObject({ boothsDone: 2, boothsTotal: 3, latestRound: 3 });
+    // No single ZP round: each PS counts in its own rounds (see zpPsProgress).
+    expect(zp1).toMatchObject({ boothsDone: 2, boothsTotal: 3, latestRound: null });
+    expect(v.zpPsProgress.find((z) => z.wardId === ids.zp1)).toMatchObject({
+      rows: [
+        { psId: ids.ps1, psName: 'CHURU', boothsDone: 2, boothsTotal: 2, latestRound: 3 },
+        { psId: ids.ps2, psName: 'RAJGARH', boothsDone: 0, boothsTotal: 1, latestRound: null },
+      ],
+      postal: { assignedPsId: null, label: 'Not assigned', entered: false },
+    });
     expect(zp1.pendingBooths).toBe('RAJGARH: 1');
     const booths = (await wardView(ids.zp1)).booths;
     expect(booths.map((b) => [b.psName, b.boothNo, b.entered])).toEqual([
@@ -363,7 +370,10 @@ describe('definitions, on the hand-built district', () => {
       ['RAJGARH', 1, 'NO'],
     ]);
     // The same physical booth b1 is entered for both ballots; b6 only for PS.
-    expect(booths[0]).toMatchObject({ enteredBy: `ZP RO · ${users.zp}`, totalVotes: 413 });
+    expect(booths[0]).toMatchObject({
+      enteredBy: `PS RO (CHURU) · ${users.ro1}`,
+      totalVotes: 413,
+    });
     const ps = (id: number) => v.psTable.find((p) => p.psId === id);
     expect(ps(ids.ps1)).toMatchObject({
       psBoothsDone: 3,
@@ -531,7 +541,9 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
       expect(at, `ward ${w.kind} ${String(w.wardNo)}`).toBeGreaterThanOrEqual(0);
       const doneTotal = w.boothsTotal === null ? '–' : `${n(w.boothsDone)} / ${n(w.boothsTotal)}`;
       const postal = w.postalDone === null ? 'n/a' : w.postalDone ? 'Done' : 'Pending';
-      const tail = [doneTotal, n(w.boothsPending), n(w.latestRound), postal];
+      // ZP ward tables have no Round column (each PS has its own rounds: "by Panchayat Samiti").
+      const round = w.kind === 'PS' ? [n(w.latestRound)] : [];
+      const tail = [doneTotal, n(w.boothsPending), ...round, postal];
       const tailAt = findRun(pdf, tail, at + head.length);
       expect(tailAt - (at + head.length), `ward ${String(w.wardNo)} tail`).toBeLessThanOrEqual(5);
       expect(tailAt).toBeGreaterThanOrEqual(0);
@@ -595,7 +607,7 @@ describe('(d) no leading candidate before declaration', () => {
   });
 });
 
-describe('(e) DM only', () => {
+describe('(e) DM, and the ZP_RO scoped to Zila Parishad', () => {
   const paths = () => [
     '/api/reports/counting-status',
     `/api/reports/counting-status?level=WARD&wardId=${String(ids.w1)}`,
@@ -606,8 +618,8 @@ describe('(e) DM only', () => {
     '/api/reports/counting-status/booths.csv',
   ];
 
-  it('PS_RO, ZP_RO and SUPER_ADMIN get 403; logged out 401; the DM 200', async () => {
-    for (const u of [users.ro1, users.zp, users.sa]) {
+  it('PS_RO and SUPER_ADMIN get 403; logged out 401; the DM 200', async () => {
+    for (const u of [users.ro1, users.sa]) {
       const agent = await as(u);
       for (const p of paths()) expect((await agent.get(p)).status, `${u} ${p}`).toBe(403);
     }
@@ -615,6 +627,93 @@ describe('(e) DM only', () => {
     for (const p of paths()) expect((await anon.get(p)).status, p).toBe(401);
     const dm = await as(users.dm);
     for (const p of paths()) expect((await dm.get(p)).status, p).toBe(200);
+  });
+
+  it('ZP_RO: ZP scopes 200 (default All ZP); district, PS level or a PS ward 403', async () => {
+    const zp = await as(users.zp);
+    const ok200 = [
+      CS,
+      `${CS}?level=ALL_ZP`,
+      `${CS}?level=ALL_ZP&status=IN_PROGRESS`,
+      `${CS}?level=WARD&wardId=${String(ids.zp1)}`,
+      `${CS}/options`,
+      `${CS}/options/wards/${String(ids.zp1)}/booths`,
+      `${CS}.pdf`,
+      `${CS}/wards.csv`,
+      `${CS}/booths.csv?level=WARD&wardId=${String(ids.zp1)}`,
+      `${CS}/zp-by-ps.csv`,
+    ];
+    for (const p of ok200) expect((await zp.get(p)).status, p).toBe(200);
+    const refused = [
+      `${CS}?level=DISTRICT`,
+      `${CS}?level=ALL_PS`,
+      `${CS}?level=PS&psId=${String(ids.ps1)}`,
+      `${CS}?level=WARD&wardId=${String(ids.w1)}`,
+      `${CS}.pdf?level=ALL_PS`,
+      `${CS}/wards.csv?level=DISTRICT`,
+      `${CS}/booths.csv?level=WARD&wardId=${String(ids.w1)}`,
+    ];
+    for (const p of refused) expect((await zp.get(p)).status, p).toBe(403);
+    // A PS ward is no booth picker for the ZP_RO (only ZP wards are).
+    expect((await zp.get(`${CS}/options/wards/${String(ids.w1)}/booths`)).status).toBe(404);
+    // The other DM reports stay DM only.
+    expect((await zp.get('/api/reports/summary')).status).toBe(403);
+  });
+
+  it('ZP_RO: no Panchayat Samiti ward data comes back through any parameter', async () => {
+    const zp = await as(users.zp);
+    const noPs = (body: unknown, what: string) => {
+      const r = body as {
+        wards: { kind: string }[];
+        booths: { kind: string }[];
+        psTable: unknown[];
+        summary: { PS: { wardsTotal: number; boothsTotal: number } };
+        kinds: string[];
+      };
+      expect(
+        r.wards.every((w) => w.kind === 'ZP'),
+        what,
+      ).toBe(true);
+      expect(
+        r.booths.every((b) => b.kind === 'ZP'),
+        what,
+      ).toBe(true);
+      expect(r.psTable, what).toEqual([]);
+      expect(r.summary.PS, what).toMatchObject({ wardsTotal: 0, boothsTotal: 0 });
+      expect(r.kinds, what).not.toContain('PS');
+    };
+    const all = await zp.get(CS);
+    noPs(all.body, 'default');
+    expect((all.body as { scope: { level: string } }).scope.level).toBe('ALL_ZP');
+    noPs((await zp.get(`${CS}?level=WARD&wardId=${String(ids.zp1)}`)).body, 'ZP ward');
+    // b1 carries a PS and a ZP ballot: the ZP_RO sees only the ZP one.
+    const b1 = (await wardView(ids.w1)).booths[0];
+    const booth = await zp.get(`${CS}?level=BOOTH&boothId=${String(b1?.boothId ?? 0)}`);
+    noPs(booth.body, 'booth');
+    expect((booth.body as { booths: unknown[] }).booths).toHaveLength(1);
+    const options = (await zp.get(`${CS}/options`)).body as {
+      ps: unknown[];
+      wards: { kind: string }[];
+    };
+    expect(options.ps).toEqual([]);
+    expect(options.wards.every((w) => w.kind === 'ZP')).toBe(true);
+    const csv = (await zp.get(`${CS}/wards.csv`)).text;
+    expect(csv.split('\n').some((l) => l.startsWith('"ZP",'))).toBe(true); // the check below can fail
+    expect(
+      csv
+        .split('\n')
+        .slice(1)
+        .filter((l) => l.startsWith('"PS",')),
+    ).toEqual([]);
+    const boothCsv = (
+      await zp.get(`${CS}/booths.csv?level=BOOTH&boothId=${String(b1?.boothId ?? 0)}`)
+    ).text;
+    expect(
+      boothCsv
+        .split('\n')
+        .slice(1)
+        .filter((l) => l.startsWith('"PS",')),
+    ).toEqual([]);
   });
 
   it('bad input is refused: unknown query keys 400, unknown ward 404', async () => {
@@ -807,7 +906,7 @@ describe('scopes: the DM picks what to see', () => {
       s.json.booths.map((b) => [b.kind, b.wardId, b.entered, b.round, b.totalVotes, b.enteredBy]),
     ).toEqual([
       ['PS', ids.w1, 'YES', 1, 505, `PS RO (CHURU) · ${users.ro1}`],
-      ['ZP', ids.zp1, 'YES', 1, 413, `ZP RO · ${users.zp}`],
+      ['ZP', ids.zp1, 'YES', 1, 413, `PS RO (CHURU) · ${users.ro1}`],
     ]);
     // Each ballot row is exactly that booth's row of the district report.
     const all = [...(await wardView(ids.w1)).booths, ...(await wardView(ids.zp1)).booths];
@@ -996,6 +1095,7 @@ describe('pure helpers', () => {
         },
       ],
       postal: withPostal ? [{ wardId: 10, enteredAt: asOf, updatedAt: null }] : [],
+      postalAssignments: [],
       declarations: [],
       candidates: [],
       results: new Map(),

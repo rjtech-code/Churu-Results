@@ -32,6 +32,8 @@ export const APP_TABLE_PRIVILEGES: Readonly<Record<string, readonly Privilege[]>
   sessions: READ_WRITE,
   // DM profile one-time codes: created, counted (attempts) and marked used by the app.
   user_otp: READ_WRITE,
+  // Which PS_RO enters each ZP ward's postal ballots (set by the zp-postal:set-default script).
+  zp_ward_postal_assignment: READ_WRITE,
 };
 
 /** Knex bookkeeping tables: the app user gets no access at all. */

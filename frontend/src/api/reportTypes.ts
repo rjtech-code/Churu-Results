@@ -1,3 +1,4 @@
+import type { ZpWardPsProgress } from './types';
 // Shapes of /api/reports (DM only), mirrored from backend/src/services/reports.ts and
 // backend/src/modules/reports/ward-detail.ts.
 
@@ -16,8 +17,7 @@ export interface PartyLabel {
   nameHindi: string;
 }
 
-export type AlarmKind =
-  'DECLARATION_MISMATCH' | 'UNAVAILABLE' | 'VOTER_CHECK_DISABLED' | 'NOTA_HIGHEST_DECLARED';
+export type AlarmKind = 'DECLARATION_MISMATCH' | 'UNAVAILABLE' | 'NOTA_HIGHEST_DECLARED';
 
 export interface Alarm {
   kind: AlarmKind;
@@ -308,6 +308,8 @@ export interface CountingStatusView {
   wards: CsWardRow[];
   /** One ward or one booth only (empty otherwise). */
   booths: CsBoothRow[];
+  /** The scope's ZP wards by Panchayat Samiti (each PS with its own round) + the postal row. */
+  zpPsProgress: ZpWardPsProgress[];
   /** The summary bands that belong to the scope. */
   kinds: CsKind[];
   scope: {
@@ -325,5 +327,6 @@ export interface CountingStatusOptions {
   wards: { id: number; kind: CsKind; psId: number | null; wardNo: number }[];
 }
 export interface CountingStatusBoothOptions {
-  booths: { id: number; boothNo: number; name: string }[];
+  /** psName: the booth's PS (booth numbers restart in every PS; a ZP ward spans several). */
+  booths: { id: number; boothNo: number; name: string; psName: string }[];
 }

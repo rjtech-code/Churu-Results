@@ -241,10 +241,9 @@ describe('public data', () => {
 
   it('/recent: newest first with leader or winner; limits; limit > 50 -> 400', async () => {
     const ro = await declareClient(h.app, 'ro_ps1_x1');
-    const zp = await declareClient(h.app, 'zp_ro_x3');
     await ro.post('/entries', psW1Sheet(w, w.b1));
     await new Promise((r) => setTimeout(r, 30));
-    await zp.post('/entries', {
+    await ro.post('/entries', {
       wardId: w.zW1,
       boothId: w.b2,
       ballotFor: 'ZP',

@@ -18,6 +18,7 @@ const RO_MENU = [
   ['/wards', 'मेरे वार्ड'],
   ['/candidates', 'उम्मीदवार'],
 ] as const;
+const ZP_RO_MENU = [...RO_MENU, ['/reports/counting-status', 'Counting Status Report']] as const;
 
 /** The menu: at most 5 plain items, always visible (no hidden menus). */
 function Menu({ items }: { items: readonly (readonly [string, string])[] }) {
@@ -50,7 +51,17 @@ export function Header() {
         चूरू पंचायत चुनाव 2026 — मतगणना
       </Link>
       {/* In the header row itself: the menu takes no extra height (forms must fit one screen). */}
-      <Menu items={user.role === 'DM' ? DM_MENU : user.role === 'SUPER_ADMIN' ? SUPER_ADMIN_MENU : RO_MENU} />
+      <Menu
+        items={
+          user.role === 'DM'
+            ? DM_MENU
+            : user.role === 'SUPER_ADMIN'
+              ? SUPER_ADMIN_MENU
+              : user.role === 'ZP_RO'
+                ? ZP_RO_MENU
+                : RO_MENU
+        }
+      />
       <div className="who">
         {user.role === 'DM' ? (
           <Link to="/profile" className="who-link" title="मेरी प्रोफ़ाइल">

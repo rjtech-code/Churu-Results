@@ -55,11 +55,8 @@ export const appEnvSchema = z.object({
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(14),
   RO_PASSWORD_KEY: roPasswordKey,
   TRUST_PROXY: trustProxy.default(false),
-  /** Rule 7 (booth total <= registered voters) needs voter counts. Default: true in production. */
-  REQUIRE_VOTER_COUNTS: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  // REQUIRE_VOTER_COUNTS was removed (official order: no registered-voter checks on entries). An
+  // old .env that still has it keeps working: unknown keys are ignored.
   /** Public screens: max simultaneous SSE streams (above it: 503 TOO_MANY_STREAMS). */
   SSE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(1000).default(50),
   /** Public screens: minimum time between two published snapshots (changes in between are merged). */

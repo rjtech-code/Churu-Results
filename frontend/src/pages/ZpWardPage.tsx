@@ -5,6 +5,7 @@ import type { PsZpWardState } from '../api/types';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { formatDateTime } from '../components/format';
 import { useApiData } from '../components/useApiData';
+import { ZpProgressTable } from '../components/ZpProgressTable';
 import type { WardFlash } from './WardDetailPage';
 
 const CLOSED_TEXT: Record<Exclude<PsZpWardState, 'OPEN'>, string> = {
@@ -15,8 +16,9 @@ const CLOSED_TEXT: Record<Exclude<PsZpWardState, 'OPEN'>, string> = {
 };
 
 /**
- * ZP tab of a PS_RO: only this PS's booths of one ZP ward. No postal, declare, lottery,
- * correction, totals or leader — those belong to the ZP RO.
+ * ZP tab of a PS_RO: only this PS's booths of one ZP ward, and its own progress row with the postal
+ * row (who enters it). No declare, lottery, correction, totals or leader — those belong to the ZP RO.
+ * The postal sheet itself is entered from the ZP tab's "assigned to you" list.
  */
 export function ZpWardPage() {
   const wardId = idParam(useParams().wardId);
@@ -30,7 +32,7 @@ export function ZpWardPage() {
 
   if (error) return <ErrorBox error={error} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;
-  const { ward, booths } = data;
+  const { ward, booths, progress } = data;
   const open = ward.state === 'OPEN';
   return (
     <>
@@ -40,6 +42,7 @@ export function ZpWardPage() {
       <h1>जिला परिषद — वार्ड {ward.wardNo}</h1>
       <SuccessBox text={state.flash} />
       {!open && <p className="msg msg-warn">! {CLOSED_TEXT[ward.state as Exclude<PsZpWardState, 'OPEN'>]}</p>}
+      {progress !== null && <ZpProgressTable progress={progress} />}
       <h2>आपकी पंचायत समिति के बूथ</h2>
       <table className="list">
         <thead>

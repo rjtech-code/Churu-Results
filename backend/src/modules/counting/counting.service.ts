@@ -3,13 +3,12 @@
 // audit. Previews run the same checks in a read-only snapshot and write nothing.
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
-import { canWriteBallot, canWriteWard } from '../../services/access.js';
+import { canWriteBallot, canWritePostal } from '../../services/access.js';
 import type { BallotFor } from '../../services/access.js';
 import { writeAudit } from '../../services/audit.js';
 import {
   checkBoothSum,
   checkPostalSum,
-  checkRegisteredVoters,
   checkVoteRows,
   sheetSum,
 } from '../../services/entry-rules.js';
@@ -27,12 +26,10 @@ import {
   readWard,
   withWriteTransaction,
 } from './counting.db.js';
-import type { BoothRow } from './counting.db.js';
 
 export interface WriteContext {
   user: AuthUser;
   ip: string | null;
-  requireVoterCounts: boolean;
 }
 
 export interface BoothCreateBody {
@@ -109,27 +106,22 @@ export const plainVotes = (votes: readonly SheetVote[]) =>
 // ============================================================== booth entries
 
 /** Permission and ward membership, checked before any lock is taken. */
-async function authorizeBooth(
-  pool: Pool,
-  ctx: WriteContext,
-  body: BoothCreateBody,
-): Promise<BoothRow> {
+async function authorizeBooth(pool: Pool, ctx: WriteContext, body: BoothCreateBody): Promise<void> {
   const booth = await readBooth(pool, body.boothId);
-  if (!(await canWriteBallot(pool, ctx.user, body.boothId, body.ballotFor)))
-    throw new ApiError(403, 'FORBIDDEN');
+  if (!(await canWriteBallot(pool, ctx.user, body.boothId))) throw new ApiError(403, 'FORBIDDEN');
   const realWard = body.ballotFor === 'PS' ? booth.psWardId : booth.zpWardId;
   if (realWard !== body.wardId) throw new ApiError(400, 'BOOTH_NOT_IN_WARD');
-  return booth;
 }
 
-/** Every check of a booth create, on one connection (locking or snapshot). */
+/**
+ * Every check of a booth create, on one connection (locking or snapshot). The registered-voter
+ * count is NOT a check (official order): only the sheet itself (rows complete, sum = sheet total).
+ */
 async function checkBoothCreate(
   conn: PoolConnection,
-  ctx: WriteContext,
   body: BoothCreateBody,
-  booth: BoothRow,
   lock: boolean,
-): Promise<{ candidates: BallotCandidate[]; warnings: string[] }> {
+): Promise<BallotCandidate[]> {
   const ward = await readWard(conn, body.wardId, lock);
   await assertWardOpenForCounting(conn, ward);
   const [existing] = await conn.execute<RowDataPacket[]>(
@@ -140,12 +132,7 @@ async function checkBoothCreate(
   const candidates = await readBallot(conn, body.wardId);
   checkVoteRows(candidates, body.votes);
   checkBoothSum(body.votes, body.sheetTotal);
-  const warnings = checkRegisteredVoters(
-    body.sheetTotal,
-    booth.registeredVotersTotal,
-    ctx.requireVoterCounts,
-  );
-  return { candidates, warnings };
+  return candidates;
 }
 
 export async function previewBoothEntry(
@@ -153,9 +140,9 @@ export async function previewBoothEntry(
   ctx: WriteContext,
   body: BoothCreateBody,
 ): Promise<PreviewSummary> {
-  const booth = await authorizeBooth(pool, ctx, body);
+  await authorizeBooth(pool, ctx, body);
   return withReadOnlySnapshot(pool, async (conn) => {
-    const { candidates, warnings } = await checkBoothCreate(conn, ctx, body, booth, false);
+    const candidates = await checkBoothCreate(conn, body, false);
     const [input] = await readWardInputs(conn, [body.wardId]);
     if (!input) throw new ApiError(404, 'NOT_FOUND');
     // "What the ward would become": the engine on the saved data plus this sheet.
@@ -183,7 +170,7 @@ export async function previewBoothEntry(
         votes: namedVotes(candidates, body.votes),
       },
       wardAfter,
-      warnings,
+      warnings: [],
     };
   });
 }
@@ -236,11 +223,11 @@ export async function createBoothEntry(
   ctx: WriteContext,
   body: BoothCreateBody,
 ): Promise<WriteOutcome> {
-  const booth = await authorizeBooth(pool, ctx, body);
+  await authorizeBooth(pool, ctx, body);
   const outcome = await withWriteTransaction(pool, async (conn) => {
-    const { candidates, warnings } = await checkBoothCreate(conn, ctx, body, booth, true);
+    const candidates = await checkBoothCreate(conn, body, true);
     const entryId = await insertBoothEntry(conn, ctx, body, candidates);
-    return { entryId, wardId: body.wardId, warnings };
+    return { entryId, wardId: body.wardId, warnings: [] };
   });
   emitWardChanged(outcome.wardId); // only after a successful commit
   return outcome;
@@ -330,8 +317,7 @@ async function lockBoothEntryForChange(
   rowVersion: number,
 ): Promise<LiveBoothEntry> {
   const peek = await readBoothEntry(pool, entryId, false);
-  if (!(await canWriteBallot(pool, ctx.user, peek.boothId, peek.ballotFor)))
-    throw new ApiError(403, 'FORBIDDEN');
+  if (!(await canWriteBallot(pool, ctx.user, peek.boothId))) throw new ApiError(403, 'FORBIDDEN');
   const ward = await readWard(conn, peek.wardId, true); // ward lock first
   await assertWardOpenForCounting(conn, ward);
   const entry = await readBoothEntry(conn, entryId, true);
@@ -340,23 +326,16 @@ async function lockBoothEntryForChange(
   return entry;
 }
 
-/** Part 5 rules for a changed booth sheet (completeness, sum, registered voters). */
+/** Part 5 rules for a changed booth sheet (completeness, sum = sheet total). */
 export async function checkBoothChange(
   conn: PoolConnection,
-  ctx: WriteContext,
   entry: LiveBoothEntry,
   change: { sheetTotal: number; votes: SheetVote[] },
-): Promise<{ candidates: BallotCandidate[]; warnings: string[] }> {
-  const booth = await readBooth(conn, entry.boothId);
+): Promise<BallotCandidate[]> {
   const candidates = await readBallot(conn, entry.wardId);
   checkVoteRows(candidates, change.votes);
   checkBoothSum(change.votes, change.sheetTotal);
-  const warnings = checkRegisteredVoters(
-    change.sheetTotal,
-    booth.registeredVotersTotal,
-    ctx.requireVoterCounts,
-  );
-  return { candidates, warnings };
+  return candidates;
 }
 
 /**
@@ -425,7 +404,7 @@ export async function updateBoothEntry(
 ): Promise<WriteOutcome> {
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const entry = await lockBoothEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
-    const { candidates, warnings } = await checkBoothChange(conn, ctx, entry, body);
+    const candidates = await checkBoothChange(conn, entry, body);
     const saved = await readEntryVotes(conn, 'booth_entry_vote', entry.id);
     if (
       body.roundNo === entry.roundNo &&
@@ -435,7 +414,7 @@ export async function updateBoothEntry(
       throw new ApiError(400, 'NO_CHANGE'); // nothing written: the transaction rolls back
     }
     await writeBoothChange(conn, ctx, entry, body, candidates);
-    return { entryId, wardId: entry.wardId, warnings };
+    return { entryId, wardId: entry.wardId, warnings: [] };
   });
   emitWardChanged(outcome.wardId);
   return outcome;
@@ -501,9 +480,10 @@ export async function voidBoothEntry(
 
 // ============================================================== postal entries
 
-async function authorizeWard(pool: Pool, ctx: WriteContext, wardId: number): Promise<void> {
+/** PS ward: its own PS_RO. ZP ward: only the PS_RO of the assigned PS (never the ZP_RO). */
+async function authorizePostal(pool: Pool, ctx: WriteContext, wardId: number): Promise<void> {
   await readWard(pool, wardId, false); // 404 for an unknown ward
-  if (!(await canWriteWard(pool, ctx.user, wardId))) throw new ApiError(403, 'FORBIDDEN');
+  if (!(await canWritePostal(pool, ctx.user, wardId))) throw new ApiError(403, 'FORBIDDEN');
 }
 
 async function checkPostalCreate(
@@ -531,7 +511,7 @@ export async function previewPostalEntry(
   wardId: number,
   body: PostalCreateBody,
 ): Promise<PreviewSummary> {
-  await authorizeWard(pool, ctx, wardId);
+  await authorizePostal(pool, ctx, wardId);
   return withReadOnlySnapshot(pool, async (conn) => {
     const candidates = await checkPostalCreate(conn, wardId, body, false);
     const [input] = await readWardInputs(conn, [wardId]);
@@ -567,7 +547,7 @@ export async function createPostalEntry(
   wardId: number,
   body: PostalCreateBody,
 ): Promise<WriteOutcome> {
-  await authorizeWard(pool, ctx, wardId);
+  await authorizePostal(pool, ctx, wardId);
   const outcome = await withWriteTransaction(pool, async (conn) => {
     const candidates = await checkPostalCreate(conn, wardId, body, true);
     let entryId: number;
@@ -654,7 +634,7 @@ async function lockPostalEntryForChange(
   rowVersion: number,
 ): Promise<LivePostalEntry> {
   const peek = await readPostalEntry(pool, entryId, false);
-  if (!(await canWriteWard(pool, ctx.user, peek.wardId))) throw new ApiError(403, 'FORBIDDEN');
+  if (!(await canWritePostal(pool, ctx.user, peek.wardId))) throw new ApiError(403, 'FORBIDDEN');
   const ward = await readWard(conn, peek.wardId, true); // ward lock first
   await assertWardOpenForCounting(conn, ward);
   const entry = await readPostalEntry(conn, entryId, true);

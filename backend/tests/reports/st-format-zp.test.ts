@@ -21,7 +21,7 @@ import type { DeclareClient } from '../declare/helpers.js';
 import { createTestAppPool, createTestMigrationPool, insert, resetData } from '../helpers/db.js';
 
 const TEMPLATE = new URL('../../../docs/st-formats/ZP_ST_FORMAT.xlsx', import.meta.url);
-const USERS = { dm: 'st_dm', zp: 'st_zp', ro: 'st_ro1' };
+const USERS = { dm: 'st_dm', zp: 'st_zp', ro: 'st_ro1', ro2: 'st_ro2' };
 
 let pool: Pool;
 let migrator: Pool;
@@ -169,11 +169,33 @@ async function buildZpWorld(db: Pool): Promise<void> {
     { username: USERS.dm, role: 'DM' as const },
     { username: USERS.zp, role: 'ZP_RO' as const },
     { username: USERS.ro, role: 'PS_RO' as const, psId: ps1 },
+    { username: USERS.ro2, role: 'PS_RO' as const, psId: ps2 },
   ]) {
     await createUser(db, { ...u, password: PASSWORD });
   }
 
-  const zp = await declareClient(countingApp(db), USERS.zp);
+  // Official order: each booth's PS RO enters its sheet; ZP postal by the assigned PS RO; the ZP RO
+  // only declares.
+  const app = countingApp(db);
+  const zp = await declareClient(app, USERS.zp);
+  const ro: Record<number, DeclareClient> = {
+    [ps1]: await declareClient(app, USERS.ro),
+    [ps2]: await declareClient(app, USERS.ro2),
+  };
+  const assign = async (wardId: number, psId: number) => {
+    await db.execute('INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id) VALUES (?, ?)', [
+      wardId,
+      psId,
+    ]);
+  };
+  await assign(zp1, ps1);
+  await assign(zp2, ps1);
+  await assign(zp5, ps2);
+  const clientOf = (psId: number): DeclareClient => {
+    const c = ro[psId];
+    if (c === undefined) throw new Error(`no RO for PS ${String(psId)}`);
+    return c;
+  };
   const ok = (res: { status: number; body: unknown }, what: string) => {
     if (res.status !== 200 && res.status !== 201)
       throw new Error(`${what}: ${res.status} ${JSON.stringify(res.body)}`);
@@ -181,9 +203,9 @@ async function buildZpWorld(db: Pool): Promise<void> {
   };
   const votes = (ids: number[], v: number[]) =>
     ids.map((candidateId, i) => ({ candidateId, votes: v[i] ?? 0 }));
-  const entry = async (wardId: number, boothId: number, ids: number[], v: number[]) =>
+  const entry = async (psId: number, wardId: number, boothId: number, ids: number[], v: number[]) =>
     ok(
-      await zp.post('/entries', {
+      await clientOf(psId).post('/entries', {
         wardId,
         boothId,
         ballotFor: 'ZP',
@@ -193,9 +215,15 @@ async function buildZpWorld(db: Pool): Promise<void> {
       }),
       `entry ${wardId}`,
     );
-  const postal = async (wardId: number, ids: number[], v: number[], rejectedCount?: number) =>
+  const postal = async (
+    psId: number,
+    wardId: number,
+    ids: number[],
+    v: number[],
+    rejectedCount?: number,
+  ) =>
     ok(
-      await zp.post(`/wards/${wardId}/postal`, {
+      await clientOf(psId).post(`/wards/${wardId}/postal`, {
         sheetTotal: v.reduce((s, x) => s + x, 0),
         votes: votes(ids, v),
         ...(rejectedCount === undefined ? {} : { rejectedCount }),
@@ -215,16 +243,16 @@ async function buildZpWorld(db: Pool): Promise<void> {
     );
   };
 
-  await entry(zp1, b1a, z1, [300, 200, 10]);
-  await entry(zp1, b1b, z1, [100, 50, 5]);
-  await postal(zp1, z1, [5, 3, 1], 2);
+  await entry(ps1, zp1, b1a, z1, [300, 200, 10]);
+  await entry(ps2, zp1, b1b, z1, [100, 50, 5]);
+  await postal(ps1, zp1, z1, [5, 3, 1], 2);
   await declare(zp, zp1);
-  await entry(zp2, b2, z2, [400, 350, 20]);
-  await postal(zp2, z2, [0, 0, 0]); // no rejected count recorded
+  await entry(ps1, zp2, b2, z2, [400, 350, 20]);
+  await postal(ps1, zp2, z2, [0, 0, 0]); // no rejected count recorded
   await declare(zp, zp2);
-  await entry(zp4, b4, z4, [999, 1, 0]); // counted, never declared
-  await entry(zp5, b5, z5, [200, 100, 0]);
-  await postal(zp5, z5, [1, 0, 0], 0);
+  await entry(ps1, zp4, b4, z4, [999, 1, 0]); // counted, never declared
+  await entry(ps2, zp5, b5, z5, [200, 100, 0]);
+  await postal(ps2, zp5, z5, [1, 0, 0], 0);
   await declare(zp, zp5);
 }
 

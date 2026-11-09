@@ -20,9 +20,6 @@ export interface AppConfig {
   trustProxy: false | 'loopback' | number;
   loginRateLimit: RateLimitConfig;
   apiRateLimit: RateLimitConfig;
-  /** true: a booth without a registered-voter count cannot be entered (409 VOTER_COUNT_MISSING).
-   *  false: it can, with a VOTER_COUNT_MISSING warning in the response. */
-  requireVoterCounts: boolean;
   publicApi: PublicApiConfig;
   /** Folder with the built dashboard (index.html), or null to serve the API only. */
   frontendDist: string | null;
@@ -83,7 +80,6 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
     trustProxy: env.TRUST_PROXY,
     loginRateLimit: LOGIN_RATE_LIMIT,
     apiRateLimit: API_RATE_LIMIT,
-    requireVoterCounts: env.REQUIRE_VOTER_COUNTS ?? env.NODE_ENV === 'production',
     publicApi: defaultPublicApiConfig({
       rateLimit: { limit: env.PUBLIC_RATE_LIMIT_PER_MIN, windowMs: 60_000 },
       sseMaxConnections: env.SSE_MAX_CONNECTIONS,

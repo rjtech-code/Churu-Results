@@ -61,22 +61,3 @@ export function checkPostalSum(
   const expected = expectedPostalVoteSum({ sheetTotal, rejectedCount, votes });
   if (sum !== expected) throw new ApiError(400, 'SUM_MISMATCH', { sum, sheetTotal });
 }
-
-/**
- * Rule 7: a booth total may not exceed the booth's registered voters.
- * Without a voter count: refused when requireVoterCounts, otherwise allowed with a warning.
- */
-export function checkRegisteredVoters(
-  sheetTotal: number,
-  registeredVoters: number | null,
-  requireVoterCounts: boolean,
-): string[] {
-  if (registeredVoters === null) {
-    if (requireVoterCounts) throw new ApiError(409, 'VOTER_COUNT_MISSING');
-    return ['VOTER_COUNT_MISSING'];
-  }
-  if (sheetTotal > registeredVoters) {
-    throw new ApiError(400, 'EXCEEDS_REGISTERED_VOTERS', { sheetTotal, registeredVoters });
-  }
-  return [];
-}

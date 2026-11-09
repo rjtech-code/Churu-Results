@@ -110,7 +110,7 @@ export function VoteSheet({
   const sum = filled.reduce((s, c) => s + Number(values.votes[c.candidateId]), 0);
   const allFilled = filled.length === ordered.length && values.total !== '';
   const hasError = error !== null && error !== undefined;
-  // A server refusal (e.g. EXCEEDS_REGISTERED_VOTERS) overrides the local "equal": never green then.
+  // A server refusal (e.g. SUM_MISMATCH) overrides the local "equal": never green then.
   const serverError = error instanceof ApiError;
   const equal = allFilled && sum === Number(values.total) && !serverError;
   const emptyCount = ordered.length - filled.length + (values.total === '' ? 1 : 0);

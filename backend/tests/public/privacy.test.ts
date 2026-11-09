@@ -116,8 +116,8 @@ describe('public responses never leak internal data', () => {
       },
     });
     expect(declared.status).toBe(201);
-    const zp = await declareClient(h.app, 'zp_ro_x3');
-    await zp.post('/entries', {
+    const ro2 = await declareClient(h.app, 'ro_ps2_x2'); // b3 is ps2's booth: its RO enters both
+    await ro2.post('/entries', {
       wardId: w.zW1,
       boothId: w.b3,
       ballotFor: 'ZP',
@@ -129,7 +129,6 @@ describe('public responses never leak internal data', () => {
         [w.c.N3, 0],
       ]),
     });
-    const ro2 = await declareClient(h.app, 'ro_ps2_x2');
     await ro2.post('/entries', {
       ...psW1Sheet(w, w.b3),
       wardId: w.psW2,

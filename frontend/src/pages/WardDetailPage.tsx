@@ -1,25 +1,34 @@
 import { useEffect, useRef } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { idParam, loadBooths, loadWard } from '../api/loaders';
+import { idParam, loadBooths, loadWard, loadZpProgress } from '../api/loaders';
+import { useRole } from '../auth/AuthContext';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
 import { WardFormDownloads } from '../components/WardFormDownloads';
 import { formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
+import { ZpProgressTable } from '../components/ZpProgressTable';
 
 export interface WardFlash {
   flash?: string;
   highlightBoothId?: number | null;
 }
 
+/**
+ * One ward of the RO. PS_RO (own PS ward): booth and postal entry. ZP_RO (ZP ward): read-only —
+ * entries are made by the PS ROs (official order); progress by Panchayat Samiti, declare when ready,
+ * correction after.
+ */
 export function WardDetailPage() {
   const wardId = idParam(useParams().wardId);
   const location = useLocation();
   const state = (location.state ?? {}) as WardFlash;
+  const readOnly = useRole() === 'ZP_RO';
   const { data, error } = useApiData(async () => {
     const [ward, booths] = await Promise.all([loadWard(wardId), loadBooths(wardId)]);
-    return { ward, booths };
-  }, [wardId, location.key]);
+    const progress = readOnly && ward.kind === 'ZP' ? await loadZpProgress(wardId) : null;
+    return { ward, booths, progress };
+  }, [wardId, location.key, readOnly]);
   const highlightRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     highlightRef.current?.focus();
@@ -27,9 +36,13 @@ export function WardDetailPage() {
 
   if (error) return <ErrorBox error={error} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;
-  const { ward, booths } = data;
+  const { ward, booths, progress } = data;
   const open =
-    ward.ballotLocked && !ward.isUnopposed && ward.status !== 'DECLARED' && ward.status !== 'TIE_RESOLVED';
+    !readOnly &&
+    ward.ballotLocked &&
+    !ward.isUnopposed &&
+    ward.status !== 'DECLARED' &&
+    ward.status !== 'TIE_RESOLVED';
   const declared = ward.status === 'DECLARED' || ward.status === 'TIE_RESOLVED';
   const entryLink = (boothId: number) => `/wards/${ward.id}/booths/${boothId}/entry`;
 
@@ -58,6 +71,13 @@ export function WardDetailPage() {
         )}
       </div>
       <WardFormDownloads wardId={ward.id} />
+      {progress !== null && (
+        <>
+          <h2>Panchayat Samiti-wise प्रगति</h2>
+          <p className="muted small">Booth और Postal की Entry संबंधित PS RO करते हैं; यहाँ केवल देखना है।</p>
+          <ZpProgressTable progress={progress} />
+        </>
+      )}
 
       <h2>
         डाक मत{' '}

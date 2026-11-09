@@ -34,13 +34,21 @@ afterEach(() => {
   h = null;
 });
 
-/** ZP ward 1 has booths b1..b6; enter them one after another as the ZP_RO. */
+/**
+ * ZP ward 1 has booths b1..b6; enter them one after another, each by its PS RO (official order).
+ * The ZP_RO only reads (to find the entry to correct).
+ */
 async function zpEntries(app: PublicHarness['app'], count: number, gapMs: number): Promise<void> {
   const zp = await declareClient(app, 'zp_ro_x3');
+  const ro = {
+    ro_ps1_x1: await declareClient(app, 'ro_ps1_x1'),
+    ro_ps2_x2: await declareClient(app, 'ro_ps2_x2'),
+  };
   const booths = [w.b1, w.b2, w.b3, w.b4, w.b5, w.b6];
   for (let i = 0; i < count; i++) {
     const boothId = booths[i % booths.length] ?? 0;
-    const res = await zp.post('/entries', {
+    const writer = boothId === w.b3 ? ro.ro_ps2_x2 : ro.ro_ps1_x1;
+    const res = await writer.post('/entries', {
       wardId: w.zW1,
       boothId,
       ballotFor: 'ZP',
@@ -62,7 +70,7 @@ async function zpEntries(app: PublicHarness['app'], count: number, gapMs: number
       const entry = (await zp.get(`/entries/${String(id)}`)).body as {
         entry: { rowVersion: number };
       };
-      await zp.put(`/entries/${String(id)}`, {
+      await writer.put(`/entries/${String(id)}`, {
         rowVersion: entry.entry.rowVersion,
         roundNo: 2,
         sheetTotal: 3 + i,

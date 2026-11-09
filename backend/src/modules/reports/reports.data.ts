@@ -33,12 +33,9 @@ export async function readReportData(pool: Pool): Promise<ReportRaw> {
          FROM ward_declarations d JOIN users u ON u.id = d.declared_by
         ORDER BY d.ward_id, d.version`,
     );
-    const [audit] = await conn.execute<RowDataPacket[]>(
-      "SELECT created_at FROM audit_log WHERE action = 'CONFIG_VOTER_CHECK_DISABLED' ORDER BY id DESC LIMIT 1",
-    );
     const withCandidates = [...new Set(candidates.map((c) => Number(c.ward_id)))];
     const inputs = await readWardInputs(conn, withCandidates);
-    return { wards, ps, parties, candidates, booths, declarations, audit, inputs };
+    return { wards, ps, parties, candidates, booths, declarations, inputs };
   });
 
   // The pure engine runs outside the transaction; one bad ward never breaks the others.
@@ -102,7 +99,6 @@ export async function readReportData(pool: Pool): Promise<ReportRaw> {
         declaredBy: d.full_name === null ? String(d.username) : String(d.full_name),
       };
     }),
-    voterCheckDisabledAt: read.audit[0] === undefined ? null : toDate(read.audit[0].created_at),
     results,
   };
 }

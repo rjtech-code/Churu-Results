@@ -167,6 +167,15 @@ describe('import:geography', () => {
     const [before] = await h.app.query<RowDataPacket[]>(
       'SELECT id, name_english FROM panchayat_samiti ORDER BY id',
     );
+    // A ZP postal assignment points to an old ward id: it goes with the old wards (no FK error).
+    await h.app.query(
+      `INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id)
+       SELECT w.id, ps.id FROM ward w, panchayat_samiti ps WHERE w.ward_type = 'ZP' LIMIT 1`,
+    );
+    const [seeded] = await h.app.query<RowDataPacket[]>(
+      'SELECT COUNT(*) AS n FROM zp_ward_postal_assignment',
+    );
+    expect(Number(seeded[0]?.n)).toBe(1);
     const rows = geoRows();
     rows.push(geoRow(BETA, 3, 2, 2));
     const file = await writeXlsx(h, GEO_HEADERS, rows);
@@ -178,6 +187,10 @@ describe('import:geography', () => {
     );
     expect(after).toEqual(before);
     expect(await readFile(result.reportPath, 'utf8')).toContain('MUST be imported again');
+    const [assigned] = await h.app.query<RowDataPacket[]>(
+      'SELECT COUNT(*) AS n FROM zp_ward_postal_assignment',
+    );
+    expect(Number(assigned[0]?.n)).toBe(0); // re-run zp-postal:set-default after a geography import
   });
 
   it('--replace is refused once candidates exist', async () => {

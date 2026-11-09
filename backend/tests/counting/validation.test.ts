@@ -145,15 +145,9 @@ describe('business rules (each its own code)', () => {
     expect(res.body).toEqual({ error: 'SUM_MISMATCH', sum: 510, sheetTotal: 509 });
   });
 
-  it('EXCEEDS_REGISTERED_VOTERS (booth has 1000)', async () => {
+  it('more votes than registered voters (booth has 1000) is NOT a check any more: saved', async () => {
     const res = await ro.post('/entries', psW1Sheet(w, w.b1, 600, 400, 1));
-    await expectError(res, 400, 'EXCEEDS_REGISTERED_VOTERS');
-    expect(res.body).toEqual({
-      error: 'EXCEEDS_REGISTERED_VOTERS',
-      sheetTotal: 1001,
-      registeredVoters: 1000,
-    });
-    expect((await ro.post('/entries', psW1Sheet(w, w.b1, 600, 400, 0))).status).toBe(201); // exactly 1000 is fine
+    expect([res.status, (res.body as { warnings: unknown }).warnings]).toEqual([201, []]);
   });
 
   it('ALREADY_ENTERED', async () => {

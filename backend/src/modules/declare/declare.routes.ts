@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/errors.js';
 import { loadWardResult } from '../../services/result-loader.js';
@@ -83,13 +82,13 @@ function parse<T extends z.ZodType>(schema: T, data: unknown): z.infer<T> {
 }
 
 /** /api/declare — PS_RO (PS wards of own PS) and ZP_RO (ZP wards). DM: 403. */
-export function declareRouter(pool: Pool, config: AppConfig): Router {
+export function declareRouter(pool: Pool): Router {
   const router = Router();
   router.use(requireRole('PS_RO', 'ZP_RO'));
 
   const ctx = (req: Request): WriteContext => {
     if (!req.user) throw new ApiError(401, 'UNAUTHENTICATED');
-    return { user: req.user, ip: req.ip ?? null, requireVoterCounts: config.requireVoterCounts };
+    return { user: req.user, ip: req.ip ?? null };
   };
   const wardId = (req: Request) => parse(idParam, req.params.wardId);
   const declarationsOf = async (req: Request, id: number) => {

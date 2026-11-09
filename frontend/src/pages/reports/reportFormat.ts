@@ -8,7 +8,6 @@ export const pct = (n: number): string => `${indian.format(n)}%`;
 export const ALARM_LABEL: Record<AlarmKind, string> = {
   DECLARATION_MISMATCH: 'घोषणा और वर्तमान मत मेल नहीं खाते',
   UNAVAILABLE: 'परिणाम उपलब्ध नहीं',
-  VOTER_CHECK_DISABLED: 'मतदाता संख्या की जाँच बंद',
   NOTA_HIGHEST_DECLARED: 'नोटा सर्वाधिक, फिर भी घोषित',
 };
 

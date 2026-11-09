@@ -51,6 +51,7 @@ const BALLOT: BallotCandidate[] = [
 function serve(booths: BoothItem[], psZpBooths: BoothItem[] = booths) {
   const zpTab: PsZpWardBooths = {
     ward: { id: 300, wardNo: 7, state: 'OPEN' },
+    progress: null,
     booths: psZpBooths,
     ballot: BALLOT,
   };

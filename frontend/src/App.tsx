@@ -70,6 +70,8 @@ export const router = createBrowserRouter([
           { path: '/zp/:wardId', element: <ZpWardPage /> },
           { path: '/zp/:wardId/booths/:boothId/entry', element: <BoothEntryPage psZp /> },
           { path: '/wards/:wardId/postal', element: <PostalPage /> },
+          // Official order: a PS_RO enters the postal sheet of the ZP wards assigned to its PS.
+          { path: '/zp-postal/:wardId', element: <PostalPage psZp /> },
           { path: '/wards/:wardId/postal/history', element: <StoryPage kind="POSTAL" /> },
           { path: '/wards/:wardId/booths/:boothId/history', element: <StoryPage kind="BOOTH" /> },
           { path: '/wards/:wardId/declare', element: <DeclarePage /> },
@@ -90,7 +92,6 @@ export const router = createBrowserRouter([
         children: [
           { path: '/reports', element: <ReportsHomePage /> },
           { path: '/reports/wards/:wardId', element: <ReportWardPage /> },
-          { path: '/reports/counting-status', element: <CountingStatusPage /> },
           { path: '/dm', element: <Navigate to="/reports" replace /> },
           // Part 13: the DM's master-data tools (never votes, entries, declare or correction).
           { path: '/admin/parties', element: <PartiesPage /> },
@@ -106,6 +107,11 @@ export const router = createBrowserRouter([
           { path: '/admin/wards/:psId', element: <WardCategoryPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
+      },
+      {
+        // Counting Status Report: the DM, and the ZP RO (the server limits it to ZP wards).
+        element: <RequireRole roles={['DM', 'ZP_RO']} denied="not-allowed" />,
+        children: [{ path: '/reports/counting-status', element: <CountingStatusPage /> }],
       },
       {
         // The Super Admin setup panel: nothing else is open to this role.

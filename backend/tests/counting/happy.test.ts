@@ -89,27 +89,33 @@ describe('booth entries — happy paths', () => {
     expect(String(audit?.ip)).toMatch(/127\.0\.0\.1|::1/);
   });
 
-  it('ZP_RO creates ZP entries for booths in any PS', async () => {
-    const zp = await clientFor(countingApp(pool), 'zp_ro_x3');
-    expect((await zp.post('/entries', zW1Sheet(w, w.b1))).status).toBe(201);
-    const res = await zp.post('/entries', zW1Sheet(w, w.b3)); // booth of ps2
-    expect(res.status).toBe(201);
+  it('ZP booths are entered by the PS_RO of each booth; the ZP_RO enters none (403, nothing written)', async () => {
+    const app = countingApp(pool);
+    const zp = await clientFor(app, 'zp_ro_x3');
+    const before = await tableCounts(pool);
+    expect((await zp.post('/entries', zW1Sheet(w, w.b1))).status).toBe(403);
+    expect((await zp.post('/entries/preview', zW1Sheet(w, w.b3))).status).toBe(403);
+    expect(await tableCounts(pool)).toEqual(before);
+
     expect(
-      (res.body as { wardResult: { boothsEntered: number; boothsTotal: number } }).wardResult,
-    ).toMatchObject({
+      (await (await clientFor(app, 'ro_ps1_x1')).post('/entries', zW1Sheet(w, w.b1))).status,
+    ).toBe(201);
+    expect(
+      (await (await clientFor(app, 'ro_ps2_x2')).post('/entries', zW1Sheet(w, w.b3))).status,
+    ).toBe(201);
+    const wards = (await zp.get('/wards')).body as {
+      wards: { id: number; boothsEntered: number; boothsTotal: number }[];
+    };
+    expect(wards.wards.find((x) => x.id === w.zW1)).toMatchObject({
       boothsEntered: 2,
       boothsTotal: 6,
     });
   });
 
-  it('the same booth can have a PS entry (PS_RO) and a ZP entry (ZP_RO)', async () => {
-    const app = countingApp(pool);
-    expect(
-      (await (await clientFor(app, 'ro_ps1_x1')).post('/entries', psW1Sheet(w, w.b1))).status,
-    ).toBe(201);
-    expect(
-      (await (await clientFor(app, 'zp_ro_x3')).post('/entries', zW1Sheet(w, w.b1))).status,
-    ).toBe(201);
+  it('the same booth can have a PS entry and a ZP entry, both by its PS_RO (one parchi)', async () => {
+    const ro = await clientFor(countingApp(pool), 'ro_ps1_x1');
+    expect((await ro.post('/entries', psW1Sheet(w, w.b1))).status).toBe(201);
+    expect((await ro.post('/entries', zW1Sheet(w, w.b1))).status).toBe(201);
   });
 
   it('preview returns the summary and the ward as it would become, and writes nothing (no event)', async () => {

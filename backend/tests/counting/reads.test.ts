@@ -72,7 +72,8 @@ describe('counting reads', () => {
   it('GET /wards/:id/booths lists the booths (ZP ward across PS) with entry state and postal state', async () => {
     const app = countingApp(pool);
     const zp = await clientFor(app, 'zp_ro_x3');
-    const created = await zp.post('/entries', {
+    const ro2 = await clientFor(app, 'ro_ps2_x2'); // b3 is a ps2 booth: its RO enters the ZP ballot
+    const created = await ro2.post('/entries', {
       wardId: w.zW1,
       boothId: w.b3,
       ballotFor: 'ZP',

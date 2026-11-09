@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/errors.js';
 import { loadWardResult } from '../../services/result-loader.js';
@@ -15,11 +14,14 @@ import {
   getPostalEntry,
   listBooths,
   listWards,
+  psZpPostalWard,
+  psZpPostalWards,
   psZpWardBooths,
   psZpWards,
   postalEntryView,
   postalHistory,
   wardBallot,
+  zpWardProgress,
 } from './counting.read.js';
 import { canReadWard } from '../../services/access.js';
 import {
@@ -96,15 +98,17 @@ function currentUser(req: Request): AuthUser {
 
 // ---------------------------------------------------------------- router
 
-/** /api/counting — PS_RO and ZP_RO only (DM: 403, including reads). */
-export function countingRouter(pool: Pool, config: AppConfig): Router {
+/**
+ * /api/counting — PS_RO and ZP_RO only (DM: 403, including reads). Entries are made by PS ROs
+ * only; the ZP_RO reads ZP wards here (every write is refused by the service: 403).
+ */
+export function countingRouter(pool: Pool): Router {
   const router = Router();
   router.use(requireRole('PS_RO', 'ZP_RO'));
 
   const ctx = (req: Request): WriteContext => ({
     user: currentUser(req),
     ip: req.ip ?? null,
-    requireVoterCounts: config.requireVoterCounts,
   });
 
   /**
@@ -157,6 +161,17 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
   router.get('/zp-wards/:wardId/ps-booths', async (req, res) => {
     res.json(await psZpWardBooths(pool, currentUser(req), param(req, 'wardId')));
   });
+  // ---- PS_RO: the ZP wards whose postal ballots are assigned to its PS (no ward totals)
+  router.get('/zp-postal', async (req, res) => {
+    res.json({ wards: await psZpPostalWards(pool, currentUser(req)) });
+  });
+  router.get('/zp-postal/:wardId', async (req, res) => {
+    res.json(await psZpPostalWard(pool, currentUser(req), param(req, 'wardId')));
+  });
+  // ---- ZP_RO: a ZP ward's progress by Panchayat Samiti (read-only)
+  router.get('/wards/:wardId/zp-progress', async (req, res) => {
+    res.json({ progress: await zpWardProgress(pool, currentUser(req), param(req, 'wardId')) });
+  });
 
   // ---- booth entries
   router.post('/entries/preview', async (req, res) => {
@@ -204,8 +219,13 @@ export function countingRouter(pool: Pool, config: AppConfig): Router {
 
   // ---- postal entries (one per ward)
   router.post('/wards/:wardId/postal/preview', async (req, res) => {
+    const wardId = param(req, 'wardId');
+    const preview = await previewPostalEntry(pool, ctx(req), wardId, parse(postalCreate, req.body));
+    // The assigned PS_RO of a ZP ward enters its postal sheet but never sees the ward's totals.
     res.json(
-      await previewPostalEntry(pool, ctx(req), param(req, 'wardId'), parse(postalCreate, req.body)),
+      (await canReadWard(pool, currentUser(req), wardId))
+        ? preview
+        : { summary: preview.summary, warnings: preview.warnings },
     );
   });
   router.post('/wards/:wardId/postal', async (req, res) => {

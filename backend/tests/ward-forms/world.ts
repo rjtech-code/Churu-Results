@@ -7,7 +7,15 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 import request from 'supertest';
 import type { Response } from 'supertest';
 import { login } from '../auth/helpers.js';
-import { PASSWORD, buildWorld, countingApp, v, zW1Sheet } from '../counting/helpers.js';
+import {
+  PASSWORD,
+  assignZpPostal,
+  boothRo,
+  buildWorld,
+  countingApp,
+  v,
+  zW1Sheet,
+} from '../counting/helpers.js';
 import type { World } from '../counting/helpers.js';
 import { confirmBody, declareClient, fillPsW1, previewResult } from '../declare/helpers.js';
 import type { DeclareClient, FilledWard } from '../declare/helpers.js';
@@ -34,13 +42,19 @@ async function declare(c: DeclareClient, wardId: number): Promise<void> {
     throw new Error(`declare ${wardId}: ${res.status} ${JSON.stringify(res.body)}`);
 }
 
-async function fillZW1(zp: DeclareClient, w: World): Promise<void> {
+/** Official order: each booth's PS RO enters it; the postal is assigned to (and entered by) ps1. */
+async function fillZW1(pool: Pool, app: Express, w: World): Promise<void> {
   for (const booth of [w.b1, w.b2, w.b3, w.b4, w.b5, w.b6]) {
-    const res = await zp.post('/entries', zW1Sheet(w, booth));
+    const res = await (
+      await declareClient(app, boothRo(w, booth))
+    ).post('/entries', zW1Sheet(w, booth));
     if (res.status !== 201)
       throw new Error(`zW1 booth ${booth}: ${res.status} ${JSON.stringify(res.body)}`);
   }
-  const res = await zp.post(`/wards/${w.zW1}/postal`, {
+  await assignZpPostal(pool, w.zW1, w.ps1);
+  const res = await (
+    await declareClient(app, USERS.ro1)
+  ).post(`/wards/${w.zW1}/postal`, {
     sheetTotal: 3,
     rejectedCount: 2,
     votes: v([
@@ -75,7 +89,7 @@ export async function buildFormsWorld(pool: Pool): Promise<FormsWorld> {
   const psFilled = await fillPsW1(ro, w);
   await declare(ro, w.psW1);
   const zp = await declareClient(app, USERS.zp);
-  await fillZW1(zp, w);
+  await fillZW1(pool, app, w);
   await declare(zp, w.zW1);
   return { w, app, psFilled };
 }

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
-import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
+import { idParam, loadBallot, loadBooths, loadPsZpPostalWard, loadWard } from '../api/loaders';
 import type { EntryPreview, PostalEntryView } from '../api/types';
 import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
@@ -17,23 +17,34 @@ import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 import type { WardFlash } from './WardDetailPage';
 
-/** Postal ballots of a ward: create (with preview) or edit (with reason) the single postal entry. */
-export function PostalPage() {
+const loadPostalEntry = async (entryId: number | null) =>
+  entryId === null
+    ? null
+    : (await api<{ entry: PostalEntryView }>('GET', `/api/counting/postal/${entryId}`)).entry;
+
+/**
+ * Postal ballots of a ward: create (with preview) or edit (with reason) the single postal entry
+ * (no round: one entry per ward). `psZp`: a PS_RO entering the postal sheet of a ZP ward assigned
+ * to its PS (official order); it never sees the ZP ward's totals.
+ */
+export function PostalPage({ psZp = false }: { psZp?: boolean }) {
   const wardId = idParam(useParams().wardId);
   const navigate = useNavigate();
   const { data, error: loadError } = useApiData(async () => {
+    if (psZp) {
+      const z = await loadPsZpPostalWard(wardId);
+      if (z.ward.state === 'DECLARED') throw new ApiError(409, 'WARD_DECLARED', {});
+      const ward = { kind: 'ZP' as const, wardNo: z.ward.wardNo, panchayatSamiti: null };
+      return { ward, ballot: z.ballot, entry: await loadPostalEntry(z.postal.entryId) };
+    }
     const [ward, booths, ballot] = await Promise.all([
       loadWard(wardId),
       loadBooths(wardId),
       loadBallot(wardId),
     ]);
-    const entry =
-      booths.postal.entryId === null
-        ? null
-        : (await api<{ entry: PostalEntryView }>('GET', `/api/counting/postal/${booths.postal.entryId}`))
-            .entry;
-    return { ward, ballot, entry };
-  }, [wardId]);
+    return { ward, ballot, entry: await loadPostalEntry(booths.postal.entryId) };
+  }, [wardId, psZp]);
+  const backTo = psZp ? '/wards?ballot=ZP' : `/wards/${wardId}`;
   const [values, setValues] = useState<SheetValues | null>(null);
   const [rejected, setRejected] = useState<string | null>(null);
   const [reason, setReason] = useState<ReasonValue>(emptyReason);
@@ -114,7 +125,7 @@ export function PostalPage() {
       }
       allowLeave.current = true;
       const state: WardFlash = { flash: editing ? 'डाक मत सुधार दिए गए' : 'डाक मत सेव हो गए' };
-      void navigate(`/wards/${wardId}`, { state });
+      void navigate(backTo, { state });
     } catch (err) {
       setError(err);
       setStage('form'); // the error is shown next to "आगे", with every typed number kept
@@ -128,12 +139,15 @@ export function PostalPage() {
     <>
       <LeaveGuard dirty={dirty} allowRef={allowLeave} />
       <p className="backlink">
-        <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
+        <Link to={backTo}>← {psZp ? 'जिला परिषद डाक मत' : wardShort(ward)}</Link>
       </p>
       <div className="sheet-header">
         <div className="big">{editing ? 'डाक मत पत्र — सुधार' : 'डाक मत पत्र'}</div>
         <div className="muted small">{wardTitle(ward)}</div>
       </div>
+      <p className="muted small" data-testid="postal-order-note">
+        नोट: पहले PS Ward का Postal पूरा करें, फिर ZP Ward का।
+      </p>
       {stage === 'form' && (
         <form
           onSubmit={(e) => {

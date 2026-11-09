@@ -45,8 +45,6 @@ export interface ReportRaw {
     declaredAt: Date;
     declaredBy: string;
   }[];
-  /** Latest CONFIG_VOTER_CHECK_DISABLED audit row (startup warning), if any. */
-  voterCheckDisabledAt: Date | null;
   /** Wards with candidates: the engine result, or UNAVAILABLE when its data broke a rule. */
   results: ReadonlyMap<number, WardResult | 'UNAVAILABLE'>;
 }
@@ -68,8 +66,7 @@ export interface PartyLabel {
   nameHindi: string;
 }
 
-export type AlarmKind =
-  'DECLARATION_MISMATCH' | 'UNAVAILABLE' | 'VOTER_CHECK_DISABLED' | 'NOTA_HIGHEST_DECLARED';
+export type AlarmKind = 'DECLARATION_MISMATCH' | 'UNAVAILABLE' | 'NOTA_HIGHEST_DECLARED';
 
 export interface Alarm {
   kind: AlarmKind;
@@ -191,10 +188,7 @@ interface WardInfo {
 }
 
 /** Builds every section for every scope (each PS, all PS together, ZP) plus the district alarms. */
-export function buildReport(
-  raw: ReportRaw,
-  opts: { voterCheckOff: boolean; now: Date },
-): ReportSummary {
+export function buildReport(raw: ReportRaw, opts: { now: Date }): ReportSummary {
   const psName = new Map(raw.ps.map((p) => [p.id, p.name]));
   const parties = new Map<number, PartyRef>(
     raw.parties.map((p) => [p.id, { shortName: p.shortName, nameHindi: p.nameHindi }]),
@@ -451,15 +445,6 @@ export function buildReport(
   ];
 
   const alarms: Alarm[] = [];
-  if (opts.voterCheckOff && raw.voterCheckDisabledAt !== null) {
-    alarms.push({
-      kind: 'VOTER_CHECK_DISABLED',
-      ward: null,
-      scope: null,
-      detail: 'पंजीकृत मतदाता संख्या की जाँच बंद है (REQUIRE_VOTER_COUNTS=false)',
-      at: istIso(raw.voterCheckDisabledAt),
-    });
-  }
   for (const w of wards) {
     if (w.status === 'UNAVAILABLE') {
       alarms.push({

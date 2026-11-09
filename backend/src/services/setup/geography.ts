@@ -605,7 +605,9 @@ async function writeGeography(
           [DISTRICT.code, DISTRICT.nameEnglish, DISTRICT.nameHindi],
         );
 
-  // Old wards and booths go (only reachable when --replace passed all checks).
+  // Old wards and booths go (only reachable when --replace passed all checks). The ZP postal
+  // assignments point to the old ward ids: they go first (re-run zp-postal:set-default after).
+  await conn.execute('DELETE FROM zp_ward_postal_assignment');
   await conn.execute('DELETE FROM booth');
   await conn.execute('DELETE FROM ward');
 

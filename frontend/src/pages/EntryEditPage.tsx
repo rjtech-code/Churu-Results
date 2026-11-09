@@ -31,7 +31,6 @@ export function EntryEditPage() {
       ballot: ctx.ballot,
       boothNo: ctx.booth?.boothNo ?? 0,
       boothName: ctx.booth?.nameHindi ?? '',
-      registered: ctx.booth?.registeredVotersTotal ?? null,
     };
   }, [entryId, role]);
   const [values, setValues] = useState<SheetValues | null>(null);
@@ -118,10 +117,7 @@ export function EntryEditPage() {
         <div className="big">
           एंट्री सुधार — बूथ संख्या {data.boothNo} — {data.boothName}
         </div>
-        <div className="muted small">
-          पंजीकृत मतदाता: {data.registered ?? 'दर्ज नहीं'} · मतपत्र:{' '}
-          {ward.kind === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}
-        </div>
+        <div className="muted small">मतपत्र: {ward.kind === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}</div>
       </div>
       {stage === 'form' && (
         <form

@@ -117,6 +117,19 @@ export async function buildWorld(pool: Pool): Promise<World> {
   return { ps1, ps2, psW1, psW2, psW3, psW4, zW1, b1, b2, b3, b4, b5, b6, c, users };
 }
 
+/** The PS_RO who enters a booth's sheets (both ballots): b3 is ps2's booth, the rest ps1's. */
+export function boothRo(w: World, boothId: number): string {
+  return boothId === w.b3 ? 'ro_ps2_x2' : 'ro_ps1_x1';
+}
+
+/** Official order: `psId`'s RO enters the postal ballots of ZP ward `wardId`. */
+export async function assignZpPostal(pool: Pool, wardId: number, psId: number): Promise<void> {
+  await pool.execute('INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id) VALUES (?, ?)', [
+    wardId,
+    psId,
+  ]);
+}
+
 /** A logged-in API client with a fresh CSRF token. */
 export interface Client {
   agent: Agent;

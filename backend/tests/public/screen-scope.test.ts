@@ -66,8 +66,8 @@ describe('per-screen /recent and /winners', () => {
       ]),
     });
     expect(ps2.status).toBe(201);
-    const zp = await clientFor(h.app, 'zp_ro_x3');
-    expect((await zp.post('/entries', zW1Sheet(w, w.b1))).status).toBe(201);
+    // b1's PS RO enters its ZP ballot too (official order)
+    expect((await ro1.post('/entries', zW1Sheet(w, w.b1))).status).toBe(201);
 
     // Wait until the snapshot has all three changes.
     await waitFor(async () => {

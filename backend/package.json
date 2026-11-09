@@ -40,6 +40,7 @@
     "demo:reset": "tsx scripts/demo-reset.ts",
     "screens:show": "tsx scripts/screens-show.ts",
     "screens:set": "tsx scripts/screens-set.ts",
+    "zp-postal:set-default": "tsx scripts/zp-postal-set-default.ts",
     "demo:simulate": "tsx scripts/demo-simulate.ts",
     "ps:set-hindi-names": "tsx scripts/ps-set-hindi-names.ts",
     "reset-candidates": "tsx scripts/reset-candidates.ts",

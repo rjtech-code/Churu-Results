@@ -111,6 +111,7 @@ const DISTRICT: CountingStatusView = {
     }),
   ],
   booths: [],
+  zpPsProgress: [],
   kinds: ['PS', 'ZP'],
   scope: {
     level: 'DISTRICT',

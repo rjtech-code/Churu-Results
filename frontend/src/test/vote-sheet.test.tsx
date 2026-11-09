@@ -119,12 +119,12 @@ describe('VoteSheet split layout and errors', () => {
   });
 
   it('a server error keeps the sum line red even when the numbers are equal', () => {
-    renderSplit(new ApiError(400, 'EXCEEDS_REGISTERED_VOTERS', { sheetTotal: 50, registeredVoters: 40 }));
+    renderSplit(new ApiError(409, 'ALREADY_ENTERED', {}));
     const line = screen.getByTestId('s-sumline');
     expect(line.className).toContain('sum-bad');
     expect(line.className).not.toContain('sum-ok');
     expect(line.textContent).toContain('✗ रुकावट');
-    expect(screen.getByRole('alert').textContent).toContain('पंजीकृत मतदाताओं (40) से अधिक');
+    expect(screen.getByRole('alert').textContent).toContain('पहले ही दर्ज हो चुका है');
   });
 
   it('a local message does not override the live line', () => {

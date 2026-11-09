@@ -45,6 +45,9 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
     const [postal] = await conn.execute<RowDataPacket[]>(
       'SELECT ward_id, entered_at, updated_at FROM postal_entry',
     );
+    const [assignments] = await conn.execute<RowDataPacket[]>(
+      'SELECT zp_ward_id, ps_id FROM zp_ward_postal_assignment',
+    );
     const [declarations] = await conn.execute<RowDataPacket[]>(
       `SELECT d.ward_id, d.winner_candidate_id, d.margin FROM ward_declarations d
         WHERE d.version = (SELECT MAX(d2.version) FROM ward_declarations d2 WHERE d2.ward_id = d.ward_id)`,
@@ -65,6 +68,7 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
       booths,
       entries,
       postal,
+      assignments,
       declarations,
       candidates,
       inputs,
@@ -126,6 +130,10 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
       enteredAt: toDate(p.entered_at),
       updatedAt: toDateOrNull(p.updated_at),
     })),
+    postalAssignments: read.assignments.map((a) => ({
+      wardId: Number(a.zp_ward_id),
+      psId: Number(a.ps_id),
+    })),
     declarations: read.declarations.map((d) => ({
       wardId: Number(d.ward_id),
       winnerCandidateId: Number(d.winner_candidate_id),
@@ -152,11 +160,19 @@ export interface ScopeOptions {
   wards: { id: number; kind: 'PS' | 'ZP'; psId: number | null; wardNo: number }[];
 }
 
-/** Every PS (display name order) and every ward, for the cascading selects. */
-export async function readScopeOptions(pool: Pool): Promise<ScopeOptions> {
-  const [ps] = await pool.execute<RowDataPacket[]>('SELECT id, name_english FROM panchayat_samiti');
+/**
+ * Every PS (display name order) and every ward, for the cascading selects. ZP_ONLY (the ZP_RO): no
+ * Panchayat Samiti and only the Zila Parishad wards.
+ */
+export async function readScopeOptions(pool: Pool, mode: 'ALL' | 'ZP_ONLY'): Promise<ScopeOptions> {
+  const zpOnly = mode === 'ZP_ONLY';
+  const ps: RowDataPacket[] = zpOnly
+    ? []
+    : (await pool.execute<RowDataPacket[]>('SELECT id, name_english FROM panchayat_samiti'))[0];
   const [wards] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, ward_type, panchayat_samiti_id, ward_no FROM ward ORDER BY ward_type, ward_no',
+    zpOnly
+      ? "SELECT id, ward_type, panchayat_samiti_id, ward_no FROM ward WHERE ward_type = 'ZP' ORDER BY ward_no"
+      : 'SELECT id, ward_type, panchayat_samiti_id, ward_no FROM ward ORDER BY ward_type, ward_no',
   );
   return {
     ps: ps
@@ -171,26 +187,47 @@ export async function readScopeOptions(pool: Pool): Promise<ScopeOptions> {
   };
 }
 
-/** The booths of one PS ward (every booth is in exactly one PS ward); null for an unknown ward. */
-export async function readPsWardBooths(
+export interface BoothOption {
+  id: number;
+  boothNo: number;
+  name: string;
+  /** The booth's PS (display name): booth numbers restart in every PS, a ZP ward spans several. */
+  psName: string;
+}
+
+/**
+ * The booths of one ward of the given kind (PS: the DM's booth picker; ZP: the ZP_RO's), in PS
+ * then booth-number order; null for an unknown ward or a ward of the other kind.
+ */
+export async function readWardBooths(
   pool: Pool,
   wardId: number,
-): Promise<{ id: number; boothNo: number; name: string }[] | null> {
+  kind: 'PS' | 'ZP',
+): Promise<BoothOption[] | null> {
   const [ward] = await pool.execute<RowDataPacket[]>(
-    "SELECT id FROM ward WHERE id = ? AND ward_type = 'PS'",
-    [wardId],
+    'SELECT id FROM ward WHERE id = ? AND ward_type = ?',
+    [wardId, kind],
   );
   if (ward.length === 0) return null;
   const [booths] = await pool.execute<RowDataPacket[]>(
-    'SELECT id, booth_no, name_english, name_hindi FROM booth WHERE ps_ward_id = ? ORDER BY booth_no',
+    kind === 'PS'
+      ? `SELECT b.id, b.booth_no, b.name_english, b.name_hindi, ps.name_english AS ps_name
+           FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
+          WHERE b.ps_ward_id = ?`
+      : `SELECT b.id, b.booth_no, b.name_english, b.name_hindi, ps.name_english AS ps_name
+           FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
+          WHERE b.zp_ward_id = ?`,
     [wardId],
   );
-  return booths.map((b) => {
-    const english = str(b.name_english).trim();
-    return {
-      id: Number(b.id),
-      boothNo: Number(b.booth_no),
-      name: english === '' ? str(b.name_hindi) : english,
-    };
-  });
+  return booths
+    .map((b) => {
+      const english = str(b.name_english).trim();
+      return {
+        id: Number(b.id),
+        boothNo: Number(b.booth_no),
+        name: english === '' ? str(b.name_hindi) : english,
+        psName: displayPsName(str(b.ps_name)),
+      };
+    })
+    .sort((a, b) => a.psName.localeCompare(b.psName, 'en') || a.boothNo - b.boothNo);
 }

@@ -1,10 +1,20 @@
-// Part 14 / 14.1: a PS_RO enters ZP booth ballots of its own PS only (the ZP tab); ZP postal, declare,
-// lottery and correction stay ZP_RO's. Includes the PS_RO's two read endpoints for the ZP tab.
+// Part 14 / 14.1: a PS_RO enters ZP booth ballots of its own PS only (the ZP tab); declare, lottery and
+// correction stay ZP_RO's, ZP postal belongs to the ASSIGNED PS_RO only (official order). Includes the
+// PS_RO's two read endpoints for the ZP tab.
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { confirmBody, declareClient, previewResult } from '../declare/helpers.js';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
-import { buildWorld, clientFor, count, countingApp, tableCounts, v, zW1Sheet } from './helpers.js';
+import {
+  assignZpPostal,
+  buildWorld,
+  clientFor,
+  count,
+  countingApp,
+  tableCounts,
+  v,
+  zW1Sheet,
+} from './helpers.js';
 import type { Client, World } from './helpers.js';
 
 let pool: Pool;
@@ -97,8 +107,7 @@ describe('PS_RO on ZP booth ballots (single-ballot API)', () => {
     const ro2 = await clientFor(countingApp(pool), 'ro_ps2_x2');
     expect((await ro2.post('/entries', zW1Sheet(w, w.b1))).status).toBe(403);
     expect((await ro2.post('/entries/preview', zW1Sheet(w, w.b1))).status).toBe(403);
-    const zp = await clientFor(countingApp(pool), 'zp_ro_x3');
-    const id = ((await zp.post('/entries', zW1Sheet(w, w.b1))).body as { entry: { id: number } })
+    const id = ((await ro1.post('/entries', zW1Sheet(w, w.b1))).body as { entry: { id: number } })
       .entry.id;
     expect((await ro2.get(`/entries/${id}`)).status).toBe(403);
     expect(
@@ -118,7 +127,7 @@ describe('PS_RO on ZP booth ballots (single-ballot API)', () => {
     expect(await liveEntries('ZP')).toBe(1);
   });
 
-  it('ZP ward-level work stays ZP_RO only: postal, booth list, ballot, declare, lottery, correction -> 403', async () => {
+  it("ZP ward-level work is not the PS_RO's: postal (not assigned), booth list, ballot, declare, lottery, correction -> 403", async () => {
     const zpPostal = {
       sheetTotal: 0,
       votes: v([
@@ -164,11 +173,14 @@ describe('after a ZP ward is declared', () => {
         entry: { id: number; rowVersion: number };
       }
     ).entry;
-    for (const b of [w.b2, w.b3, w.b4, w.b5, w.b6])
-      expect((await zp.post('/entries', zW1Sheet(w, b))).status).toBe(201);
+    for (const b of [w.b2, w.b4, w.b5, w.b6])
+      expect((await ro1.post('/entries', zW1Sheet(w, b))).status).toBe(201);
+    const ro2 = await clientFor(app, 'ro_ps2_x2');
+    expect((await ro2.post('/entries', zW1Sheet(w, w.b3))).status).toBe(201);
+    await assignZpPostal(pool, w.zW1, w.ps1);
     expect(
       (
-        await zp.post(`/wards/${w.zW1}/postal`, {
+        await ro1.post(`/wards/${w.zW1}/postal`, {
           sheetTotal: 1,
           votes: v([
             [w.c.E, 1],
@@ -211,12 +223,12 @@ describe('after a ZP ward is declared', () => {
 });
 
 describe('ZP_RO ward list: booths entered per Panchayat Samiti', () => {
-  it('counts ZP entries of each PS separately (PS_RO and ZP_RO entries alike)', async () => {
+  it("counts ZP entries of each PS separately (each made by that PS's RO)", async () => {
     const app = countingApp(pool);
     const ro1 = await clientFor(app, 'ro_ps1_x1');
     const zp = await clientFor(app, 'zp_ro_x3');
     await ro1.post('/entries', zW1Sheet(w, w.b1));
-    await zp.post('/entries', zW1Sheet(w, w.b3));
+    await (await clientFor(app, 'ro_ps2_x2')).post('/entries', zW1Sheet(w, w.b3));
     const wards = (
       (await zp.get('/wards')).body as {
         wards: { id: number; boothsByPs: unknown[]; boothsEntered: number; boothsTotal: number }[];
@@ -238,9 +250,9 @@ describe('PS_RO ZP tab read endpoints', () => {
   it('GET /zp-wards: only ZP wards with own-PS booths, own-PS progress, no totals', async () => {
     const app = countingApp(pool);
     const ro1 = await clientFor(app, 'ro_ps1_x1');
-    const zp = await clientFor(app, 'zp_ro_x3');
     await ro1.post('/entries', zW1Sheet(w, w.b1));
-    await zp.post('/entries', zW1Sheet(w, w.b3)); // another PS's booth: must not count for PS 1
+    const ro2 = await clientFor(app, 'ro_ps2_x2');
+    await ro2.post('/entries', zW1Sheet(w, w.b3)); // another PS's booth: must not count for PS 1
     const res = await ro1.get('/zp-wards');
     expect(res.status).toBe(200);
     expectNoWardTotals(res.body);
@@ -251,7 +263,6 @@ describe('PS_RO ZP tab read endpoints', () => {
     ).wards;
     const z = wards.find((x) => x.id === w.zW1);
     expect([z?.boothsEntered, z?.boothsTotal, z?.state]).toEqual([1, 5, 'OPEN']);
-    const ro2 = await clientFor(app, 'ro_ps2_x2');
     const other = (await ro2.get('/zp-wards')).body as {
       wards: { id: number; boothsEntered: number; boothsTotal: number }[];
     };
@@ -259,12 +270,19 @@ describe('PS_RO ZP tab read endpoints', () => {
     expect([z2?.boothsEntered, z2?.boothsTotal]).toEqual([1, 1]);
   });
 
-  it('GET /zp-wards/:id/ps-booths: only own-PS booths and the ballot; no totals, leader or postal', async () => {
+  it('GET /zp-wards/:id/ps-booths: only own-PS booths, own-PS progress and the ballot; no totals, leader or postal votes', async () => {
+    await assignZpPostal(pool, w.zW1, w.ps2);
     const ro1 = await clientFor(countingApp(pool), 'ro_ps1_x1');
     const res = await ro1.get(`/zp-wards/${w.zW1}/ps-booths`);
     expect(res.status).toBe(200);
     expectNoWardTotals(res.body);
-    expect(JSON.stringify(res.body)).not.toContain('postal');
+    expect(JSON.stringify(res.body)).not.toContain('sheetTotal');
+    // Progress: only this PS's row; the postal row says who enters it, never its numbers.
+    expect((res.body as { progress: unknown }).progress).toMatchObject({
+      wardId: w.zW1,
+      rows: [{ psId: w.ps1, boothsDone: 0, boothsTotal: 5, latestRound: null }],
+      postal: { assignedPsId: w.ps2, entered: false },
+    });
     const body = res.body as {
       ward: { id: number; state: string };
       booths: { boothId: number }[];

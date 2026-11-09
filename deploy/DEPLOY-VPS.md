@@ -62,6 +62,14 @@ $DC exec app npm run users:reset-password -- --username <u> --commit
 ```
 (Har script ka exact usage uski pehli line mein hai: `backend/scripts/<naam>.ts`.)
 
+**ZP postal assignment — geography + candidates load hone ke BAAD chalao** (aur har geography
+import ke baad dobara, kyunki ward ids naye bante hain). Isse har ZP ward ka postal kaun sa PS RO
+karega, wo set hota hai; iske bina kisi ZP ward ka postal entry nahi ho sakta:
+```bash
+$DC exec app npm run zp-postal:set-default              # dry run: plan dikhata hai, kuch save nahi
+$DC exec app npm run zp-postal:set-default -- --commit  # save (audit row); dobara chalane par kuch nahi badalta
+```
+
 ## 6. 15 users banao (13 PS_RO, 1 ZP_RO, 1 DM)
 Password khud generate hoke ek hi baar screen par aata hai — turant kisi safe jagah note karo.
 ```bash

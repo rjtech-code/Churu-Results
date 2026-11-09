@@ -101,11 +101,11 @@ describe('DM reports home', () => {
               at: null,
             },
             {
-              kind: 'VOTER_CHECK_DISABLED',
-              ward: null,
-              scope: null,
-              detail: 'जाँच बंद',
-              at: '2026-11-20T08:00:00.000+05:30',
+              kind: 'NOTA_HIGHEST_DECLARED',
+              ward: ward(9, 'चूरू · वार्ड 9'),
+              scope: 'PS:1',
+              detail: 'नोटा',
+              at: null,
             },
           ],
         })}
@@ -114,7 +114,7 @@ describe('DM reports home', () => {
     const box = screen.getByTestId('alarms');
     expect(box.getAttribute('role')).toBe('alert');
     expect(box.textContent).toContain('घोषणा और वर्तमान मत मेल नहीं खाते');
-    expect(box.textContent).toContain('मतदाता संख्या की जाँच बंद');
+    expect(box.textContent).toContain('नोटा सर्वाधिक, फिर भी घोषित');
     expect(within(box).getByRole('link', { name: 'चूरू · वार्ड 8' }).getAttribute('href')).toBe(
       '/reports/wards/8',
     );

@@ -1,7 +1,15 @@
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
-import { buildWorld, captureEvents, clientFor, countingApp, tableCounts, v } from './helpers.js';
+import {
+  assignZpPostal,
+  buildWorld,
+  captureEvents,
+  clientFor,
+  countingApp,
+  tableCounts,
+  v,
+} from './helpers.js';
 import type { World } from './helpers.js';
 
 let pool: Pool;
@@ -152,8 +160,8 @@ describe('postal entries', () => {
     expect((await ro.post(`/wards/${w.psW1}/postal`, postal(w, 1, 1, 1))).status).toBe(201);
   });
 
-  it('ZP_RO enters ZP postal; PS_RO cannot', async () => {
-    const zp = await clientFor(countingApp(pool), 'zp_ro_x3');
+  it('ZP postal: only the PS_RO of the assigned PS (the ZP_RO and other PS_ROs: 403)', async () => {
+    await assignZpPostal(pool, w.zW1, w.ps2);
     const body = {
       sheetTotal: 3,
       votes: v([
@@ -162,8 +170,15 @@ describe('postal entries', () => {
         [w.c.N3, 1],
       ]),
     };
-    expect((await zp.post(`/wards/${w.zW1}/postal`, body)).status).toBe(201);
-    const ro = await clientFor(countingApp(pool), 'ro_ps1_x1');
-    expect((await ro.post(`/wards/${w.zW1}/postal/preview`, body)).status).toBe(403);
+    const app = countingApp(pool);
+    expect(
+      (await (await clientFor(app, 'zp_ro_x3')).post(`/wards/${w.zW1}/postal`, body)).status,
+    ).toBe(403);
+    expect(
+      (await (await clientFor(app, 'ro_ps1_x1')).post(`/wards/${w.zW1}/postal`, body)).status,
+    ).toBe(403);
+    expect(
+      (await (await clientFor(app, 'ro_ps2_x2')).post(`/wards/${w.zW1}/postal`, body)).status,
+    ).toBe(201);
   });
 });

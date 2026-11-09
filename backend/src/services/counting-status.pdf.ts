@@ -42,6 +42,8 @@ export interface PdfModel {
   /** The ward-wise tables start on a new page after a multi-row PS-wise table. */
   pageBreakBeforeWards: boolean;
   wards: TableSpec[];
+  /** Zila Parishad wards of the scope by Panchayat Samiti (+ the postal row); null when none. */
+  zpByPs: TableSpec | null;
   /** One ward or one booth: its booth-wise table. */
   booths: TableSpec | null;
   /** Pending booths of the listed wards in counting (not for one ward / one booth). */
@@ -82,7 +84,8 @@ function wardTable(r: CountingStatusReport, kind: WardKind): TableSpec {
       { header: 'Flags', weight: 9 },
       { header: 'Booths Done / Total', weight: 8, align: 'right' as const },
       { header: 'Pending', weight: 5, align: 'right' as const },
-      { header: 'Round', weight: 4, align: 'right' as const },
+      // A ZP ward has no single round (each PS counts in its own rounds): see "by PS".
+      ...(kind === 'PS' ? [{ header: 'Round', weight: 4, align: 'right' as const }] : []),
       { header: 'Postal', weight: 4 },
       { header: 'Last Entry', weight: 13 },
       { header: 'Winner (Party)', weight: 13 },
@@ -97,7 +100,7 @@ function wardTable(r: CountingStatusReport, kind: WardKind): TableSpec {
         chips.flags,
         ofTotal(w.boothsDone, w.boothsTotal),
         n(w.boothsPending),
-        n(w.latestRound),
+        ...(kind === 'PS' ? [n(w.latestRound)] : []),
         w.postalDone === null ? 'n/a' : w.postalDone ? 'Done' : 'Pending',
         w.lastEntryText ?? '–',
         w.winner === null ? '–' : `${w.winner.name} (${w.winner.party})`,
@@ -140,6 +143,44 @@ function boothTable(r: ScopedReport): TableSpec {
       b.enteredAtText ?? '–',
       b.lastEditedAtText ?? '–',
       n(b.totalVotes),
+    ]),
+  };
+}
+
+/** Per ZP ward: one row per contributing PS (its own round), then the Postal row. */
+function zpByPsTable(r: ScopedReport): TableSpec | null {
+  if (r.zpPsProgress.length === 0) return null;
+  return {
+    title: 'Zila Parishad Wards – by Panchayat Samiti',
+    columns: [
+      { header: 'ZP Ward', weight: 4, align: 'right' },
+      { header: 'Panchayat Samiti', weight: 14 },
+      { header: 'Booths Done / Total', weight: 8, align: 'right' },
+      { header: 'Latest Round', weight: 5, align: 'right' },
+      { header: 'Last Entry', weight: 13 },
+    ],
+    rows: r.zpPsProgress.flatMap((z): CellContent[][] => [
+      ...z.rows.map((p): CellContent[] => [
+        String(z.wardNo),
+        p.psName,
+        ofTotal(p.boothsDone, p.boothsTotal),
+        p.latestRound === null ? '-' : String(p.latestRound),
+        p.lastEntryText ?? '–',
+      ]),
+      [
+        String(z.wardNo),
+        `Postal – ${z.postal.label}`,
+        z.postal.entered === null
+          ? 'n/a'
+          : [
+              {
+                text: z.postal.entered ? 'Entered' : 'Pending',
+                tone: z.postal.entered ? 'ok' : 'muted',
+              },
+            ],
+        '',
+        z.postal.lastEntryText ?? '–',
+      ],
     ]),
   };
 }
@@ -250,6 +291,7 @@ export function countingStatusPdfModel(r: ScopedReport): PdfModel {
     first,
     pageBreakBeforeWards: many,
     wards,
+    zpByPs: zpByPsTable(r),
     booths: oneArea ? boothTable(r) : null,
     pending: oneArea
       ? null
@@ -304,6 +346,7 @@ export async function renderCountingStatusPdf(
   for (const t of m.first) pdf.table(t);
   if (m.pageBreakBeforeWards) pdf.pageBreak(); // ward-wise starts on a new page
   for (const t of m.wards) pdf.table(t);
+  if (m.zpByPs !== null) pdf.table(m.zpByPs);
   if (m.booths !== null) pdf.table(m.booths);
   if (m.pending !== null) {
     if (m.pending.rows.length > 0) pdf.table(m.pending, 6);

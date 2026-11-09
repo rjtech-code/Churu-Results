@@ -1,5 +1,14 @@
 import { ApiError, api } from './api';
-import type { BallotCandidate, BoothsResponse, PsZpWardBooths, PsZpWardItem, WardItem } from './types';
+import type {
+  BallotCandidate,
+  BoothsResponse,
+  PsZpPostalItem,
+  PsZpPostalWard,
+  PsZpWardBooths,
+  PsZpWardItem,
+  WardItem,
+  ZpWardPsProgress,
+} from './types';
 
 export async function loadWards(): Promise<WardItem[]> {
   return (await api<{ wards: WardItem[] }>('GET', '/api/counting/wards')).wards;
@@ -36,11 +45,27 @@ export function loadPsZpWard(wardId: number): Promise<PsZpWardBooths> {
   return api<PsZpWardBooths>('GET', `/api/counting/zp-wards/${wardId}/ps-booths`);
 }
 
+/** PS_RO: the ZP wards whose postal ballots are assigned to its PS. */
+export async function loadPsZpPostalWards(): Promise<PsZpPostalItem[]> {
+  return (await api<{ wards: PsZpPostalItem[] }>('GET', '/api/counting/zp-postal')).wards;
+}
+
+/** PS_RO: one assigned ZP ward (ballot + postal state; never ward totals). */
+export function loadPsZpPostalWard(wardId: number): Promise<PsZpPostalWard> {
+  return api<PsZpPostalWard>('GET', `/api/counting/zp-postal/${wardId}`);
+}
+
+/** ZP_RO: a ZP ward's progress by Panchayat Samiti. */
+export async function loadZpProgress(wardId: number): Promise<ZpWardPsProgress> {
+  return (await api<{ progress: ZpWardPsProgress }>('GET', `/api/counting/wards/${wardId}/zp-progress`))
+    .progress;
+}
+
 /** Where an entry's edit/void page gets its ballot and booth from, and where it goes back to. */
 export interface EntryContext {
   ward: Pick<WardItem, 'id' | 'kind' | 'wardNo'>;
   ballot: BallotCandidate[];
-  booth: { boothNo: number; nameHindi: string; registeredVotersTotal: number | null } | null;
+  booth: { boothNo: number; nameHindi: string } | null;
   backTo: string;
   backLabel: string;
   /** null when this user cannot open the ward's booth history (a PS_RO on a ZP ballot). */
@@ -48,8 +73,9 @@ export interface EntryContext {
 }
 
 /**
- * The normal case reads the entry's own ward. A PS_RO working on a ZP ballot of its own booth
- * may not read the ZP ward, so it uses the own-PS ZP ward view and goes back to the ZP tab.
+ * The normal case reads the entry's own ward. A PS_RO working on a ZP ballot of its own booth, or
+ * on the postal sheet of a ZP ward assigned to its PS, may not read the ZP ward: it uses its own
+ * ZP views and goes back to the ZP tab.
  */
 export async function loadEntryContext(
   entry: { kind: 'BOOTH' | 'POSTAL'; wardId: number; boothId?: number; ballotFor?: 'PS' | 'ZP' },
@@ -66,6 +92,22 @@ export async function loadEntryContext(
       backLabel: `जिला परिषद वार्ड ${ward.wardNo}`,
       historyTo: null,
     };
+  }
+  if (role === 'PS_RO' && entry.kind === 'POSTAL') {
+    // A ZP ward's postal sheet, entered by the PS_RO its postal is assigned to (official order).
+    const own = (await loadWards()).some((w) => w.id === entry.wardId);
+    if (!own) {
+      const { ward, ballot } = await loadPsZpPostalWard(entry.wardId);
+      if (ward.state === 'DECLARED') throw new ApiError(409, 'WARD_DECLARED', {});
+      return {
+        ward: { id: ward.id, kind: 'ZP', wardNo: ward.wardNo },
+        ballot,
+        booth: null,
+        backTo: '/wards?ballot=ZP',
+        backLabel: 'जिला परिषद डाक मत',
+        historyTo: null,
+      };
+    }
   }
   const [ward, booths, ballot] = await Promise.all([
     loadWard(entry.wardId),

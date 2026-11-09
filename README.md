@@ -182,6 +182,22 @@ NOTA is added automatically at position N+1. A ward with exactly one candidate i
 and gets no NOTA. Running the import again replaces the candidates of the wards in that file only, and
 only while they are unlocked with no counting entries. The report lists exactly which wards were replaced.
 
+### 4a. ZP postal assignment (official order)
+Run this **after** the geography and the candidates are loaded, and again after every geography
+import (ward ids are new each time; the import deletes the old assignments itself):
+```bash
+npm run zp-postal:set-default                 # dry run: checks and prints the plan
+npm run zp-postal:set-default -- --commit     # saves (one audit row); re-running changes nothing
+```
+It sets which PS_RO enters the postal ballots of each ZP ward (`zp_ward_postal_assignment`, mapping in
+`src/services/zp-postal-default.ts`): BHANIPURA 1,2,3 · SARDARSHAHAR 4,5,6 · SARDARSHAHAR EAST 7,8 ·
+RATANGARH 9,10,19,20,21 · BIDASAR 11-14 · SUJANGARH 15-18 · CHURU 22,26 · CHURU NORTH 23,24,25 ·
+RAJGARH 27,30,31,32 · CHANDGOTHI 28,29 · SIDDHMUKH 33,34 · TARANAGAR EAST 35,38 ·
+TARANAGAR WEST(BHALERI) 36,37,39. It refuses (nothing written) unless all 39 ZP wards are assigned
+exactly once, all 13 PS names match the database, and the database has no other ZP ward. A ZP ward
+without an assignment cannot get postal ballots at all. A master-data replace empties the table
+(run the script again); the test-data reset keeps it.
+
 ### 5. Ballot report
 ```bash
 npm run ballot:report                     # all PS sheets + a ZP sheet -> backend/reports/ballot-report-*.xlsx
@@ -287,10 +303,12 @@ All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS 
 - **DM:** never counts, edits, voids, declares or corrects. A global guard returns 403 to any DM
   POST/PUT/PATCH/DELETE except login, logout and (Part 13) an exact allow-list of `POST /api/admin/...`
   master-data paths (`dmWriteAllowed` in `src/middleware/auth.ts`).
-- **PS_RO:** only PS ballots and wards of their own Panchayat Samiti.
-- **ZP_RO:** only ZP ballots and wards.
+- **PS_RO:** both ballots (PS and ZP) of the booths of their own Panchayat Samiti, PS ward work of
+  their own PS, and the postal ballots of the ZP wards assigned to their PS (official order).
+- **ZP_RO:** no booth or postal entry at all. Reads ZP wards, declares and corrects them; ZP reports
+  (Part 2 / Format 7, ST format) and the Counting Status Report limited to ZP wards.
 - Later parts use `requireAuth`, `requireRole(...)` (`src/middleware/auth.ts`) and `canWriteBallot`,
-  `canWriteWard` and `canReadWard` (`src/services/access.ts`).
+  `canWritePostal`, `canWriteWard` and `canReadWard` (`src/services/access.ts`).
 
 **Audit:** LOGIN_SUCCESS, LOGIN_FAILED, ACCOUNT_LOCKED, LOGOUT and SESSION_EXPIRED_ABSOLUTE are written to
 `audit_log` with the IP. Passwords, hashes, session ids and CSRF tokens are never stored.
@@ -364,12 +382,15 @@ npm run test:coverage                       # coverage of result.ts (100% lines 
 
 ## Counting API: entering result sheets (Part 5)
 
-The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each ward's postal ballots.
+The PS ROs type each booth's approved result sheet (parchi, both ballots) and the postal ballots
+(PS wards of their own PS; ZP wards assigned to their PS). The ZP_RO enters nothing: it reads ZP wards.
 - **Who may use it:** every route needs login and the role **PS_RO or ZP_RO**. The DM gets 403 on all
   `/api/counting` routes, reads included; the DM uses reports.
 - **Writes** need the `X-CSRF-Token` header (see Part 3).
-- **Scope:** a PS_RO only sees and writes PS ballots and PS wards of its own Panchayat Samiti. A ZP_RO only
-  sees and writes ZP ballots and ZP wards, booths of every PS included.
+- **Scope:** a PS_RO only sees and writes the booths and PS wards of its own Panchayat Samiti, and the
+  postal sheet of the ZP wards assigned to its PS. A ZP_RO sees ZP wards (booths of every PS included);
+  every booth or postal create/edit/void by a ZP_RO is 403. Its `GET /entries/:id` and
+  `GET /postal/:id` still work (read-only, for corrections).
 
 | Method | Path | What it does |
 |---|---|---|
@@ -383,9 +404,12 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
 | POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
 | GET | `/api/counting/zp-wards` | Part 14.1, PS_RO only: ZP wards that hold booths of its own PS, with own-PS `boothsEntered/boothsTotal` and a `state`. Never ward totals or leader. |
-| GET | `/api/counting/zp-wards/:wardId/ps-booths` | Part 14.1, PS_RO only: that ZP ward's booths of its own PS (404 unknown/non-ZP ward) and the ballot candidates. No totals, leader or postal. |
+| GET | `/api/counting/zp-wards/:wardId/ps-booths` | Part 14.1, PS_RO only: that ZP ward's booths of its own PS (404 unknown/non-ZP ward), the ballot candidates and `progress` (its own PS row + the postal row). No totals, leader or postal votes. |
+| GET | `/api/counting/zp-postal` | PS_RO only: the ZP wards whose postal ballots are assigned to its PS, with `state` and postal entry state |
+| GET | `/api/counting/zp-postal/:wardId` | PS_RO only: one assigned ZP ward: ward, ballot, postal state (403 when not assigned). No ward totals. |
+| GET | `/api/counting/wards/:wardId/zp-progress` | ZP_RO only (ZP ward): progress by Panchayat Samiti: per contributing PS booths done/total, its own latest round, last entry; and the postal row (assigned PS, entered or pending). Built by `buildZpPsProgress` (`counting-status.ts`), the same builder as the report. |
 
-**Part 14 — PS_RO and ZP booth entries.** A PS_RO may create/edit/void the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots). ZP postal, declare, lottery and correction stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward.
+**Part 14 / official order — PS_RO and ZP entries.** A PS_RO creates/edits/voids the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots), and the postal sheet of a ZP ward assigned to its PS (`zp_ward_postal_assignment`). Declare, lottery and correction of ZP wards stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry or previews/saves a ZP postal sheet, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward. Rounds are labels only: a ZP ward has no single round (each PS has its own; see `zp-progress`).
 | GET | `/api/counting/booths/:boothId/history?ballotFor=PS\|ZP` | The **whole story** of one booth ballot, oldest first: every entry ever made for it (the live one and every voided one, from `voided_entry`) with all their audit rows: created, updated, voided, re-created … Each event has `entryId` and `entryVoided`. Same permission as the entry. |
 | GET | `/api/counting/postal/:entryId` and `.../history` | Postal entry, and its history |
 | GET | `/api/counting/wards/:wardId/postal/history` | The whole story of the ward's postal ballots (live + every voided postal entry), oldest first. Same permission as the postal entry. |
@@ -420,7 +444,6 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | `UNKNOWN_CANDIDATE` | 400 | A row for a candidate of another ward: `candidateIds`. |
 | `DUPLICATE_CANDIDATE` | 400 | The same candidate twice: `candidateIds`. |
 | `SUM_MISMATCH` | 400 | Votes do not add up to the sheet total: `sum`, `sheetTotal`. |
-| `EXCEEDS_REGISTERED_VOTERS` | 400 | Booth sheet total > registered voters: `sheetTotal`, `registeredVoters`. |
 | `UNAUTHENTICATED` | 401 | Not logged in. |
 | `FORBIDDEN` | 403 | Not your ballot / ward, or DM. (`CSRF_FAILED` / `ORIGIN_REJECTED`: see Part 3.) |
 | `NOT_FOUND` | 404 | Unknown booth, ward or entry. |
@@ -430,14 +453,13 @@ The PS_RO and ZP_RO type each booth's approved result sheet (parchi) and each wa
 | `ALREADY_ENTERED` | 409 | This booth/ballot (or this ward's postal) already has an entry. Edit or void it. |
 | `STALE_VERSION` | 409 | Someone changed the entry meanwhile: `currentRowVersion`. Reload and redo. |
 | `NO_CHANGE` | 400 | PUT identical to the saved entry; nothing written |
-| `VOTER_COUNT_MISSING` | 409 | The booth has no registered-voter count and `REQUIRE_VOTER_COUNTS=true`. |
 
-**`REQUIRE_VOTER_COUNTS`.** Rule 7 (booth total ≤ registered voters) needs the voter counts from `import:voters`.
-- **Default:** `true` in production, `false` otherwise.
-- **When `false`:** a booth without a count can be saved, and the response carries
-  `"warnings": ["VOTER_COUNT_MISSING"]`.
-- **When `false` in production:** startup prints a loud warning and writes a `CONFIG_VOTER_CHECK_DISABLED`
-  audit row.
+**Registered voters are not checked (official order).** No entry is refused or warned because of the
+booth's registered-voter count (missing or smaller than the sheet total); entry never needs a voter
+count. The sheet's own check stays: candidates + NOTA must equal the typed sheet total
+("कुल योग (पर्ची के अनुसार)", `SUM_MISMATCH`). The voter columns and `import:voters` remain (reports:
+turnout). `REQUIRE_VOTER_COUNTS` is gone; an old `.env` that still has it starts normally (ignored).
+`warnings` stays in the responses and is always `[]`.
 
 **Void, in plain words.** Void takes a wrong entry out of counting, for example one typed against the wrong
 booth, so that booth can be entered again. Nothing is lost:
@@ -529,7 +551,7 @@ So a declare and an entry write on the same ward never overlap: whichever comes 
 | `NO_CHANGE` | 400 | The corrected numbers equal the current declaration |
 | `STALE_VERSION` | 409 | An entry changed meanwhile (`currentRowVersion`) |
 
-Part 5 sheet codes (`SUM_MISMATCH`, `VOTES_INCOMPLETE`, `EXCEEDS_REGISTERED_VOTERS`, ...) also apply inside `changes`.
+Part 5 sheet codes (`SUM_MISMATCH`, `VOTES_INCOMPLETE`, `UNKNOWN_CANDIDATE`, ...) also apply inside `changes`.
 
 ## Demo data (development and official demos only)
 
@@ -808,8 +830,6 @@ process.
 | `UNKNOWN_CANDIDATE` | 400 | उम्मीदवार इस वार्ड का नहीं है |
 | `DUPLICATE_CANDIDATE` | 400 | एक उम्मीदवार दो बार भरा गया है |
 | `SUM_MISMATCH` | 400 | मतों का जोड़ (sum) पर्ची के योग (sheetTotal) से मेल नहीं खाता |
-| `EXCEEDS_REGISTERED_VOTERS` | 400 | योग बूथ के पंजीकृत मतदाताओं से अधिक है (both numbers shown) |
-| `VOTER_COUNT_MISSING` | 409 / warning | इस बूथ की मतदाता संख्या दर्ज नहीं है |
 | `BALLOT_NOT_LOCKED` | 409 | इस वार्ड की उम्मीदवार सूची अभी लॉक नहीं है |
 | `WARD_UNOPPOSED` | 409 | यह वार्ड निर्विरोध है, मतगणना नहीं होगी |
 | `WARD_DECLARED` | 409 | वार्ड घोषित हो चुका है; बदलाव केवल संशोधन से होगा |
@@ -964,8 +984,6 @@ The DM logs in and lands on **`/reports`**, a read-only dashboard in Hindi (`/dm
 - **Alarms first:** a red box when any of these exist, otherwise a green "कोई चेतावनी नहीं":
   - a declared ward whose votes no longer match its declaration (`declarationMismatch`)
   - a ward whose data the result engine refuses (`UNAVAILABLE`)
-  - the voter-count check running disabled: a `CONFIG_VOTER_CHECK_DISABLED` startup audit row exists
-    **and** the running server has `REQUIRE_VOTER_COUNTS=false`
   - a declared ward where NOTA had the most votes
 - **Filter:** सभी पंचायत समितियाँ (all PS together), each Panchayat Samiti, ज़िला परिषद. Alarms are
   always district-wide.
@@ -1005,6 +1023,18 @@ The DM logs in and lands on **`/reports`**, a read-only dashboard in Hindi (`/dm
   number of queries, and cached for 5 s.
 - **`GET /api/reports/wards/:wardId`:** the ward detail.
 - **The numbers:** all vote numbers come from the result engine (`result.ts`).
+
+### Counting Status Report (`/reports/counting-status`)
+- **Who:** the DM (every scope) and the ZP_RO. For the ZP_RO the server pins the scope to Zila Parishad:
+  no level = All ZP wards; `ALL_ZP`, one ZP ward or one booth (its ZP ballot only) are allowed;
+  `DISTRICT`, `ALL_PS`, `PS` or a PS ward are 403; every PS row, PS summary and PS table is removed, in
+  the JSON, the PDF and every CSV. Its options list only ZP wards (no Panchayat Samiti), and its booth
+  picker goes through a ZP ward. Exports are audited (`REPORT_EXPORTED`) for both roles.
+- **ZP wards by Panchayat Samiti:** for each ZP ward, one row per contributing PS (ZP-ballot booths
+  done/total, that PS's own latest round or "-", last entry) and a Postal row ("Assigned to <PS>",
+  entered or pending). Shown in the one-ward drill-down, in the PDF and as
+  `GET /api/reports/counting-status/zp-by-ps.csv`. A ZP ward has no single round: rounds of different
+  PS are never merged into one number (the ward rows leave `latestRound` empty for ZP).
 
 ## प्रबंधन और उम्मीदवार (Part 13)
 

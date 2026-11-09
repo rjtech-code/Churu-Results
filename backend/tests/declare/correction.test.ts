@@ -237,9 +237,8 @@ describe('post-declare correction', () => {
   });
 
   it('an entry of another ward -> 400 ENTRY_NOT_IN_WARD', async () => {
-    // A zW1 entry of booth b1 (entered by the ZP_RO), used in a psW1 correction.
-    const zp = await declareClient(appFor(pool), 'zp_ro_x3');
-    const zEntry = await zp.post('/entries', {
+    // A zW1 entry of booth b1 (entered by ps1's RO: one parchi carries both), used in a psW1 correction.
+    const zEntry = await ro.post('/entries', {
       wardId: w.zW1,
       boothId: w.b1,
       ballotFor: 'ZP',
@@ -290,18 +289,6 @@ describe('post-declare correction', () => {
           ]),
         },
         'VOTES_INCOMPLETE',
-      ],
-      [
-        {
-          ...swapB1(),
-          sheetTotal: 1001,
-          votes: v([
-            [w.c.A, 701],
-            [w.c.B, 290],
-            [w.c.N1, 10],
-          ]),
-        },
-        'EXCEEDS_REGISTERED_VOTERS',
       ],
       [
         {

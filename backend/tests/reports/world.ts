@@ -320,8 +320,13 @@ export async function buildReportWorld(pool: Pool, migrator: Pool): Promise<Repo
     }),
     'ps2Lead',
   );
-  // ZP ward 1: entered and declared, a woman wins.
-  await fill(zp, 'zp1', [700, 300, 20], 'ZP');
+  // ZP ward 1: entered (its one booth is in ps1: ps1's RO enters it, and its postal ballots are
+  // assigned to ps1) and declared by the ZP RO; a woman wins.
+  await pool.execute('INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id) VALUES (?, ?)', [
+    w.zp1.id,
+    ps1,
+  ]);
+  await fill(ro1, 'zp1', [700, 300, 20], 'ZP');
   await declare(zp, 'zp1');
 
   return { app, ps1, ps2, parties, w, users };

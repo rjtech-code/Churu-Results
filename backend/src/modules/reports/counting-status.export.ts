@@ -1,4 +1,4 @@
-// The two Counting Status CSVs (ward-wise, booth-wise), rendered from the SAME report object as the
+// The Counting Status CSVs (ward-wise, booth-wise, ZP by PS), rendered from the SAME report object as the
 // UI and the PDF. Data only: no colours, no extra lines above the header. UTF-8 with BOM and formula
 // injection guard come from toCsv (csv.ts).
 import type { CountingStatusReport, EnteredFlag } from '../../services/counting-status.js';
@@ -88,6 +88,52 @@ export function boothCsvRows(r: CountingStatusReport): Cell[][] {
       b.lastEditedAtText,
       b.totalVotes,
       r.asOfText,
+    ]),
+  ];
+}
+
+export const ZP_BY_PS_CSV_HEADERS = [
+  'zp_ward_no',
+  'row',
+  'ps_name',
+  'booths_done',
+  'booths_total',
+  'latest_round',
+  'postal',
+  'last_entry_ist',
+  'report_time_ist',
+] as const;
+
+/**
+ * "By Panchayat Samiti": per ZP ward one row per contributing PS (its own latest round; rounds of
+ * different PS are never merged) and one Postal row (the assigned PS, entered or pending).
+ */
+export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
+  return [
+    [...ZP_BY_PS_CSV_HEADERS],
+    ...r.zpPsProgress.flatMap((z): Cell[][] => [
+      ...z.rows.map((p): Cell[] => [
+        z.wardNo,
+        'booths',
+        p.psName,
+        p.boothsDone,
+        p.boothsTotal,
+        p.latestRound ?? '-',
+        null,
+        p.lastEntryText,
+        r.asOfText,
+        ]),
+      [
+        z.wardNo,
+        'postal',
+        z.postal.assignedPsName,
+        null,
+        null,
+        null,
+        z.postal.entered === null ? 'n/a' : z.postal.entered ? 'entered' : 'pending',
+        z.postal.lastEntryText,
+        r.asOfText,
+        ],
     ]),
   ];
 }

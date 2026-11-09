@@ -1,10 +1,11 @@
 // /api/reports — the DM's read-only reports (Part 10). DM only: other roles 403, logged out 401.
-// GET only (the global DM guard refuses every write anyway). Viewing is not audited; CSV exports are.
+// Exception: the Counting Status Report is also open to the ZP_RO, scoped on the server to Zila
+// Parishad wards only (no PS-ward data through any parameter).
+// GET only (the global DM guard refuses every write anyway). Viewing is not audited; exports are.
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
-import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
@@ -15,12 +16,14 @@ import { renderCountingStatusPdf } from '../../services/counting-status.pdf.js';
 import {
   STATUS_FILTERS,
   ScopeNotFoundError,
+  ZP_RO_LEVELS,
+  restrictToZp,
   scopeReport,
 } from '../../services/counting-status.scope.js';
 import type { ReportScope, ScopedReport } from '../../services/counting-status.scope.js';
 import { CANDIDATE_LIST_HEADERS, candidateListRows } from './candidates-list.js';
-import { readCountingStatus, readPsWardBooths, readScopeOptions } from './counting-status.data.js';
-import { boothCsvRows, wardCsvRows } from './counting-status.export.js';
+import { readCountingStatus, readScopeOptions, readWardBooths } from './counting-status.data.js';
+import { boothCsvRows, wardCsvRows, zpByPsCsvRows } from './counting-status.export.js';
 import { istStampForFile, toCsv } from './csv.js';
 import type { Cell } from './csv.js';
 import { readReportData } from './reports.data.js';
@@ -71,10 +74,7 @@ export class ReportCache {
   private value: { at: number; summary: ReportSummary } | null = null;
   private inFlight: Promise<ReportSummary> | null = null;
 
-  constructor(
-    private readonly pool: Pool,
-    private readonly config: AppConfig,
-  ) {}
+  constructor(private readonly pool: Pool) {}
 
   async get(): Promise<ReportSummary> {
     const now = Date.now();
@@ -82,10 +82,7 @@ export class ReportCache {
     this.inFlight ??= (async () => {
       try {
         const raw = await readReportData(this.pool);
-        const summary = buildReport(raw, {
-          voterCheckOff: !this.config.requireVoterCounts,
-          now: new Date(),
-        });
+        const summary = buildReport(raw, { now: new Date() });
         this.value = { at: Date.now(), summary };
         return summary;
       } finally {
@@ -315,7 +312,7 @@ function currentUserId(req: Request): number {
 }
 
 const noQuery = z.object({}).strict();
-type CountingStatusFormat = 'pdf' | 'csv-ward' | 'csv-booth';
+type CountingStatusFormat = 'pdf' | 'csv-ward' | 'csv-booth' | 'csv-zp-ps';
 
 const positiveId = z
   .string()
@@ -335,15 +332,32 @@ export const countingStatusQuery = z.preprocess(
   ]),
 );
 
-/** The scoped report: the one full report, then the scope (an unknown PS / ward / booth is 404). */
+const isZpRo = (req: Request): boolean => req.user?.role === 'ZP_RO';
+
+/**
+ * The scoped report: the one full report, then the scope (an unknown PS / ward / booth is 404).
+ * ZP_RO: no level = All ZP wards; a district / PS level or a PS ward is 403; the result is
+ * restricted to Zila Parishad data (restrictToZp) for every level.
+ */
 async function readScoped(pool: Pool, req: Request): Promise<ScopedReport> {
-  const scope: ReportScope = parse(countingStatusQuery, req.query);
+  const zpRo = isZpRo(req);
+  const query: unknown =
+    zpRo && typeof req.query === 'object' && !('level' in req.query)
+      ? { ...req.query, level: 'ALL_ZP' }
+      : req.query;
+  const scope: ReportScope = parse(countingStatusQuery, query);
+  if (zpRo && !ZP_RO_LEVELS.includes(scope.level)) throw new ApiError(403, 'FORBIDDEN');
+  let report: ScopedReport;
   try {
-    return scopeReport(await readCountingStatus(pool), scope);
+    report = scopeReport(await readCountingStatus(pool), scope);
   } catch (err) {
     if (err instanceof ScopeNotFoundError) throw new ApiError(404, 'NOT_FOUND');
     throw err;
   }
+  if (!zpRo) return report;
+  if (scope.level === 'WARD' && report.wards.some((w) => w.kind !== 'ZP'))
+    throw new ApiError(403, 'FORBIDDEN');
+  return restrictToZp(report);
 }
 
 /** JSON for the page: booth rows only for one ward or one booth (the rest is in the CSV). */
@@ -351,10 +365,92 @@ export function countingStatusView(r: ScopedReport): ScopedReport {
   return r.scope.level === 'WARD' || r.scope.level === 'BOOTH' ? r : { ...r, booths: [] };
 }
 
-export function reportsRouter(pool: Pool, config: AppConfig): Router {
+export function reportsRouter(pool: Pool): Router {
   const router = Router();
+  const cache = new ReportCache(pool);
+
+  // ---- Counting Status Report: JSON, PDF and every CSV all come from readCountingStatus(), then
+  // the same scopeReport(). DM and ZP_RO (ZP wards only, see readScoped). Registered BEFORE the
+  // DM-only gate below, which every other report route sits behind.
+  const statusRoles = requireRole('DM', 'ZP_RO');
+  router.get('/counting-status', statusRoles, async (req, res) => {
+    res.set('Cache-Control', 'no-store').json(countingStatusView(await readScoped(pool, req)));
+  });
+
+  router.get('/counting-status/options', statusRoles, async (req, res) => {
+    parse(noQuery, req.query);
+    res
+      .set('Cache-Control', 'no-store')
+      .json(await readScopeOptions(pool, isZpRo(req) ? 'ZP_ONLY' : 'ALL'));
+  });
+
+  router.get('/counting-status/options/wards/:wardId/booths', statusRoles, async (req, res) => {
+    parse(noQuery, req.query);
+    // DM picks a booth through its PS ward, the ZP_RO through its ZP ward.
+    const booths = await readWardBooths(
+      pool,
+      parse(positiveId, req.params.wardId),
+      isZpRo(req) ? 'ZP' : 'PS',
+    );
+    if (booths === null) throw new ApiError(404, 'NOT_FOUND');
+    res.set('Cache-Control', 'no-store').json({ booths });
+  });
+
+  const sendCountingStatus = async (req: Request, res: Response, format: CountingStatusFormat) => {
+    const r = await readScoped(pool, req);
+    const body =
+      format === 'pdf'
+        ? await renderCountingStatusPdf(r)
+        : toCsv(
+            format === 'csv-ward'
+              ? wardCsvRows(r)
+              : format === 'csv-booth'
+                ? boothCsvRows(r)
+                : zpByPsCsvRows(r),
+          );
+    await writeAudit(pool, {
+      userId: currentUserId(req),
+      action: 'REPORT_EXPORTED',
+      entity: 'report',
+      entityId: null,
+      newValue: { section: 'counting-status', format, reportTime: r.asOf, scope: r.scope },
+      ip: req.ip ?? null,
+    });
+    const stamp = istStampForFile(new Date(r.asOf));
+    const level = r.scope.level.toLowerCase().replace('_', '-');
+    const csvName = {
+      'csv-ward': 'wards',
+      'csv-booth': 'booths',
+      'csv-zp-ps': 'zp-by-ps',
+    } as const;
+    const file =
+      format === 'pdf'
+        ? `counting-status-${level}-${stamp}-IST.pdf`
+        : `counting-status-${level}-${csvName[format]}-${stamp}-IST.csv`;
+    res
+      .status(200)
+      .set({
+        'Content-Type': format === 'pdf' ? 'application/pdf' : 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${file}"`,
+        'Cache-Control': 'no-store',
+      })
+      .send(body);
+  };
+  router.get('/counting-status.pdf', statusRoles, (req, res) =>
+    sendCountingStatus(req, res, 'pdf'),
+  );
+  router.get('/counting-status/wards.csv', statusRoles, (req, res) =>
+    sendCountingStatus(req, res, 'csv-ward'),
+  );
+  router.get('/counting-status/booths.csv', statusRoles, (req, res) =>
+    sendCountingStatus(req, res, 'csv-booth'),
+  );
+  router.get('/counting-status/zp-by-ps.csv', statusRoles, (req, res) =>
+    sendCountingStatus(req, res, 'csv-zp-ps'),
+  );
+
+  // ---- everything else: DM only
   router.use(requireRole('DM'));
-  const cache = new ReportCache(pool, config);
 
   router.get('/summary', async (_req, res) => {
     res.set('Cache-Control', 'no-store').json(await cache.get());
@@ -388,59 +484,6 @@ export function reportsRouter(pool: Pool, config: AppConfig): Router {
       })
       .send(body);
   });
-
-  // ---- Counting Status Report: JSON, PDF and both CSVs all come from readCountingStatus(), then
-  // the same scopeReport().
-  router.get('/counting-status', async (req, res) => {
-    res.set('Cache-Control', 'no-store').json(countingStatusView(await readScoped(pool, req)));
-  });
-
-  router.get('/counting-status/options', async (req, res) => {
-    parse(noQuery, req.query);
-    res.set('Cache-Control', 'no-store').json(await readScopeOptions(pool));
-  });
-
-  router.get('/counting-status/options/wards/:wardId/booths', async (req, res) => {
-    parse(noQuery, req.query);
-    const booths = await readPsWardBooths(pool, parse(positiveId, req.params.wardId));
-    if (booths === null) throw new ApiError(404, 'NOT_FOUND');
-    res.set('Cache-Control', 'no-store').json({ booths });
-  });
-
-  const sendCountingStatus = async (req: Request, res: Response, format: CountingStatusFormat) => {
-    const r = await readScoped(pool, req);
-    const body =
-      format === 'pdf'
-        ? await renderCountingStatusPdf(r)
-        : toCsv(format === 'csv-ward' ? wardCsvRows(r) : boothCsvRows(r));
-    await writeAudit(pool, {
-      userId: currentUserId(req),
-      action: 'REPORT_EXPORTED',
-      entity: 'report',
-      entityId: null,
-      newValue: { section: 'counting-status', format, reportTime: r.asOf, scope: r.scope },
-      ip: req.ip ?? null,
-    });
-    const stamp = istStampForFile(new Date(r.asOf));
-    const level = r.scope.level.toLowerCase().replace('_', '-');
-    const file =
-      format === 'pdf'
-        ? `counting-status-${level}-${stamp}-IST.pdf`
-        : `counting-status-${level}-${format === 'csv-ward' ? 'wards' : 'booths'}-${stamp}-IST.csv`;
-    res
-      .status(200)
-      .set({
-        'Content-Type': format === 'pdf' ? 'application/pdf' : 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${file}"`,
-        'Cache-Control': 'no-store',
-      })
-      .send(body);
-  };
-  router.get('/counting-status.pdf', (req, res) => sendCountingStatus(req, res, 'pdf'));
-  router.get('/counting-status/wards.csv', (req, res) => sendCountingStatus(req, res, 'csv-ward'));
-  router.get('/counting-status/booths.csv', (req, res) =>
-    sendCountingStatus(req, res, 'csv-booth'),
-  );
 
   const exportCandidates = async (req: Request, kind: 'csv' | 'xlsx') => {
     const rows = await candidateListRows(pool);

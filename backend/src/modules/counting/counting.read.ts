@@ -1,9 +1,12 @@
-// Read endpoints for the counting screens. Every read is scoped to what the user may write:
-// PS_RO only its own PS wards / PS ballots, ZP_RO only ZP wards / ZP ballots.
+// Read endpoints for the counting screens. Every read is scoped on the server: PS_RO its own PS
+// wards, the ZP booths of its own PS and the ZP postal ballots assigned to its PS; ZP_RO the ZP
+// wards (read-only for entries: it declares and corrects).
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { ApiError } from '../../middleware/errors.js';
-import { canWriteBallot, canWriteWard } from '../../services/access.js';
+import { canReadWard, canWriteBallot, canWritePostal } from '../../services/access.js';
+import type { ZpWardPsProgress } from '../../services/counting-status.js';
 import { loadWardResults } from '../../services/result-loader.js';
+import { forPsRo, loadZpPsProgress } from '../../services/zp-ps-progress.js';
 import type { ResultStatus } from '../../services/result.js';
 import type { AuthUser } from '../../types/auth.js';
 import { readBallot, readWard } from './counting.db.js';
@@ -87,11 +90,21 @@ export async function listWards(pool: Pool, user: AuthUser): Promise<WardListIte
   });
 }
 
-/** 404 for an unknown ward, 403 for a ward the user may not work on. */
+/** 404 for an unknown ward, 403 for a ward the user may not read. */
 async function authorizeWardRead(pool: Pool, user: AuthUser, wardId: number) {
   const ward = await readWard(pool, wardId, false);
-  if (!(await canWriteWard(pool, user, wardId))) throw new ApiError(403, 'FORBIDDEN');
+  if (!(await canReadWard(pool, user, wardId))) throw new ApiError(403, 'FORBIDDEN');
   return ward;
+}
+
+/** A booth sheet: its writer (the booth's PS_RO) or a reader of its ward (the ZP_RO for ZP). */
+async function mayReadBoothEntry(pool: Pool, user: AuthUser, boothId: number, wardId: number) {
+  return (await canWriteBallot(pool, user, boothId)) || (await canReadWard(pool, user, wardId));
+}
+
+/** A postal sheet: its writer (PS ward's PS_RO / assigned PS_RO) or a reader of its ward. */
+async function mayReadPostal(pool: Pool, user: AuthUser, wardId: number) {
+  return (await canWritePostal(pool, user, wardId)) || (await canReadWard(pool, user, wardId));
 }
 
 export async function listBooths(pool: Pool, user: AuthUser, wardId: number) {
@@ -224,17 +237,17 @@ export async function postalEntryView(pool: Pool, entryId: number) {
   };
 }
 
-/** Booth entry for a user who may work on it (403 otherwise). */
+/** Booth entry for a user who may work on it or read its ward (403 otherwise). */
 export async function getBoothEntry(pool: Pool, user: AuthUser, entryId: number) {
   const entry = await boothEntryView(pool, entryId);
-  if (!(await canWriteBallot(pool, user, entry.boothId, entry.ballotFor)))
+  if (!(await mayReadBoothEntry(pool, user, entry.boothId, entry.wardId)))
     throw new ApiError(403, 'FORBIDDEN');
   return entry;
 }
 
 export async function getPostalEntry(pool: Pool, user: AuthUser, entryId: number) {
   const entry = await postalEntryView(pool, entryId);
-  if (!(await canWriteWard(pool, user, entry.wardId))) throw new ApiError(403, 'FORBIDDEN');
+  if (!(await mayReadPostal(pool, user, entry.wardId))) throw new ApiError(403, 'FORBIDDEN');
   return entry;
 }
 
@@ -261,13 +274,8 @@ export async function entryHistory(
   if (!owner) throw new ApiError(404, 'NOT_FOUND');
   const allowed =
     kind === 'BOOTH'
-      ? await canWriteBallot(
-          pool,
-          user,
-          Number(owner.booth_id),
-          owner.ballot_for === 'ZP' ? 'ZP' : 'PS',
-        )
-      : await canWriteWard(pool, user, Number(owner.ward_id));
+      ? await mayReadBoothEntry(pool, user, Number(owner.booth_id), Number(owner.ward_id))
+      : await mayReadPostal(pool, user, Number(owner.ward_id));
   if (!allowed) throw new ApiError(403, 'FORBIDDEN');
 
   return (await auditRows(pool, kind === 'BOOTH' ? 'booth_entry' : 'postal_entry', entryId)).map(
@@ -332,11 +340,14 @@ export async function boothHistory(
   boothId: number,
   ballotFor: 'PS' | 'ZP',
 ) {
-  const [booth] = await pool.execute<RowDataPacket[]>('SELECT id FROM booth WHERE id = ?', [
-    boothId,
-  ]);
-  if (booth.length === 0) throw new ApiError(404, 'NOT_FOUND');
-  if (!(await canWriteBallot(pool, user, boothId, ballotFor))) throw new ApiError(403, 'FORBIDDEN');
+  const [booth] = await pool.execute<RowDataPacket[]>(
+    'SELECT ps_ward_id, zp_ward_id FROM booth WHERE id = ?',
+    [boothId],
+  );
+  const b = booth[0];
+  if (!b) throw new ApiError(404, 'NOT_FOUND');
+  const wardId = Number(ballotFor === 'PS' ? b.ps_ward_id : b.zp_ward_id);
+  if (!(await mayReadBoothEntry(pool, user, boothId, wardId))) throw new ApiError(403, 'FORBIDDEN');
   const [live] = await pool.execute<RowDataPacket[]>(
     'SELECT id FROM booth_entry WHERE booth_id = ? AND ballot_for = ?',
     [boothId, ballotFor],
@@ -357,7 +368,7 @@ export async function boothHistory(
 export async function postalHistory(pool: Pool, user: AuthUser, wardId: number) {
   const [ward] = await pool.execute<RowDataPacket[]>('SELECT id FROM ward WHERE id = ?', [wardId]);
   if (ward.length === 0) throw new ApiError(404, 'NOT_FOUND');
-  if (!(await canWriteWard(pool, user, wardId))) throw new ApiError(403, 'FORBIDDEN');
+  if (!(await mayReadPostal(pool, user, wardId))) throw new ApiError(403, 'FORBIDDEN');
   const [live] = await pool.execute<RowDataPacket[]>(
     'SELECT id FROM postal_entry WHERE ward_id = ?',
     [wardId],
@@ -444,6 +455,7 @@ export async function psZpWardBooths(pool: Pool, user: AuthUser, wardId: number)
   const ballot = await readBallot(pool, wardId);
   return {
     ward: { id: wardId, wardNo: Number(ward.ward_no), state: zpWardState(ward) },
+    progress: await psRoProgress(pool, wardId, psId),
     booths: rows.map((r) => ({
       boothId: Number(r.id),
       panchayatSamiti: String(r.ps_name),
@@ -464,4 +476,81 @@ export async function psZpWardBooths(pool: Pool, user: AuthUser, wardId: number)
       isNota: c.isNota,
     })),
   };
+}
+
+/** The ward's PS-wise progress as a PS_RO may see it: its own PS row and the postal row. */
+async function psRoProgress(
+  pool: Pool,
+  wardId: number,
+  psId: number,
+): Promise<ZpWardPsProgress | null> {
+  const [progress] = await loadZpPsProgress(pool, wardId);
+  return progress === undefined ? null : forPsRo(progress, psId);
+}
+
+const ZP_WARD_STATE_SQL = `SELECT w.id, w.ward_no, w.is_locked, w.is_unopposed,
+       (SELECT COUNT(*) FROM candidate c WHERE c.ward_id = w.id) AS candidates,
+       EXISTS (SELECT 1 FROM ward_declarations d WHERE d.ward_id = w.id) AS declared,
+       p.id AS postal_id, p.entered_at AS postal_at
+  FROM zp_ward_postal_assignment a
+  JOIN ward w ON w.id = a.zp_ward_id AND w.ward_type = 'ZP'
+  LEFT JOIN postal_entry p ON p.ward_id = w.id`;
+
+const postalState = (r: RowDataPacket) => ({
+  entered: r.postal_id !== null,
+  entryId: r.postal_id === null ? null : Number(r.postal_id),
+  enteredAt: (r.postal_at as Date | null) ?? null,
+});
+
+/** PS_RO: the ZP wards whose postal ballots are assigned to its PS (official order). */
+export async function psZpPostalWards(pool: Pool, user: AuthUser) {
+  const psId = requirePsRo(user);
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `${ZP_WARD_STATE_SQL} WHERE a.ps_id = ? ORDER BY w.ward_no`,
+    [psId],
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    wardNo: Number(r.ward_no),
+    state: zpWardState(r),
+    postal: postalState(r),
+  }));
+}
+
+/**
+ * PS_RO: one ZP ward assigned to its PS, for the postal form: the ward, its ballot (candidates
+ * only) and the postal entry state. Never ward totals or the leader. 403 when not assigned.
+ */
+export async function psZpPostalWard(pool: Pool, user: AuthUser, wardId: number) {
+  const psId = requirePsRo(user);
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `${ZP_WARD_STATE_SQL} WHERE a.zp_ward_id = ? AND a.ps_id = ?`,
+    [wardId, psId],
+  );
+  const r = rows[0];
+  if (!r) {
+    await readWard(pool, wardId, false); // 404 for an unknown ward
+    throw new ApiError(403, 'FORBIDDEN');
+  }
+  const ballot = await readBallot(pool, wardId);
+  return {
+    ward: { id: wardId, wardNo: Number(r.ward_no), state: zpWardState(r) },
+    postal: postalState(r),
+    ballot: ballot.map((c) => ({
+      candidateId: c.id,
+      ballotPosition: c.ballotPosition,
+      nameHindi: c.nameHindi,
+      partyShortName: c.partyShortName,
+      isNota: c.isNota,
+    })),
+  };
+}
+
+/** ZP_RO (read-only): one ZP ward's progress by Panchayat Samiti, with the postal row. */
+export async function zpWardProgress(pool: Pool, user: AuthUser, wardId: number) {
+  const ward = await authorizeWardRead(pool, user, wardId);
+  if (ward.wardType !== 'ZP') throw new ApiError(404, 'NOT_FOUND');
+  const [progress] = await loadZpPsProgress(pool, wardId);
+  if (progress === undefined) throw new ApiError(404, 'NOT_FOUND');
+  return progress;
 }

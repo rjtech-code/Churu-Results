@@ -28,7 +28,6 @@ export function testAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     trustProxy: false,
     loginRateLimit: LOGIN_RATE_LIMIT,
     apiRateLimit: API_RATE_LIMIT,
-    requireVoterCounts: false,
     publicApi: defaultPublicApiConfig(),
     frontendDist: null,
     ...overrides,

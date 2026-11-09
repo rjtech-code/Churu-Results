@@ -5,7 +5,7 @@ import { idParam, loadBallot, loadBooths, loadPsZpWard, loadWard } from '../api/
 import type { EntryPreview } from '../api/types';
 import { getLastRound, setLastRound } from '../auth/lastRound';
 import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
-import { ErrorBox, WarningBox } from '../components/ErrorBox';
+import { ErrorBox } from '../components/ErrorBox';
 import { LastBoothNotice } from '../components/LastBoothNotice';
 import { SplitLayout } from '../components/SplitLayout';
 import { LeaveGuard } from '../components/LeaveGuard';
@@ -136,10 +136,7 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
         <div className="big">
           बूथ संख्या {booth.boothNo} — {booth.nameHindi}
         </div>
-        <div className="muted small">
-          पंजीकृत मतदाता: {booth.registeredVotersTotal ?? 'दर्ज नहीं'} · मतपत्र:{' '}
-          {ward.kind === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}
-        </div>
+        <div className="muted small">मतपत्र: {ward.kind === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}</div>
       </div>
 
       {stage === 'form' && (
@@ -201,9 +198,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
           panel={
             <>
               <p className="big">क्या ये संख्याएँ पर्ची से मेल खाती हैं?</p>
-              {preview.warnings.includes('VOTER_COUNT_MISSING') && (
-                <WarningBox text="इस बूथ की पंजीकृत मतदाता संख्या दर्ज नहीं है, इसलिए वह जाँच नहीं हुई" />
-              )}
               <div className="actions">
                 <button
                   type="button"

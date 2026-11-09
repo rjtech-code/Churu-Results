@@ -17,6 +17,7 @@ vi.mock('../auth/AuthContext', () => ({ useRole: () => 'PS_RO' }));
 
 const ZP_WARD: PsZpWardBooths = {
   ward: { id: 200, wardNo: 7, state: 'OPEN' },
+  progress: null,
   booths: [
     {
       boothId: 9,
@@ -44,6 +45,7 @@ function serve() {
         wards: [{ id: 200, wardNo: 7, state: 'OPEN', boothsEntered: 1, boothsTotal: 4 }],
       });
     if (path === '/api/counting/zp-wards/200/ps-booths') return Promise.resolve(ZP_WARD);
+    if (path === '/api/counting/zp-postal') return Promise.resolve({ wards: [] });
     if (path === '/api/counting/entries/preview')
       return Promise.resolve({
         summary: { roundNo: 1, sheetTotal: 5, votes: [] },

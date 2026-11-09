@@ -30,9 +30,10 @@ Counting day: 20 November 2026. This is election data for the government.
 - Booth identity = (Panchayat Samiti + booth number). Booth numbers restart in every PS.
 - Each booth belongs to exactly one PS ward and one ZP ward. 9 ZP wards span more than one PS.
 - Each booth has two ballots: PS and ZP (`ballot_for` = 'PS' | 'ZP').
+- Round numbers are labels only, never used in any calculation. A ZP ward has no single round: each PS counts in its own rounds; never merge rounds across PS into one number.
 - Exactly 15 election logins: 13 `PS_RO` (one per PS), 1 `ZP_RO`, 1 `DM`, plus ONE `SUPER_ADMIN` setup login (created once by `users:create`). No other roles exist.
 - `SUPER_ADMIN` can use only `/api/superadmin` (setup panel: DM account reset/unlock/email, clear candidates, full reset, booth add/delete, counting lock) — never counting, reports or DM tools. While the counting lock is ON, clear candidates, full reset and booth add/delete are refused for everyone.
-- `PS_RO` can touch PS ballots of booths in their own PS, and (Part 14, one parchi carries both) create/edit/void the ZP-ballot booth entries of booths in their own PS — never ZP postal ballots, ZP declare, ZP lottery or ZP correction, never after the ZP ward is declared, and never ZP ward totals or leader. `ZP_RO` can touch ZP ballots (all PS), including every ZP booth entry, plus all ZP ward-level work. `DM`: reports, plus the Part 13 admin tools only (parties/candidate upload, lock, RO management, booth/ward details before counting). The DM can never enter votes, edit/void entries, declare or correct.
+- `PS_RO` can touch PS ballots of booths in their own PS, and (Part 14, one parchi carries both) create/edit/void the ZP-ballot booth entries of booths in their own PS. Official order: the postal ballots of each ZP ward are entered ONLY by the PS_RO of the PS assigned in `zp_ward_postal_assignment` (set by `npm run zp-postal:set-default -- --commit` after geography + candidates). Never ZP declare, ZP lottery or ZP correction, never after the ZP ward is declared, and never ZP ward totals or leader. `ZP_RO` enters NO booth or postal sheet (create/edit/void = 403); it reads ZP wards (progress by PS), declares and corrects them, and sees ZP reports (Part 2 / Format 7, ST format, Counting Status Report limited to ZP wards on the server). `DM`: reports, plus the Part 13 admin tools only (parties/candidate upload, lock, RO management, booth/ward details before counting). The DM can never enter votes, edit/void entries, declare or correct.
 - Setup work (imports, creating users) is done by CLI scripts on the server, or by the DM's admin pages (/api/admin) with password re-entry and audit.
 - Nobody enters data from EVMs directly. Counting officials approve a result sheet (parchi); the RO types it into the system.
 
@@ -43,7 +44,7 @@ Counting day: 20 November 2026. This is election data for the government.
 4. One entry per (booth, ballot_for), enforced by a UNIQUE constraint in the database.
 5. Votes are integers >= 0 (DB CHECK + Zod).
 6. Sum of (candidates + NOTA) must equal the sheet total the RO types. Otherwise reject.
-7. Booth total must not exceed the booth's registered voters.
+7. Registered voters are NOT checked (official order): no refusal or warning for a missing voter count or a total above it, and entry never needs a voter count. (The voter columns and the optional voter import stay, for reports.)
 8. A ward can be declared only when all its booths and its postal ballots are entered.
 9. Before declare, an entry can be edited only with a reason; old values go to the audit log.
 10. After declare, numbers change only through a new correction version with a reason. Old versions are kept forever.

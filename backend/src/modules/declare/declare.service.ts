@@ -354,16 +354,14 @@ function assertNoDuplicateChanges(changes: readonly CorrectionChange[]): void {
 /** Locks (or reads) every changed entry, checks ward, rowVersion and the Part 5 sheet rules. */
 async function checkChanges(
   conn: PoolConnection,
-  ctx: WriteContext,
   wardId: number,
   changes: readonly CorrectionChange[],
   lock: boolean,
-): Promise<{ checked: CheckedChange[]; warnings: string[] }> {
+): Promise<CheckedChange[]> {
   const ordered = [...changes].sort(
     (a, b) => a.kind.localeCompare(b.kind) || a.entryId - b.entryId,
   );
   const checked: CheckedChange[] = [];
-  const warnings = new Set<string>();
   for (const change of ordered) {
     if (change.kind === 'BOOTH') {
       const entry = await readBoothEntry(conn, change.entryId, lock);
@@ -375,15 +373,14 @@ async function checkChanges(
           currentRowVersion: entry.rowVersion,
         });
       }
-      const result = await checkBoothChange(conn, ctx, entry, change);
-      for (const w of result.warnings) warnings.add(w);
+      const candidates = await checkBoothChange(conn, entry, change);
       checked.push({
         change,
         booth: entry,
         postal: null,
         roundNo: change.roundNo ?? entry.roundNo,
         rejectedCount: null,
-        candidates: result.candidates,
+        candidates,
       });
     } else {
       const entry = await readPostalEntry(conn, change.entryId, lock);
@@ -401,7 +398,7 @@ async function checkChanges(
       checked.push({ change, booth: null, postal: entry, roundNo: 0, rejectedCount, candidates });
     }
   }
-  return { checked, warnings: [...warnings] };
+  return checked;
 }
 
 /** The ward's inputs with the corrections applied in memory, without the declaration. */
@@ -434,7 +431,6 @@ function applyChanges(input: WardResultInput, checked: readonly CheckedChange[])
 
 async function prepareCorrection(
   conn: PoolConnection,
-  ctx: WriteContext,
   wardId: number,
   changes: readonly CorrectionChange[],
   lock: boolean,
@@ -442,14 +438,14 @@ async function prepareCorrection(
   await readWard(conn, wardId, lock); // with lock: the ward lock, always first
   const latest = await readLatestDeclaration(conn, wardId);
   if (latest === null) throw new ApiError(409, 'NOT_DECLARED');
-  const { checked, warnings } = await checkChanges(conn, ctx, wardId, changes, lock);
+  const checked = await checkChanges(conn, wardId, changes, lock);
   const input = await readInput(conn, wardId);
   const before = computeWardResult(input);
   const after = computeWardResult(applyChanges(input, checked));
   assertComplete(after);
   const snapshot = buildDeclarationSnapshot(after);
   if (sameJson(snapshot, latest.snapshot)) throw new ApiError(400, 'NO_CHANGE');
-  return { latest, checked, warnings, before, after, snapshot };
+  return { latest, checked, before, after, snapshot };
 }
 
 export async function previewCorrection(
@@ -461,12 +457,12 @@ export async function previewCorrection(
   assertNoDuplicateChanges(changes);
   await authorizeWard(pool, ctx, wardId);
   return withReadOnlySnapshot(pool, async (conn) => {
-    const p = await prepareCorrection(conn, ctx, wardId, changes, false);
+    const p = await prepareCorrection(conn, wardId, changes, false);
     return {
       before: p.before,
       after: p.after,
       wouldStore: plan(p.after, p.latest.version + 1),
-      warnings: p.warnings,
+      warnings: [] as string[],
     };
   });
 }
@@ -481,7 +477,7 @@ export async function correctWard(
   await authorizeWard(pool, ctx, wardId);
   await requireReauth(pool, ctx, body.password);
   const outcome = await withWriteTransaction(pool, async (conn) => {
-    const p = await prepareCorrection(conn, ctx, wardId, body.changes, true);
+    const p = await prepareCorrection(conn, wardId, body.changes, true);
     const decision = decide(p.after, body);
     const version = p.latest.version + 1;
     const auditExtra = { correction_version: version };
@@ -550,7 +546,7 @@ export async function correctWard(
       reason: body.reason,
       ip: ctx.ip,
     });
-    return { wardId, version, warnings: p.warnings };
+    return { wardId, version, warnings: [] as string[] };
   });
   emitWardChanged(wardId);
   return outcome;

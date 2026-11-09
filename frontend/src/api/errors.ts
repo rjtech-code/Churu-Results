@@ -35,9 +35,6 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   UNKNOWN_CANDIDATE: 'उम्मीदवार इस वार्ड का नहीं है',
   DUPLICATE_CANDIDATE: 'एक उम्मीदवार दो बार भरा गया है',
   SUM_MISMATCH: (d) => `मतों का जोड़ (${n(d.sum)}) पर्ची के योग (${n(d.sheetTotal)}) से मेल नहीं खाता`,
-  EXCEEDS_REGISTERED_VOTERS: (d) =>
-    `योग (${n(d.sheetTotal)}) बूथ के पंजीकृत मतदाताओं (${n(d.registeredVoters)}) से अधिक है`,
-  VOTER_COUNT_MISSING: 'इस बूथ की मतदाता संख्या दर्ज नहीं है',
   BALLOT_NOT_LOCKED: 'इस वार्ड की उम्मीदवार सूची अभी लॉक नहीं है',
   WARD_UNOPPOSED: 'यह वार्ड निर्विरोध है, मतगणना नहीं होगी',
   WARD_DECLARED: 'वार्ड घोषित हो चुका है; बदलाव केवल संशोधन से होगा',

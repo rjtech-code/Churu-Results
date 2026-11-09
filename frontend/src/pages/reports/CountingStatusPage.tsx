@@ -1,4 +1,5 @@
-// DM: Counting Status Report as a simple report builder (English). Nothing is loaded or refreshed on
+// DM (and ZP RO, Zila Parishad wards only — the server enforces it): Counting Status Report as a
+// simple report builder (English). Nothing is loaded or refreshed on
 // its own: the DM picks a scope (whole district … one booth, optional status), then "View Report",
 // "Download PDF" or "Download CSV". Every number comes from GET /api/reports/counting-status with
 // that scope: the same report object the PDF and the CSV are made from. Before a ward is declared it
@@ -18,6 +19,8 @@ import type {
   CsStatusFilter,
   CsWardRow,
 } from '../../api/reportTypes';
+import type { ZpWardPsProgress } from '../../api/types';
+import { useRole } from '../../auth/AuthContext';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useApiData } from '../../components/useApiData';
 import { Bar, CS_API, CsDownloads, StatusChip, WardFlags, fmt, fmtPct } from './countingStatusParts';
@@ -33,6 +36,12 @@ const LEVELS: readonly [CsLevel, string][] = [
   ['ALL_ZP', 'All Zila Parishad wards'],
   ['PS', 'One Panchayat Samiti'],
   ['WARD', 'One Ward'],
+  ['BOOTH', 'One Booth'],
+];
+/** The ZP RO: Zila Parishad only (a booth is picked through its ZP ward). */
+const ZP_LEVELS: readonly [CsLevel, string][] = [
+  ['ALL_ZP', 'All Zila Parishad wards'],
+  ['WARD', 'One Zila Parishad ward'],
   ['BOOTH', 'One Booth'],
 ];
 const STATUSES: readonly [CsStatusFilter, string][] = [
@@ -90,6 +99,7 @@ interface Shown {
 }
 
 export function CountingStatusPage() {
+  const zpOnly = useRole() === 'ZP_RO';
   const options = useApiData(() => api<CountingStatusOptions>('GET', `${CS_API}/options`), []);
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION);
   const [shown, setShown] = useState<Shown | null>(null);
@@ -131,6 +141,7 @@ export function CountingStatusPage() {
       </header>
       <SelectCard
         options={options.data}
+        zpOnly={zpOnly}
         sel={sel}
         onChange={change}
         query={query}
@@ -198,6 +209,7 @@ function Select({
 
 export function SelectCard({
   options,
+  zpOnly = false,
   sel,
   onChange,
   query,
@@ -205,6 +217,8 @@ export function SelectCard({
   onView,
 }: {
   options: CountingStatusOptions;
+  /** ZP RO: only ZP levels and ZP wards; no Panchayat Samiti choice. */
+  zpOnly?: boolean;
   sel: Selection;
   onChange: (s: Selection) => void;
   query: string | null;
@@ -238,8 +252,17 @@ export function SelectCard({
     onChange({ ...sel, ...patch });
   };
   const needsPs =
-    sel.level === 'PS' || sel.level === 'BOOTH' || (sel.level === 'WARD' && sel.wardKind === 'PS');
-  const wardKind: CsKind | '' = sel.level === 'BOOTH' ? 'PS' : sel.level === 'WARD' ? sel.wardKind : '';
+    !zpOnly &&
+    (sel.level === 'PS' || sel.level === 'BOOTH' || (sel.level === 'WARD' && sel.wardKind === 'PS'));
+  const wardKind: CsKind | '' = zpOnly
+    ? sel.level === 'WARD' || sel.level === 'BOOTH'
+      ? 'ZP'
+      : ''
+    : sel.level === 'BOOTH'
+      ? 'PS'
+      : sel.level === 'WARD'
+        ? sel.wardKind
+        : '';
   const wardList = options.wards.filter(
     (w) => w.kind === wardKind && (wardKind === 'ZP' || String(w.psId) === sel.psId),
   );
@@ -256,17 +279,18 @@ export function SelectCard({
           label="Level"
           value={sel.level}
           onChange={(v) => {
-            onChange({ ...EMPTY_SELECTION, level: v as CsLevel | '' });
+            const level = v as CsLevel | '';
+            onChange({ ...EMPTY_SELECTION, level, wardKind: zpOnly && level === 'WARD' ? 'ZP' : '' });
           }}
         >
           <option value="">Select…</option>
-          {LEVELS.map(([v, l]) => (
+          {(zpOnly ? ZP_LEVELS : LEVELS).map(([v, l]) => (
             <option key={v} value={v}>
               {l}
             </option>
           ))}
         </Select>
-        {sel.level === 'WARD' && (
+        {sel.level === 'WARD' && !zpOnly && (
           <Select
             label="Ward type"
             value={sel.wardKind}
@@ -323,6 +347,7 @@ export function SelectCard({
             <option value="">{booths === null ? 'Loading…' : 'Select…'}</option>
             {(booths ?? []).map((b) => (
               <option key={b.id} value={b.id}>
+                {wardKind === 'ZP' ? `${b.psName} · ` : ''}
                 {b.boothNo} – {b.name}
               </option>
             ))}
@@ -357,6 +382,11 @@ export function SelectCard({
           <CsDownloads
             query={query}
             csv={sel.level === 'WARD' || sel.level === 'BOOTH' ? 'booths' : 'wards'}
+            zpByPs={
+              sel.level === 'DISTRICT' ||
+              sel.level === 'ALL_ZP' ||
+              (sel.level === 'WARD' && wardKind === 'ZP')
+            }
           />
         </span>
       </div>
@@ -414,7 +444,9 @@ export function ScopedReportView({
         ))}
       {data.psTable.length > 0 && <PsTable rows={data.psTable} ps={data.summary.PS} zp={data.summary.ZP} />}
       {level !== 'WARD' && level !== 'BOOTH' && <WardTable wards={data.wards} onOpenWard={onOpenWard} />}
-      {oneWard !== undefined && <WardDetail ward={oneWard} booths={data.booths} />}
+      {oneWard !== undefined && (
+        <WardDetail ward={oneWard} booths={data.booths} byPs={data.zpPsProgress[0]} />
+      )}
       {level === 'BOOTH' && <BoothTable booths={data.booths} withBallot />}
       <p className="cs-note">
         Stalled = counting in progress and no entry for {data.stalledAfterMinutes} minutes. Winner and margin
@@ -716,7 +748,16 @@ function WardTable({ wards, onOpenWard }: { wards: CsWardRow[]; onOpenWard: (w: 
   );
 }
 
-function WardDetail({ ward: w, booths }: { ward: CsWardRow; booths: CsBoothRow[] }) {
+function WardDetail({
+  ward: w,
+  booths,
+  byPs,
+}: {
+  ward: CsWardRow;
+  booths: CsBoothRow[];
+  /** ZP ward only. */
+  byPs: ZpWardPsProgress | undefined;
+}) {
   const pending = booths.filter((b) => b.entered === 'NO');
   const multiPs = new Set(booths.map((b) => b.psId)).size > 1;
   return (
@@ -751,12 +792,14 @@ function WardDetail({ ward: w, booths }: { ward: CsWardRow; booths: CsBoothRow[]
               {w.postalDone === null ? 'n/a' : w.postalDone ? 'Entered' : 'Pending'}
             </span>
           </div>
-          <div className="cs-tile">
-            <span className="cs-tile-label">Latest round</span>
-            <span className="cs-tile-text">
-              {w.latestRound === null ? '–' : `Round ${String(w.latestRound)}`}
-            </span>
-          </div>
+          {w.kind === 'PS' && (
+            <div className="cs-tile">
+              <span className="cs-tile-label">Latest round</span>
+              <span className="cs-tile-text">
+                {w.latestRound === null ? '–' : `Round ${String(w.latestRound)}`}
+              </span>
+            </div>
+          )}
           <div className="cs-tile">
             <span className="cs-tile-label">Last entry</span>
             <span className="cs-tile-text">{w.lastEntryText ?? 'No entry yet'}</span>
@@ -771,6 +814,7 @@ function WardDetail({ ward: w, booths }: { ward: CsWardRow; booths: CsBoothRow[]
           )}
         </div>
       </section>
+      {byPs !== undefined && <ByPsSection progress={byPs} />}
       {w.boothsTotal !== null && (
         <section className="cs-section" aria-labelledby="cs-pending-title">
           <h2 id="cs-pending-title">
@@ -791,6 +835,56 @@ function WardDetail({ ward: w, booths }: { ward: CsWardRow; booths: CsBoothRow[]
       )}
       <BoothTable booths={booths} withPs={multiPs} />
     </>
+  );
+}
+
+/** A ZP ward by Panchayat Samiti: each PS with its own round (never merged), then the Postal row. */
+function ByPsSection({ progress }: { progress: ZpWardPsProgress }) {
+  const { postal } = progress;
+  return (
+    <section className="cs-section" aria-labelledby="cs-byps-title">
+      <h2 id="cs-byps-title">By Panchayat Samiti</h2>
+      <div className="cs-table-wrap cs-wrap-sm">
+        <table className="cs-table cs-cards-sm" data-testid="cs-by-ps">
+          <thead>
+            <tr>
+              <th scope="col">Panchayat Samiti</th>
+              <th scope="col" className="cs-num">
+                Booths Done / Total
+              </th>
+              <th scope="col" className="cs-num">
+                Latest Round
+              </th>
+              <th scope="col">Last Entry</th>
+            </tr>
+          </thead>
+          <tbody>
+            {progress.rows.map((r) => (
+              <tr key={r.psId}>
+                <td data-label="Panchayat Samiti">{r.psName}</td>
+                <td data-label="Booths Done / Total" className="cs-num">
+                  {fmt(r.boothsDone)} / {fmt(r.boothsTotal)}
+                </td>
+                <td data-label="Latest Round" className="cs-num">
+                  {r.latestRound ?? '-'}
+                </td>
+                <td data-label="Last Entry">{r.lastEntryText ?? '–'}</td>
+              </tr>
+            ))}
+            <tr>
+              <td data-label="Panchayat Samiti">Postal – {postal.label}</td>
+              <td data-label="Status" className="cs-num">
+                {postal.entered === null ? 'n/a' : postal.entered ? 'Entered' : 'Pending'}
+              </td>
+              <td data-label="Latest Round" className="cs-num">
+                –
+              </td>
+              <td data-label="Last Entry">{postal.lastEntryText ?? '–'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

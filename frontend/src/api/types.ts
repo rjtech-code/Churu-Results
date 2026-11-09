@@ -227,8 +227,57 @@ export interface PsZpWardItem {
   boothsTotal: number;
 }
 
+/** One contributing PS of a ZP ward (its ZP-ballot booths only; its own round). */
+export interface ZpPsRow {
+  psId: number;
+  psName: string;
+  boothsDone: number;
+  boothsTotal: number;
+  latestRound: number | null;
+  lastEntryAt: string | null;
+  lastEntryText: string | null;
+}
+
+/** A ZP ward's progress by Panchayat Samiti, plus its postal row (server-built). */
+export interface ZpWardPsProgress {
+  wardId: number;
+  wardNo: number;
+  unopposed: boolean;
+  rows: ZpPsRow[];
+  postal: {
+    assignedPsId: number | null;
+    assignedPsName: string | null;
+    label: string;
+    entered: boolean | null;
+    lastEntryAt: string | null;
+    lastEntryText: string | null;
+  };
+}
+
 export interface PsZpWardBooths {
   ward: { id: number; wardNo: number; state: PsZpWardState };
+  /** Only this PS's row (and the postal row): never other PS numbers. */
+  progress: ZpWardPsProgress | null;
   booths: BoothItem[];
+  ballot: BallotCandidate[];
+}
+
+export interface PostalState {
+  entered: boolean;
+  entryId: number | null;
+  enteredAt: string | null;
+}
+
+/** A ZP ward whose postal ballots are assigned to the PS_RO's PS (official order). */
+export interface PsZpPostalItem {
+  id: number;
+  wardNo: number;
+  state: PsZpWardState;
+  postal: PostalState;
+}
+
+export interface PsZpPostalWard {
+  ward: { id: number; wardNo: number; state: PsZpWardState };
+  postal: PostalState;
   ballot: BallotCandidate[];
 }

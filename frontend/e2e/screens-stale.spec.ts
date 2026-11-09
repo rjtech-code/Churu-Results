@@ -22,7 +22,6 @@ function startServer(): ChildProcess {
       DB_NAME: 'churu_test',
       APP_ORIGIN: BASE,
       FRONTEND_DIST: resolve(import.meta.dirname, '../dist'),
-      REQUIRE_VOTER_COUNTS: 'false',
     },
   });
 }

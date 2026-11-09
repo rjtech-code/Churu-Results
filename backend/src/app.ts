@@ -136,9 +136,9 @@ export function createApp({
 
   // 11. Routes. The login route has its own login rate limiter before validation.
   app.use('/api/auth', authRouter(pool, config));
-  app.use('/api/counting', countingRouter(pool, config));
-  app.use('/api/declare', declareRouter(pool, config));
-  app.use('/api/reports', reportsRouter(pool, config));
+  app.use('/api/counting', countingRouter(pool));
+  app.use('/api/declare', declareRouter(pool));
+  app.use('/api/reports', reportsRouter(pool));
   app.use('/api/st-format', stFormatRouter(pool));
   app.use('/api/ward-forms', wardFormsRouter(pool));
   app.use('/api/admin', adminRouter(pool, config));
