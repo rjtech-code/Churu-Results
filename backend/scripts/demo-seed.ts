@@ -28,6 +28,7 @@ import type { ScriptContext } from './lib/run.js';
 import { writeSheet } from './lib/xlsx.js';
 import type { Cell } from './lib/xlsx.js';
 import { runUsersCreate } from './users-create.js';
+import { runZpPostalSetDefault } from './zp-postal-set-default.js';
 
 export const DEMO_FILE = resolve(REPO_ROOT, 'docs', 'polling-stations.xlsx');
 export const DEMO_FIXES = resolve(REPO_ROOT, 'docs', 'demo', 'demo-fixes.json');
@@ -175,6 +176,11 @@ export async function runDemoSeed(
   // 5. Lock every ballot.
   if (!(await runBallotLock({ all: true, by: 'DEMO seed', commit: true, yes: true }, ctx)).ok) {
     return fail('ballot lock failed.');
+  }
+
+  // 5b. Who enters each ZP ward's postal ballots (the official order), as on the server.
+  if (!(await runZpPostalSetDefault({ commit: true }, ctx)).ok) {
+    return fail('setting the ZP postal assignment failed.');
   }
 
   // 6. DEMO users (random-suffix usernames; each password is printed once by users:create).

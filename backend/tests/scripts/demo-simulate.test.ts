@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { actorsFor } from '../../scripts/demo-simulate.js';
+import { actorsFor, planFor } from '../../scripts/demo-simulate.js';
 import { testEnv } from '../helpers/db.js';
 
 const backendDir = resolve(import.meta.dirname, '..', '..');
@@ -40,7 +40,23 @@ describe('demo:simulate guards (it never runs against the test database)', () =>
   it('chooses the demo accounts from the options', () => {
     expect(actorsFor({})).toEqual(['CHURU', 'RAJGARH']);
     expect(actorsFor({ ps: 'CHURU' })).toEqual(['CHURU']);
-    expect(actorsFor({ zp: true })).toEqual(['ZP']);
-    expect(actorsFor({ ps: 'all-demo', zp: true })).toEqual(['CHURU', 'RAJGARH', 'ZP']);
+    // ZP ballots are entered by the PS ROs; the ZP RO logs in only to declare.
+    expect(actorsFor({ zp: true })).toEqual(['CHURU', 'RAJGARH']);
+    expect(actorsFor({ ps: 'CHURU', zp: true, declare: true })).toEqual(['CHURU', 'ZP']);
+  });
+
+  it('--zp alone counts ZP ballots only; with --ps both ballots', () => {
+    expect(planFor({ zp: true })).toEqual({
+      psActors: ['CHURU', 'RAJGARH'],
+      psBallots: false,
+      zp: true,
+      zpDeclare: false,
+    });
+    expect(planFor({ ps: 'RAJGARH', zp: true, declare: true })).toMatchObject({
+      psActors: ['RAJGARH'],
+      psBallots: true,
+      zpDeclare: true,
+    });
+    expect(planFor({})).toMatchObject({ psBallots: true, zp: false });
   });
 });

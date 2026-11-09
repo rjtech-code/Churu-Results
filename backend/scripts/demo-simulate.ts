@@ -2,8 +2,11 @@
 //
 // DEVELOPMENT / OFFICIAL DEMO ONLY. Simulates a counting day on the *_dev database through the
 // REAL HTTP API (login, CSRF, counting, declare) as the demo RO accounts created by demo:seed.
+// --zp follows the official order: each PS RO enters the ZP ballots of its own PS's booths and the
+// ZP postal ballots assigned to its PS (zp-postal:set-default); the ZP RO enters nothing and only
+// declares (with --declare) the ZP wards that are ready. --zp alone counts ZP ballots only.
 // Passwords come from environment variables, never from files:
-//   DEMO_RO_CHURU_PASSWORD, DEMO_RO_RAJGARH_PASSWORD, DEMO_ZP_RO_PASSWORD
+//   DEMO_RO_CHURU_PASSWORD, DEMO_RO_RAJGARH_PASSWORD, DEMO_ZP_RO_PASSWORD (--zp --declare only)
 // The server must be running (DEMO_API_URL, default http://localhost:3000).
 import { randomInt } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
@@ -35,6 +38,7 @@ const ACTORS = {
   ZP: { role: 'ZP_RO', ps: null, passwordVar: 'DEMO_ZP_RO_PASSWORD', label: 'ZP' },
 } as const;
 type ActorKey = keyof typeof ACTORS;
+type PsActorKey = Exclude<ActorKey, 'ZP'>;
 
 /** Set by Ctrl+C: finish the current request, then stop. */
 const control = { stopping: false };
@@ -101,16 +105,20 @@ interface Ballot {
 }
 interface Booth {
   boothId: number;
-  registeredVotersTotal: number | null;
+  registeredVotersTotal?: number | null;
   entered: boolean;
 }
 interface WardTask {
   id: number;
   wardNo: number;
+  ballotFor: 'PS' | 'ZP';
   ballot: Ballot[];
   booths: Booth[];
   tie: boolean;
+  /** Entered already, or not this RO's to enter (a ZP ward assigned to another PS). */
   postalEntered: boolean;
+  /** Only a PS ward is declared by its PS RO; ZP wards are declared by the ZP RO. */
+  declarable: boolean;
 }
 
 const rand = (min: number, max: number) => min + (randomInt(1_000_000) / 1_000_000) * (max - min);
@@ -161,12 +169,88 @@ function boothVotes(
   return { votes, total: votes.reduce((a, b) => a + b, 0) };
 }
 
+interface SimOptions {
+  speed: Speed;
+  declare: boolean;
+  ties: boolean;
+  psBallots: boolean;
+  zp: boolean;
+}
+
+/** PS_RO: the PS wards of its PS (all booths, its own postal). */
+async function psWardTasks(api: ApiClient, opts: SimOptions): Promise<WardTask[]> {
+  const wardList = (await api.request('GET', '/api/counting/wards')).data as {
+    wards: {
+      id: number;
+      wardNo: number;
+      status: string;
+      isUnopposed: boolean;
+      ballotLocked: boolean;
+      postalEntered: boolean;
+    }[];
+  };
+  const tasks: WardTask[] = [];
+  for (const [i, w] of wardList.wards.entries()) {
+    if (w.isUnopposed || !w.ballotLocked || (w.status !== 'NOT_STARTED' && w.status !== 'COUNTING'))
+      continue;
+    const ballot = (
+      (await api.request('GET', `/api/counting/wards/${w.id}/ballot`)).data as {
+        candidates: Ballot[];
+      }
+    ).candidates;
+    const booths = (
+      (await api.request('GET', `/api/counting/wards/${w.id}/booths`)).data as { booths: Booth[] }
+    ).booths;
+    tasks.push({
+      id: w.id,
+      wardNo: w.wardNo,
+      ballotFor: 'PS',
+      ballot,
+      booths,
+      tie: opts.ties && i % 7 === 3,
+      postalEntered: w.postalEntered,
+      declarable: true,
+    });
+  }
+  return tasks;
+}
+
+/** PS_RO: the ZP ballots of its own PS's booths, and the ZP postal assigned to its PS. */
+async function zpWardTasks(api: ApiClient, opts: SimOptions): Promise<WardTask[]> {
+  const zpWards = (await api.request('GET', '/api/counting/zp-wards')).data as {
+    wards: { id: number; wardNo: number; state: string }[];
+  };
+  const assigned = (await api.request('GET', '/api/counting/zp-postal')).data as {
+    wards: { id: number; postal: { entered: boolean } }[];
+  };
+  const postalTodo = new Set(assigned.wards.filter((w) => !w.postal.entered).map((w) => w.id));
+  const tasks: WardTask[] = [];
+  for (const [i, w] of zpWards.wards.entries()) {
+    if (w.state !== 'OPEN') continue;
+    const view = (await api.request('GET', `/api/counting/zp-wards/${w.id}/ps-booths`)).data as {
+      booths: Booth[];
+      ballot: Ballot[];
+    };
+    tasks.push({
+      id: w.id,
+      wardNo: w.wardNo,
+      ballotFor: 'ZP',
+      ballot: view.ballot,
+      booths: view.booths,
+      tie: opts.ties && i % 7 === 3,
+      postalEntered: !postalTodo.has(w.id),
+      declarable: false,
+    });
+  }
+  return tasks;
+}
+
 async function simulateActor(
-  key: ActorKey,
+  key: PsActorKey,
   username: string,
   password: string,
   base: string,
-  opts: { speed: Speed; declare: boolean; ties: boolean },
+  opts: SimOptions,
   log: (line: string) => void,
 ): Promise<{ booths: number; postal: number; declared: number }> {
   const actor = ACTORS[key];
@@ -174,42 +258,11 @@ async function simulateActor(
   await api.login(username, password);
   const stats = { booths: 0, postal: 0, declared: 0 };
   try {
-    const wardList = (await api.request('GET', '/api/counting/wards')).data as {
-      wards: {
-        id: number;
-        wardNo: number;
-        status: string;
-        isUnopposed: boolean;
-        ballotLocked: boolean;
-        postalEntered: boolean;
-      }[];
-    };
-    const tasks: WardTask[] = [];
-    for (const [i, w] of wardList.wards.entries()) {
-      if (
-        w.isUnopposed ||
-        !w.ballotLocked ||
-        (w.status !== 'NOT_STARTED' && w.status !== 'COUNTING')
-      )
-        continue;
-      const ballot = (
-        (await api.request('GET', `/api/counting/wards/${w.id}/ballot`)).data as {
-          candidates: Ballot[];
-        }
-      ).candidates;
-      const booths = (
-        (await api.request('GET', `/api/counting/wards/${w.id}/booths`)).data as { booths: Booth[] }
-      ).booths;
-      tasks.push({
-        id: w.id,
-        wardNo: w.wardNo,
-        ballot,
-        booths,
-        tie: opts.ties && i % 7 === 3,
-        postalEntered: w.postalEntered,
-      });
-    }
-    log(`[${actor.label}] ${tasks.length} ward(s) to count as ${username}`);
+    const tasks = [
+      ...(opts.psBallots ? await psWardTasks(api, opts) : []),
+      ...(opts.zp ? await zpWardTasks(api, opts) : []),
+    ];
+    log(`[${actor.label}] ${tasks.length} ward ballot(s) to count as ${username}`);
 
     // Round by round (10 booths per ward per round), all wards interleaved like a real hall.
     for (let round = 1; !isStopping(); round++) {
@@ -218,11 +271,11 @@ async function simulateActor(
         const todo = t.booths.filter((b) => !b.entered);
         for (const b of todo.slice(0, 10)) {
           if (isStopping()) break;
-          const { votes, total } = boothVotes(t.ballot, b.registeredVotersTotal, t.tie);
+          const { votes, total } = boothVotes(t.ballot, b.registeredVotersTotal ?? null, t.tie);
           const res = await api.request('POST', '/api/counting/entries', {
             wardId: t.id,
             boothId: b.boothId,
-            ballotFor: actor.role === 'PS_RO' ? 'PS' : 'ZP',
+            ballotFor: t.ballotFor,
             roundNo: round,
             sheetTotal: total,
             votes: t.ballot.map((c, i) => ({ candidateId: c.candidateId, votes: votes[i] ?? 0 })),
@@ -232,7 +285,7 @@ async function simulateActor(
           if (res.status === 201) stats.booths++;
           else
             log(
-              `[${actor.label}] ward ${t.wardNo}: booth ${b.boothId} refused: ${JSON.stringify(res.data)}`,
+              `[${actor.label}] ${t.ballotFor} ward ${t.wardNo}: booth ${b.boothId} refused: ${JSON.stringify(res.data)}`,
             );
           await sleep(DELAY_MS[opts.speed]);
         }
@@ -248,7 +301,7 @@ async function simulateActor(
             votes: t.ballot.map((c, i) => ({ candidateId: c.candidateId, votes: postal[i] ?? 0 })),
           });
           if (res.status === 201) stats.postal++;
-          if (opts.declare && res.status === 201) {
+          if (opts.declare && t.declarable && res.status === 201) {
             if (await declareWard(api, t, actor.label, password, log)) stats.declared++;
           }
           did = true;
@@ -267,7 +320,7 @@ async function simulateActor(
 
 async function declareWard(
   api: ApiClient,
-  t: WardTask,
+  t: Pick<WardTask, 'id' | 'wardNo'>,
   label: string,
   password: string,
   log: (line: string) => void,
@@ -320,13 +373,62 @@ export interface SimulateOptions {
   yes?: boolean | undefined;
 }
 
+export interface SimulationPlan {
+  psActors: PsActorKey[];
+  /** PS ward ballots (left out by --zp alone). */
+  psBallots: boolean;
+  /** ZP ballots and assigned ZP postal, entered by the PS ROs. */
+  zp: boolean;
+  /** The ZP RO declares the ready ZP wards (--zp --declare). */
+  zpDeclare: boolean;
+}
+
+export function planFor(options: SimulateOptions): SimulationPlan {
+  const zp = options.zp === true;
+  const ps = options.ps ?? 'all-demo';
+  const psActors: PsActorKey[] = [];
+  if (ps === 'CHURU' || ps === 'all-demo') psActors.push('CHURU');
+  if (ps === 'RAJGARH' || ps === 'all-demo') psActors.push('RAJGARH');
+  return {
+    psActors,
+    psBallots: options.ps !== undefined || !zp,
+    zp,
+    zpDeclare: zp && options.declare === true,
+  };
+}
+
+/** The demo accounts that log in: the PS ROs, plus the ZP RO only to declare ZP wards. */
 export function actorsFor(options: SimulateOptions): ActorKey[] {
-  const ps = options.ps ?? (options.zp === true ? undefined : 'all-demo');
-  const keys: ActorKey[] = [];
-  if (ps === 'CHURU' || ps === 'all-demo') keys.push('CHURU');
-  if (ps === 'RAJGARH' || ps === 'all-demo') keys.push('RAJGARH');
-  if (options.zp === true) keys.push('ZP');
-  return keys;
+  const plan = planFor(options);
+  return [...plan.psActors, ...(plan.zpDeclare ? (['ZP'] as const) : [])];
+}
+
+/** ZP RO: declares every ZP ward that is ready. It enters nothing (official order). */
+async function declareReadyZpWards(
+  username: string,
+  password: string,
+  base: string,
+  log: (line: string) => void,
+): Promise<number> {
+  const api = new ApiClient(base);
+  await api.login(username, password);
+  let declared = 0;
+  try {
+    const list = (await api.request('GET', '/api/counting/wards')).data as {
+      wards: { id: number; wardNo: number; status: string }[];
+    };
+    const ready = list.wards.filter(
+      (w) => w.status === 'READY_TO_DECLARE' || w.status === 'TIE_NEEDS_LOTTERY',
+    );
+    log(`[ZP] ${ready.length} ZP ward(s) ready to declare as ${username}`);
+    for (const w of ready) {
+      if (isStopping()) break;
+      if (await declareWard(api, w, 'ZP', password, log)) declared++;
+    }
+  } finally {
+    await api.logout();
+  }
+  return declared;
 }
 
 async function main(): Promise<number> {
@@ -369,6 +471,7 @@ async function main(): Promise<number> {
     return 1;
   }
   const base = (process.env.DEMO_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const plan = planFor(values);
   const keys = actorsFor(values);
   const missing = keys
     .map((k) => ACTORS[k].passwordVar)
@@ -430,7 +533,7 @@ async function main(): Promise<number> {
     console.log(`${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} ${line}`);
   };
   const results = await Promise.all(
-    keys.map((key) =>
+    plan.psActors.map((key) =>
       simulateActor(
         key,
         usernames.get(key) ?? '',
@@ -440,11 +543,23 @@ async function main(): Promise<number> {
           speed,
           declare: values.declare === true,
           ties: values.ties === true,
+          psBallots: plan.psBallots,
+          zp: plan.zp,
         },
         log,
       ),
     ),
   );
+  // ZP wards are ready only once every PS has entered its ZP booths: the ZP RO declares last.
+  if (plan.zpDeclare && !isStopping()) {
+    const declared = await declareReadyZpWards(
+      usernames.get('ZP') ?? '',
+      process.env[ACTORS.ZP.passwordVar] ?? '',
+      base,
+      log,
+    );
+    results.push({ booths: 0, postal: 0, declared });
+  }
   const totals = results.reduce(
     (a, r) => ({
       booths: a.booths + r.booths,
