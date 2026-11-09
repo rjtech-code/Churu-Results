@@ -25,6 +25,8 @@ services:
 
   app:
     build: .
+    # A fixed image name, so a release can be kept for rollback: docker tag churu-app:latest churu-app:prev
+    image: churu-app:latest
     restart: unless-stopped
     env_file: .env.production
     environment:

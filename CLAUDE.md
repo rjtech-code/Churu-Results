@@ -26,9 +26,9 @@ Counting day: 20 November 2026. This is election data for the government.
 - Packaging: Docker + docker-compose
 
 ## Domain facts
-- 13 Panchayat Samitis, 231 PS wards, 39 ZP wards, 1,359 booths.
+- 13 Panchayat Samitis, 231 PS wards, 39 ZP wards, 1,359 booths (plus 12 "A" booths such as 15A in the Nov 2026 file, not imported yet: booth_no is a number).
 - Booth identity = (Panchayat Samiti + booth number). Booth numbers restart in every PS.
-- Each booth belongs to exactly one PS ward and one ZP ward. 9 ZP wards span more than one PS.
+- Each booth belongs to exactly one PS ward and one ZP ward. 8 ZP wards span more than one PS (25, 27, 28, 30, 32, 36, 37, 39 in the Nov 2026 geography file).
 - Each booth has two ballots: PS and ZP (`ballot_for` = 'PS' | 'ZP').
 - Round numbers are labels only, never used in any calculation. A ZP ward has no single round: each PS counts in its own rounds; never merge rounds across PS into one number.
 - Exactly 15 election logins: 13 `PS_RO` (one per PS), 1 `ZP_RO`, 1 `DM`, plus ONE `SUPER_ADMIN` setup login (created once by `users:create`). No other roles exist.

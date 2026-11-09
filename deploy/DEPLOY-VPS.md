@@ -40,6 +40,9 @@ $DC restart app
 ```
 
 ## 5. Geography + Hindi names import
+Naya official data (wipe → geography → party → candidates → ZP postal → RO) load karna ho to poora
+kram `deploy/RUNBOOK-NEW-DATA.md` mein hai. Official Hindi Excel ko pehle `npm run convert:geography` se
+importer ke format mein badlein.
 Pehle dry run (kuch save nahi hota), phir `--commit`:
 ```bash
 $DC exec app npm run import:geography -- --file ../docs/polling-stations.xlsx --ps-names ../docs/ps-names.json
