@@ -78,7 +78,8 @@ const summary = (over: Partial<CsKindSummary> = {}): CsKindSummary => ({
 const DISTRICT: CountingStatusView = {
   title: 'Churu District - Counting Status Report',
   electionName: 'Panchayati Raj General Election 2026 – Zila Parishad & Panchayat Samiti',
-  electionDateText: 'Counting date: 20 Nov 2026',
+  countingDateText: 'Counting date: 20 Nov 2026',
+  electionDateText: 'Poll date: 13 Nov 2026',
   asOf: '2026-11-20T10:40:00.000+05:30',
   asOfText: '20 Nov 2026, 10:40 AM IST',
   stalledAfterMinutes: 30,
@@ -201,6 +202,8 @@ describe('Counting Status Report builder', () => {
     expect(screen.getByTestId('cs-scope').textContent).toBe(
       'Scope: Whole District · As of 20 Nov 2026, 10:40 AM IST',
     );
+    // Counting date and poll date are two labelled, separate dates.
+    expect(screen.getByText(/Counting date: 20 Nov 2026 · Poll date: 13 Nov 2026/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(reportCalls()).toHaveLength(2);
     // Changing the selection removes the report (it would no longer match).

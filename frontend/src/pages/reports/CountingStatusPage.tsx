@@ -424,7 +424,7 @@ export function ScopedReportView({
             <span className="cs-asof">As of {data.asOfText}</span>
           </p>
           <p className="cs-meta">
-            {data.electionName} · {data.electionDateText}
+            {data.electionName} · {data.countingDateText} · {data.electionDateText}
           </p>
         </div>
         <button type="button" className="cs-btn" disabled={refreshing} onClick={onRefresh}>

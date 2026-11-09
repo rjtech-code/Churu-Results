@@ -16,6 +16,7 @@ import {
   buildCountingStatus,
   compactNumbers,
   displayPsName,
+  countingDateText,
   electionDateText,
   istText,
   percentDown,
@@ -347,7 +348,9 @@ describe('definitions, on the hand-built district', () => {
       boothsTotal: 5,
     });
     expect(v.wards.every((w) => !w.checkData)).toBe(true);
-    expect(v.electionDateText).toBe('Counting date: 20 Nov 2026');
+    // The fixed counting day, never the poll date the DM sets (a separate setting and label).
+    expect(v.countingDateText).toBe('Counting date: 20 Nov 2026');
+    expect(v.electionDateText).toMatch(/^Poll date: /);
     expect(v.asOfText).toMatch(/^\d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} (AM|PM) IST$/);
   });
 
@@ -471,6 +474,7 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
         winner: w.winner?.name ?? '',
         margin: str(w.margin),
         report_time_ist: v.asOfText,
+        counting_date: '2026-11-20',
       });
     });
     expect(Object.keys(wardsCsv[0] ?? {})).toContain('report_time_ist');
@@ -552,6 +556,9 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
       `Churu District - Counting Status Report   ·   Scope: Whole District   ·   Report time: ${v.asOfText}`,
     );
     expect(pdf.some((t) => /^Page 1 of \d+$/.test(t))).toBe(true);
+    const text = pdf.join(' ');
+    expect(text).toContain('Counting date: 20 Nov 2026');
+    expect(text).toContain(v.electionDateText);
     expect(pdf).toContain(`${WINNER} (P1)`);
   });
 
@@ -1059,8 +1066,9 @@ describe('pure helpers', () => {
     expect(istText(new Date('2026-11-06T11:02:00Z'))).toBe('06 Nov 2026, 04:32 PM IST');
     expect(istText(new Date('2026-11-19T18:30:00Z'))).toBe('20 Nov 2026, 12:00 AM IST');
     expect(istText(new Date('2026-11-20T06:45:00Z'))).toBe('20 Nov 2026, 12:15 PM IST');
-    expect(electionDateText(null)).toBe('Counting date: not set');
-    expect(electionDateText('2026-11-20')).toBe('Counting date: 20 Nov 2026');
+    expect(countingDateText()).toBe('Counting date: 20 Nov 2026');
+    expect(electionDateText(null)).toBe('Poll date: not set');
+    expect(electionDateText('2026-11-13')).toBe('Poll date: 13 Nov 2026');
     expect(compactNumbers([12, 3, 13, 14, 7, 15, 3])).toBe('3, 7, 12–15');
     expect(compactNumbers([])).toBe('');
     expect(percentDown(1358, 1359)).toBe(99.9); // never 100 before every booth is done

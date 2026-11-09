@@ -2,3 +2,6 @@
 
 /** The date (YYYY-MM-DD) on which a candidate's age is counted from their date of birth. */
 export const AGE_REFERENCE_DATE = '2026-11-20';
+
+/** Counting day (YYYY-MM-DD): public screens and the Counting Status Report. Not the poll date. */
+export const COUNTING_DATE = '2026-11-20';

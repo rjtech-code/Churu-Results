@@ -3,6 +3,7 @@
 // never disagree. Nothing here adds votes: ward status, booths entered and margins come from
 // result.ts; a booth's "total votes" is its saved sheet_total (checked by result.ts against its votes).
 // Before a ward is declared nothing about its candidates leaves this file (no leader, no votes).
+import { COUNTING_DATE } from '../config/election.js';
 import { istIso } from './public-views.js';
 import type { ResultStatus, WardResult } from './result.js';
 
@@ -231,6 +232,9 @@ export interface ZpPsProgressInput {
 export interface CountingStatusReport {
   title: string;
   electionName: string;
+  /** The fixed counting day (COUNTING_DATE). */
+  countingDateText: string;
+  /** The poll date the DM sets (a different day). */
   electionDateText: string;
   asOf: string;
   asOfText: string;
@@ -256,11 +260,21 @@ export function istText(date: Date): string {
   return `${pad2(d.getUTCDate())} ${MONTHS[d.getUTCMonth()] ?? ''} ${String(d.getUTCFullYear())}, ${pad2(h12)}:${pad2(d.getUTCMinutes())} ${h < 12 ? 'AM' : 'PM'} IST`;
 }
 
-/** "Counting date: 20 Nov 2026" or "Counting date: not set". */
-export function electionDateText(date: string | null): string {
+/** "2026-11-20" -> "20 Nov 2026"; null for anything else. */
+function dayText(date: string | null): string | null {
   const m = date === null ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (m === null) return 'Counting date: not set';
-  return `Counting date: ${m[3] ?? ''} ${MONTHS[Number(m[2]) - 1] ?? ''} ${m[1] ?? ''}`;
+  if (m === null) return null;
+  return `${m[3] ?? ''} ${MONTHS[Number(m[2]) - 1] ?? ''} ${m[1] ?? ''}`;
+}
+
+/** "Counting date: 20 Nov 2026": the fixed counting day (COUNTING_DATE), never a setting. */
+export function countingDateText(date: string = COUNTING_DATE): string {
+  return `Counting date: ${dayText(date) ?? date}`;
+}
+
+/** The poll (election) date the DM sets: "Poll date: 13 Nov 2026" or "Poll date: not set". */
+export function electionDateText(date: string | null): string {
+  return `Poll date: ${dayText(date) ?? 'not set'}`;
 }
 
 /** 1359 -> "1,359". */
@@ -526,6 +540,7 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
   return {
     title: REPORT_TITLE,
     electionName: ELECTION_NAME,
+    countingDateText: countingDateText(),
     electionDateText: electionDateText(raw.electionDate),
     asOf: istIso(raw.asOf),
     asOfText: istText(raw.asOf),

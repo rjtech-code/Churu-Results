@@ -1,6 +1,7 @@
 // The Counting Status CSVs (ward-wise, booth-wise, ZP by PS), rendered from the SAME report object as the
 // UI and the PDF. Data only: no colours, no extra lines above the header. UTF-8 with BOM and formula
 // injection guard come from toCsv (csv.ts).
+import { COUNTING_DATE } from '../../config/election.js';
 import type { CountingStatusReport, EnteredFlag } from '../../services/counting-status.js';
 import type { Cell } from './csv.js';
 
@@ -26,6 +27,7 @@ export const WARD_CSV_HEADERS = [
   'winner_party',
   'margin',
   'report_time_ist',
+  'counting_date',
 ] as const;
 
 export function wardCsvRows(r: CountingStatusReport): Cell[][] {
@@ -50,6 +52,7 @@ export function wardCsvRows(r: CountingStatusReport): Cell[][] {
       w.winner?.party ?? null,
       w.margin,
       r.asOfText,
+      COUNTING_DATE,
     ]),
   ];
 }
@@ -68,6 +71,7 @@ export const BOOTH_CSV_HEADERS = [
   'last_edited_at_ist',
   'total_votes',
   'report_time_ist',
+  'counting_date',
 ] as const;
 
 export function boothCsvRows(r: CountingStatusReport): Cell[][] {
@@ -88,6 +92,7 @@ export function boothCsvRows(r: CountingStatusReport): Cell[][] {
       b.lastEditedAtText,
       b.totalVotes,
       r.asOfText,
+      COUNTING_DATE,
     ]),
   ];
 }
@@ -102,6 +107,7 @@ export const ZP_BY_PS_CSV_HEADERS = [
   'postal',
   'last_entry_ist',
   'report_time_ist',
+  'counting_date',
 ] as const;
 
 /**
@@ -122,7 +128,8 @@ export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
         null,
         p.lastEntryText,
         r.asOfText,
-        ]),
+        COUNTING_DATE,
+      ]),
       [
         z.wardNo,
         'postal',
@@ -133,7 +140,8 @@ export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
         z.postal.entered === null ? 'n/a' : z.postal.entered ? 'entered' : 'pending',
         z.postal.lastEntryText,
         r.asOfText,
-        ],
+        COUNTING_DATE,
+      ],
     ]),
   ];
 }

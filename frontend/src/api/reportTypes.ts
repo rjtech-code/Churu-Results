@@ -299,6 +299,9 @@ export type CsStatusFilter = 'ALL' | CountingStatusCode | 'STALLED';
 export interface CountingStatusView {
   title: string;
   electionName: string;
+  /** "Counting date: 20 Nov 2026" (fixed counting day). */
+  countingDateText: string;
+  /** "Poll date: …" (the poll date the DM sets; a different day). */
   electionDateText: string;
   asOf: string;
   asOfText: string;

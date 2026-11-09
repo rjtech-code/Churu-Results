@@ -51,7 +51,7 @@ export interface PublicApiConfig {
   layoutPollMs: number;
 }
 
-export const COUNTING_DATE = '2026-11-20';
+export { COUNTING_DATE } from './election.js';
 
 export function defaultPublicApiConfig(overrides: Partial<PublicApiConfig> = {}): PublicApiConfig {
   return {

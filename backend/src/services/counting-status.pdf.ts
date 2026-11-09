@@ -285,7 +285,7 @@ export function countingStatusPdfModel(r: ScopedReport): PdfModel {
     scopeLine: `Scope: ${r.scope.label}`,
     subtitle: [
       r.electionName,
-      `${r.electionDateText}   ·   Report time: ${r.asOfText}`,
+      `${r.countingDateText}   ·   ${r.electionDateText}   ·   Report time: ${r.asOfText}`,
       `Stalled = counting in progress and no entry for ${String(r.stalledAfterMinutes)} minutes. Winner and margin are shown only after a ward is declared.`,
     ],
     first,

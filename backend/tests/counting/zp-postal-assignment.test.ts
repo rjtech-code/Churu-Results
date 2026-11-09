@@ -265,7 +265,7 @@ describe('ZP ward progress by Panchayat Samiti', () => {
     ).text;
     const lines = csv.replace(/^\uFEFF/, '').replaceAll('"', '').trim().split(/\r?\n/);
     expect(lines[0]).toBe(
-      'zp_ward_no,row,ps_name,booths_done,booths_total,latest_round,postal,last_entry_ist,report_time_ist'
+      'zp_ward_no,row,ps_name,booths_done,booths_total,latest_round,postal,last_entry_ist,report_time_ist,counting_date',
     );
     expect(lines.slice(1).map((l) => l.split(',').slice(0, 7).join(','))).toEqual([
       expect.stringMatching(/^1,booths,.+,2,5,5,$/) as string,
