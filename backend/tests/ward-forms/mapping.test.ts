@@ -10,17 +10,24 @@ import { NOTA_VOTES, PS_BODY, formSource, prarup7For, votesFor } from './source.
 const T = prarup7For('ZP');
 const PS = prarup7For('PS');
 
-describe('Part-II mapping', () => {
+describe('Part-II (प्रारूप–14) ward sheet mapping', () => {
   it('lists candidates in ballot order with the engine votes, then NOTA and the engine total', () => {
-    const src = formSource({ candidates: 3 });
+    const src = formSource({ candidates: 3, electionDate: '2026-11-20' });
     expect(mapPart2(src, PART2)).toEqual({
+      kind: 'ZP',
+      bodyName: 'चूरू',
+      wardNo: '05',
+      booth: null,
       rows: [
-        { serial: '1.', name: 'उम्मीदवार 1', votes: String(votesFor(1)) },
-        { serial: '2.', name: 'उम्मीदवार 2', votes: String(votesFor(2)) },
-        { serial: '3.', name: 'उम्मीदवार 3', votes: String(votesFor(3)) },
+        { serial: '1', name: 'उम्मीदवार 1', votes: String(votesFor(1)) },
+        { serial: '2', name: 'उम्मीदवार 2', votes: String(votesFor(2)) },
+        { serial: '3', name: 'उम्मीदवार 3', votes: String(votesFor(3)) },
       ],
+      notaSerial: '4',
       nota: String(NOTA_VOTES),
       total: String(src.result.totalValidVotes),
+      date: '20.11.2026',
+      place: 'चूरू',
     });
     expect(src.result.totalValidVotes).toBe(votesFor(1) + votesFor(2) + votesFor(3) + NOTA_VOTES);
   });

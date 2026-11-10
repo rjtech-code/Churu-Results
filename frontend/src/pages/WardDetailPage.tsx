@@ -4,6 +4,7 @@ import { idParam, loadBooths, loadWard, loadZpProgress } from '../api/loaders';
 import { useRole } from '../auth/AuthContext';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
+import { BoothFormButton } from '../components/BoothFormButton';
 import { WardFormDownloads } from '../components/WardFormDownloads';
 import { boothProgress, formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
@@ -156,6 +157,14 @@ export function WardDetailPage() {
                         रद्द करें
                       </Link>
                     </>
+                  )}
+                  {b.entered && (
+                    <BoothFormButton
+                      boothId={b.boothId}
+                      ballotFor={ward.kind}
+                      wardNo={ward.wardNo}
+                      boothNo={b.boothNo}
+                    />
                   )}
                   <Link className="btn btn-link" to={`/wards/${ward.id}/booths/${b.boothId}/history`}>
                     इतिहास

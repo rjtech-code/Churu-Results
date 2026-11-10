@@ -13,7 +13,8 @@ import { writeAudit } from '../../services/audit.js';
 import { FormDoesNotFitError } from '../../services/pdf/fit.js';
 import { REFUSAL_STATUS, formRefusal } from '../../services/ward-forms/eligibility.js';
 import type { FormSource } from '../../services/ward-forms/form-data.js';
-import { mapPart2 } from '../../services/ward-forms/map-part2.js';
+import { boothLabel } from '../../services/booth-no.js';
+import { mapBoothPart2, mapPart2 } from '../../services/ward-forms/map-part2.js';
 import { mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
 import { renderPart2 } from '../../services/ward-forms/render-part2.js';
 import { renderPrarup7 } from '../../services/ward-forms/render-prarup7.js';
@@ -26,7 +27,7 @@ import {
 import type { WardFormName } from '../../services/ward-forms/templates/registry.js';
 import type { AuthUser } from '../../types/auth.js';
 import { idParam, parse } from '../admin/http.js';
-import { readFormSource, readFormWard } from './ward-forms.data.js';
+import { readBoothScope, readBoothSheet, readFormSource, readFormWard } from './ward-forms.data.js';
 
 const noQuery = z.object({}).strict();
 const PDF = 'application/pdf';
@@ -136,9 +137,70 @@ function availability(pool: Pool): RequestHandler {
   };
 }
 
+const boothParams = z.object({ boothId: idParam, ballotFor: z.enum(['PS', 'ZP']) });
+
+/**
+ * Who may print a booth's प्रारूप–14: the DM any booth; the PS_RO both ballots of the booths of
+ * their own PS (they enter them); the ZP_RO the ZP ballot of any booth. Nobody else.
+ */
+export function boothFormAllowed(
+  user: AuthUser,
+  boothPsId: number,
+  ballotFor: 'PS' | 'ZP',
+): boolean {
+  switch (user.role) {
+    case 'DM':
+      return true;
+    case 'PS_RO':
+      return user.panchayatSamitiId !== null && user.panchayatSamitiId === boothPsId;
+    case 'ZP_RO':
+      return ballotFor === 'ZP';
+    case 'SUPER_ADMIN':
+      return false;
+  }
+}
+
+/** GET /booths/:boothId/:ballotFor/prarup14.pdf — one booth's live entry as प्रारूप–14 भाग–II. */
+function boothDownload(pool: Pool): RequestHandler {
+  return async (req, res) => {
+    parse(noQuery, req.query);
+    const { boothId, ballotFor } = parse(boothParams, req.params);
+    const user = req.user;
+    if (!user) throw new ApiError(401, 'UNAUTHENTICATED');
+    const scope = await readBoothScope(pool, boothId);
+    if (scope === null) throw new ApiError(404, 'NOT_FOUND');
+    if (!boothFormAllowed(user, scope.psId, ballotFor)) throw new ApiError(403, 'FORBIDDEN');
+    const { head, sheet, wardId, entryId } = await readBoothSheet(pool, boothId, ballotFor);
+    const t = PART2_TEMPLATES[head.kind];
+    let body: Buffer;
+    try {
+      body = await renderPart2(mapBoothPart2(head, sheet, t), t);
+    } catch (err) {
+      if (err instanceof FormDoesNotFitError) throw new ApiError(409, 'FORM_DOES_NOT_FIT');
+      throw err;
+    }
+    const label = boothLabel(sheet.boothNo, sheet.boothSuffix);
+    await sendExport(pool, req, res, {
+      body,
+      contentType: PDF,
+      fileName: `Prarup14_${head.kind}_${String(head.wardNo)}_Booth${label}.pdf`,
+      wardId,
+      details: {
+        section: 'booth-form-prarup14',
+        format: 'pdf',
+        ward_id: wardId,
+        booth_id: boothId,
+        ballot_for: ballotFor,
+        entry_id: entryId,
+      },
+    });
+  };
+}
+
 export function wardFormsRouter(pool: Pool): Router {
   const router = Router();
   router.use(requireRole('DM', 'PS_RO', 'ZP_RO'));
+  router.get('/booths/:boothId/:ballotFor/prarup14.pdf', boothDownload(pool));
   router.get('/:wardId', availability(pool));
   for (const form of WARD_FORM_NAMES) router.get(`/:wardId/${form}.pdf`, download(pool, form));
   return router;

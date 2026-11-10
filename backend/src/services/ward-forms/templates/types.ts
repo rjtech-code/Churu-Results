@@ -29,40 +29,69 @@ interface PageTemplate {
   minFontSize: number;
 }
 
+/** प्रारूप–14 भाग–II (अभिलिखित मतों का लेखा): one template for ward and booth sheets, PS and ZP. */
 export interface Part2Template extends PageTemplate {
   text: {
+    form: string;
     rules: string;
+    title: string;
     part: string;
-    caption: string;
+    details: string;
+    /** "जिला परिषद का नाम–" / "पंचायत समिति का नाम–", by the ward's kind. */
+    bodyName: Readonly<Record<'PS' | 'ZP', string>>;
+    wardNo: string;
+    booth: string;
+    candidates: string;
     headers: readonly [string, string, string];
     nota: string;
     total: string;
-    tally: string;
-    place: string;
+    verification: string;
+    tallyQuestion: string;
+    tallyAnswer: string;
+    discrepancy: string;
     date: string;
+    place: string;
     supervisor: string;
     agents: string;
-    fullSignature: string;
-    /** Numbered agent lines (1. … n.), then dotted lines. */
-    agentLines: number;
-    dottedLines: number;
-    dots: string;
-    returningOfficer: string;
-    footnote: string;
+    agentHeaders: readonly [string, string, string];
+    /** Blank numbered rows of the agents' table. */
+    agentRows: number;
+    /** "के हस्ताक्षर" and "पदनाम एवं सील", under the officer's title (part2SignatureTitle). */
+    signatureOf: string;
+    seal: string;
   };
-  style: Record<'rules' | 'part' | 'caption' | 'header' | 'cell' | 'body' | 'footnote', TextStyle>;
-  table: TableLayout & { width: number };
+  style: Record<
+    'form' | 'rules' | 'title' | 'part' | 'heading' | 'body' | 'value' | 'header' | 'cell' | 'name',
+    TextStyle
+  >;
+  table: TableLayout;
+  agentsTable: TableLayout;
   /** Vertical space after each block, in pt (scaled by the fit step). */
   gaps: Record<
-    'rules' | 'part' | 'table' | 'tally' | 'place' | 'agents' | 'agentLine' | 'footnote' | 'rule',
+    | 'form'
+    | 'rules'
+    | 'title'
+    | 'part'
+    | 'details'
+    | 'line'
+    | 'candidates'
+    | 'table'
+    | 'verification'
+    | 'tally'
+    | 'date'
+    | 'place'
+    | 'agents'
+    | 'agentsTable',
     number
   >;
-  /** Indent of the agent list and of the Place / Date lines, in pt. */
-  indent: number;
-  /** Horizontal slots as fractions of the width: the signature column and the agents' heading. */
-  slots: { signatureFrom: number; agentsFrom: number; agentsWidth: number };
-  /** "1." in the S. No. column. */
-  serial: (n: number) => string;
+  /** Fixed empty band above the officer's title for the pen signature and seal (pt; never scaled). */
+  signatureSpace: number;
+  /** Where the value of a header line starts / the right-hand column starts (fractions of the width). */
+  slots: { value: number; right: number };
+  /** Ward number as printed ("01"). */
+  wardNoDigits: number;
+  /** YYYY-MM-DD -> "20.11.2026". */
+  date: (iso: string) => string;
 }
 
 /** How printed values are composed, e.g. "1. नाम" and "(पार्टी)". */

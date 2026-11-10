@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { idParam, loadPsZpWard } from '../api/loaders';
 import type { PsZpWardState } from '../api/types';
+import { BoothFormButton } from '../components/BoothFormButton';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { formatDateTime } from '../components/format';
 import { useApiData } from '../components/useApiData';
@@ -82,6 +83,14 @@ export function ZpWardPage() {
                         रद्द करें
                       </Link>
                     </>
+                  )}
+                  {b.entered && (
+                    <BoothFormButton
+                      boothId={b.boothId}
+                      ballotFor="ZP"
+                      wardNo={ward.wardNo}
+                      boothNo={b.boothNo}
+                    />
                   )}
                 </td>
               </tr>

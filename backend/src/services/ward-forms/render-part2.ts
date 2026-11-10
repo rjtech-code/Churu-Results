@@ -1,134 +1,185 @@
-// Part-II on one A4 page: the filled result table; every other line stays printed and blank for
-// hand filling, as on the official form. Layout only: words and sizes come from the template.
+// प्रारूप–14 भाग–II on one A4 portrait page (two for a very long ballot), ward sheet or booth sheet: header, the candidate-wise
+// votes, the verification lines (blank for hand filling), date / place / supervisor, the agents'
+// table (blank) and the officer's signature block. Layout only: words and sizes come from the template.
 import type { Page } from '../pdf/document.js';
 import type { FitStep } from '../pdf/fit.js';
-import { gap, gridBlock, lineBlock, renderOnePage, ruleBlock, textBlock } from '../pdf/flow.js';
+import { columnsBlock, gap, gridBlock, renderOneOrTwoPages, textBlock } from '../pdf/flow.js';
 import type { Block } from '../pdf/flow.js';
-import type { GridSpec } from '../pdf/grid.js';
-import type { Align } from '../pdf/typesetter.js';
+import type { TextStyle } from '../pdf/fonts.js';
+import type { GridCell, GridSpec } from '../pdf/grid.js';
 import type { Part2Data } from './form-data.js';
 import { fullWidth, gapAt, styler, tableGrid, textCell } from './layout.js';
 import type { Styler } from './layout.js';
+import { part2SignatureTitle } from './templates/part2.template.js';
 import type { Part2Template } from './templates/types.js';
 
-/** Table columns: S. No., Name of Candidate, No. of votes recorded. */
-const COL = { serial: 0, name: 1, votes: 2 } as const;
 const HEADER_ROW = 0;
 const FIRST_BODY_ROW = 1;
+const COL = { serial: 0, name: 1, votes: 2 } as const;
 
-/** What every block of one fit step needs. */
 interface Ctx {
   page: Page;
   t: Part2Template;
   s: Styler<keyof Part2Template['style']>;
   g: (gap: number) => number;
+  step: FitStep;
 }
 
-/** A piece of text in a horizontal slot of a line. */
-const slot = (text: string, x: number, width: number, align: Align = 'left') => ({
-  text,
-  x,
-  width,
-  align,
-});
+const leftText = (c: Ctx, text: string, style: TextStyle, after: number): Block =>
+  textBlock(c.page, text, style, fullWidth(c.page, 'left', after));
 
-function tableSpec(data: Part2Data, { t, s }: Ctx, step: FitStep): GridSpec {
-  const body = [
-    ...data.rows.map((r) => [r.serial, r.name, r.votes] as const),
-    [null, t.text.nota, data.nota] as const,
-    [t.text.total, null, data.total] as const,
-  ];
-  const cells = [
-    ...t.text.headers.map((h, col) =>
-      textCell(HEADER_ROW, col, h, s('header'), { align: 'center' }),
-    ),
-    ...body.flatMap((r, i) =>
-      r.map((text, col) =>
-        textCell(FIRST_BODY_ROW + i, col, text, s('cell'), {
-          align: col === COL.votes ? 'center' : 'left',
+/** "label   value" on one line; the value (bold) starts at slots.value and wraps in its slot. */
+function labelled(c: Ctx, label: string, value: string | null, after: number): Block {
+  const { page, t, s } = c;
+  const at = page.width * t.slots.value;
+  return columnsBlock(
+    [
+      [textBlock(page, label, s('body'), { x: page.left, width: at - 4, align: 'left', after: 0 })],
+      [
+        textBlock(page, value ?? '', s('value'), {
+          x: page.left + at,
+          width: page.width - at,
+          align: 'left',
+          after: 0,
         }),
-      ),
-    ),
-  ];
-  return tableGrid(t.table, t.table.width, step, FIRST_BODY_ROW + body.length, cells);
+      ],
+    ],
+    after,
+  );
 }
 
-/** The right-hand column: Counting Supervisor, Full Signature, Returning Officer. */
-const rightSlot = ({ page, t }: Ctx, text: string) =>
-  slot(
-    text,
-    page.left + page.width * t.slots.signatureFrom,
-    page.width * (1 - t.slots.signatureFrom),
-    'center',
-  );
+function votesTable(d: Part2Data, c: Ctx): GridSpec {
+  const { t, s, page, step } = c;
+  const centre = { align: 'center' as const };
+  const body: [string, string, TextStyle, string][] = [
+    ...d.rows.map((r): [string, string, TextStyle, string] => [
+      r.serial,
+      r.name,
+      s('name'),
+      r.votes,
+    ]),
+    [d.notaSerial, t.text.nota, s('cell'), d.nota],
+  ];
+  const totalRow = FIRST_BODY_ROW + body.length;
+  const cells: GridCell[] = [
+    ...t.text.headers.map((h, col) => textCell(HEADER_ROW, col, h, s('header'), centre)),
+    ...body.flatMap(([serial, name, style, votes], i) => [
+      textCell(FIRST_BODY_ROW + i, COL.serial, serial, s('cell'), centre),
+      textCell(FIRST_BODY_ROW + i, COL.name, name, style, { align: 'left' }),
+      textCell(FIRST_BODY_ROW + i, COL.votes, votes, s('name'), centre),
+    ]),
+    textCell(totalRow, COL.serial, t.text.total, s('header'), { align: 'left', colSpan: 2 }),
+    textCell(totalRow, COL.votes, d.total, s('name'), centre),
+  ];
+  return tableGrid(t.table, page.width, step, totalRow + 1, cells);
+}
 
-/** Place / Date and the agents' heading, as on the form. */
-function headBlocks(c: Ctx): Block[] {
+function agentsTable(c: Ctx): GridSpec {
+  const { t, s, page, step } = c;
+  const centre = { align: 'center' as const };
+  const cells: GridCell[] = [
+    ...t.text.agentHeaders.map((h, col) => textCell(HEADER_ROW, col, h, s('header'), centre)),
+    // Every cell drawn (blank ones too), so each row is fully ruled for hand writing.
+    ...Array.from({ length: t.text.agentRows }, (_, i) => [
+      textCell(FIRST_BODY_ROW + i, COL.serial, String(i + 1), s('cell'), centre),
+      textCell(FIRST_BODY_ROW + i, COL.name, null, s('cell')),
+      textCell(FIRST_BODY_ROW + i, COL.votes, null, s('cell')),
+    ]).flat(),
+  ];
+  return tableGrid(t.agentsTable, page.width, step, FIRST_BODY_ROW + t.text.agentRows, cells);
+}
+
+/** दिनांक, then स्थान on the left with the supervisor's signature on the right. */
+function datePlace(d: Part2Data, c: Ctx): Block[] {
   const { page, t, s, g } = c;
-  const tx = t.text;
-  const indentX = page.left + t.indent;
-  const agentsX = page.left + page.width * t.slots.agentsFrom;
+  const right = page.width * t.slots.right;
+  const line = (label: string, value: string | null, after: number) =>
+    columnsBlock(
+      [
+        [textBlock(page, label, s('body'), { x: page.left, width: 60, align: 'left', after: 0 })],
+        [
+          textBlock(page, value ?? '', s('value'), {
+            x: page.left + 62,
+            width: right - 70,
+            align: 'left',
+            after: 0,
+          }),
+        ],
+      ],
+      after,
+    );
   return [
-    lineBlock(page, [slot(tx.place, indentX, page.width)], s('body'), 0),
-    lineBlock(
-      page,
-      [slot(tx.date, indentX, page.width), rightSlot(c, tx.supervisor)],
-      s('body'),
+    line(t.text.date, d.date, g(t.gaps.date)),
+    columnsBlock(
+      [
+        [line(t.text.place, d.place, 0)],
+        [
+          textBlock(page, t.text.supervisor, s('heading'), {
+            x: page.left + right,
+            width: page.width - right,
+            align: 'center',
+            after: 0,
+          }),
+        ],
+      ],
       g(t.gaps.place),
     ),
-    lineBlock(
-      page,
-      [
-        slot(tx.agents, agentsX, page.width * t.slots.agentsWidth, 'center'),
-        rightSlot(c, tx.fullSignature),
-      ],
-      s('body'),
-      g(t.gaps.agents),
-    ),
   ];
 }
 
-/** The numbered agent lines, then the dotted lines; the last one carries the RO's signature. */
-function agentBlocks(c: Ctx): Block[] {
-  const { page, t, s, g } = c;
-  const tx = t.text;
-  const indentX = page.left + t.indent;
-  const line = (slots: ReturnType<typeof slot>[]) =>
-    lineBlock(page, slots, s('body'), g(t.gaps.agentLine));
-  const numbered = Array.from({ length: tx.agentLines }, (_, i) =>
-    line([slot(t.serial(i + 1), indentX, page.width)]),
-  );
-  const dotted = Array.from({ length: tx.dottedLines }, (_, i) =>
-    line([
-      slot(tx.dots, indentX, page.width),
-      ...(i === tx.dottedLines - 1 ? [rightSlot(c, tx.returningOfficer)] : []),
-    ]),
-  );
-  return [...numbered, ...dotted];
-}
-
-function part2Blocks(data: Part2Data, t: Part2Template, page: Page, step: FitStep): Block[] {
-  const c: Ctx = { page, t, s: styler(t.style, step, t.minFontSize), g: gapAt(step) };
-  const { s, g } = c;
+/** A fixed band for the pen signature, then the officer's title (by ward kind) and पदनाम एवं सील. */
+function officer(d: Part2Data, c: Ctx): Block[] {
+  const { page, t, s } = c;
+  const right = page.width * t.slots.right;
+  const at = { x: page.left + right, width: page.width - right, align: 'left' as const };
   return [
-    textBlock(page, t.text.rules, s('rules'), fullWidth(page, 'center', g(t.gaps.rules))),
-    textBlock(page, t.text.part, s('part'), fullWidth(page, 'center', g(t.gaps.part))),
-    textBlock(page, t.text.caption, s('caption'), fullWidth(page, 'center', 0)),
-    gridBlock(
-      page,
-      tableSpec(data, c, step),
-      page.left + (page.width - t.table.width) / 2,
-      g(t.gaps.table),
-    ),
-    textBlock(page, t.text.tally, s('body'), fullWidth(page, 'left', g(t.gaps.tally))),
-    ...headBlocks(c),
-    ...agentBlocks(c),
-    gap(g(t.gaps.footnote)),
-    ruleBlock(page, page.left, page.width, t.table.lineWidth, g(t.gaps.rule)),
-    textBlock(page, t.text.footnote, s('footnote'), fullWidth(page, 'left', 0)),
+    gap(t.signatureSpace),
+    textBlock(page, `${part2SignatureTitle(d.kind)} ${t.text.signatureOf}`, s('heading'), {
+      ...at,
+      after: 3,
+    }),
+    textBlock(page, t.text.seal, s('heading'), { ...at, after: 0 }),
   ];
 }
 
+function part2Parts(d: Part2Data, t: Part2Template, page: Page, step: FitStep): [Block[], Block[]] {
+  const c: Ctx = { page, t, step, s: styler(t.style, step, t.minFontSize), g: gapAt(step) };
+  const { s, g } = c;
+  const gaps = t.gaps;
+  const centred = (text: string, key: keyof Part2Template['style'], after: number) =>
+    textBlock(page, text, s(key), fullWidth(page, 'center', after));
+  return [
+    [
+      centred(t.text.form, 'form', g(gaps.form)),
+      centred(t.text.rules, 'rules', g(gaps.rules)),
+      centred(t.text.title, 'title', g(gaps.title)),
+      centred(t.text.part, 'part', g(gaps.part)),
+      leftText(c, t.text.details, s('heading'), g(gaps.details)),
+      labelled(c, t.text.bodyName[d.kind], d.bodyName, g(gaps.line)),
+      labelled(c, t.text.wardNo, d.wardNo, g(gaps.line)),
+      labelled(c, t.text.booth, d.booth, g(gaps.line)),
+      leftText(c, t.text.candidates, s('heading'), g(gaps.candidates)),
+      gridBlock(page, votesTable(d, c), page.left, g(gaps.table)),
+      leftText(c, t.text.verification, s('heading'), g(gaps.verification)),
+      leftText(c, `${t.text.tallyQuestion}  ${t.text.tallyAnswer}`, s('body'), g(gaps.tally)),
+      leftText(c, t.text.discrepancy, s('body'), g(gaps.tally) * 4),
+    ],
+    [
+      ...datePlace(d, c),
+      leftText(c, t.text.agents, s('heading'), g(gaps.agents)),
+      gridBlock(page, agentsTable(c), page.left, g(gaps.agentsTable)),
+      ...officer(d, c),
+    ],
+  ];
+}
+
+/**
+ * One page whenever it fits. A very long ballot gets two: the votes and the verification lines on
+ * page 1; date / place, the agents' table and the officer's block together on page 2.
+ */
 export function renderPart2(data: Part2Data, t: Part2Template): Promise<Buffer> {
-  return renderOnePage(t, (page, step) => part2Blocks(data, t, page, step));
+  return renderOneOrTwoPages(t, {
+    onePage: (page, step) => part2Parts(data, t, page, step).flat(),
+    twoPages: (page, step) => part2Parts(data, t, page, step),
+  });
 }

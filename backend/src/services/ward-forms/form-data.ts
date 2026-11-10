@@ -46,10 +46,24 @@ export interface Part2Row {
 }
 
 export interface Part2Data {
+  /** The ward's kind: the header wording and the officer's title depend on it. */
+  kind: 'PS' | 'ZP';
+  /** The body's name: the district (ZP) or the Panchayat Samiti (PS). */
+  bodyName: string;
+  /** Ward number as printed ("01"). */
+  wardNo: string;
+  /** "12A – <booth name>" on a booth sheet; null (blank line) on the ward sheet. */
+  booth: Cell;
   rows: Part2Row[];
+  /** The NOTA row's serial number (after the candidates). */
+  notaSerial: string;
   nota: string;
-  /** Candidates + NOTA, from the engine (WardResult.totalValidVotes). */
+  /** Ward sheet: the engine's totalValidVotes. Booth sheet: the entry's sheet total. */
   total: string;
+  /** The election date (DM setting, as on Prarup-7); null = blank. */
+  date: Cell;
+  /** The district. */
+  place: string;
 }
 
 // ---------------------------------------------------------------- Prarup-7
