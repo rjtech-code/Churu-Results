@@ -1,5 +1,8 @@
 import { eachPage, layoutProblems } from './layout-check';
-import { expect, test } from './support';
+import { SCREEN_STATE, expect, test } from './support';
+
+// The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
+test.use({ storageState: SCREEN_STATE });
 
 // Every page of every TV screen at both sizes: nothing overflows or overlaps, votes line up,
 // no page scrollbars. (Zero CSP violations: the support fixture.)

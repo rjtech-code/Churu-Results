@@ -81,6 +81,9 @@ export function ReportsView({
         <Link to="/reports/counting-status" className="btn btn-secondary no-print">
           Counting Status Report
         </Link>
+        <Link to="/admin/screens" className="btn btn-secondary no-print">
+          स्क्रीन सुरक्षा (Screen Keys)
+        </Link>
         <button
           type="button"
           className="btn btn-primary no-print"

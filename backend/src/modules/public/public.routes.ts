@@ -1,7 +1,9 @@
-// /api/public — read-only data for the media-room screens. Mounted BEFORE sessions: no session is
-// read or created and no cookie is ever set. Everything is served from the in-memory snapshot.
+// /api/public — read-only data for the media-room screens. Mounted BEFORE sessions: no dashboard
+// session is read or created and no cookie is ever set here. Every request (data and the live
+// stream) needs a live SCREEN session (the DM's screen keys, modules/screen-access): without one,
+// 401 SCREEN_LOCKED and no data. Everything is served from the in-memory snapshot.
 import { Router } from 'express';
-import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import type { PublicApiConfig } from '../../config/app-config.js';
@@ -39,6 +41,8 @@ export function publicRouter(
   snapshots: PublicSnapshotService,
   hub: SseHub,
   config: PublicApiConfig,
+  /** The screen-access guard (ScreenAccess.guard): 401 unless the request has a screen session. */
+  screenGuard: RequestHandler,
 ): Router {
   const router = Router();
 
@@ -54,20 +58,25 @@ export function publicRouter(
     next();
   });
 
-  // The stream is capped by connection count, not by the request limiter.
-  router.get('/stream', hub.handler);
-
+  // The request limiter runs before the screen check (no DB lookup for a flood). The stream is
+  // capped by connection count, not by the request limiter.
   router.use(
     rateLimit({
       windowMs: config.rateLimit.windowMs,
       limit: config.rateLimit.limit,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
+      skip: (req) => req.path === '/stream',
       handler: (_req, res) => {
         res.status(429).set('Cache-Control', 'no-store').json({ error: 'TOO_MANY_REQUESTS' });
       },
     }),
   );
+
+  // Every path below, the stream included, needs a live screen session.
+  router.use(screenGuard);
+
+  router.get('/stream', hub.handler);
 
   // Every data endpoint: current snapshot, no-store, ETag = snapshot version, 304 when unchanged.
   const withSnapshot =

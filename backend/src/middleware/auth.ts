@@ -52,6 +52,9 @@ const DM_ADMIN_WRITE = new RegExp(
       `booths/${ID}`,
       `booths/${ID}/move`,
       'settings/election-date',
+      // Screen access keys ("स्क्रीन सुरक्षा"): create, revoke, renew, and the DM's own preview.
+      'screen-keys/(?:create|preview)',
+      `screen-keys/${ID}/(?:revoke|renew)`,
     ].join('|') +
     ')$',
 );

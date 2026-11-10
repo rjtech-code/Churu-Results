@@ -624,8 +624,10 @@ Three media-room TVs show the results:
 They use a **read-only** public API.
 
 **How it is protected**
+- **Screen keys (DM-controlled, Nov 2026):** every `/api/public` request, the SSE stream included,
+  needs a screen session, else `401 SCREEN_LOCKED` and no data. See "Screen access keys" below.
 - **Before sessions:** `/api/public` sits right after `/api/health`, before sessions. A TV never
-  creates or reads a session, never gets a cookie, and an old or expired cookie can't break it.
+  creates or reads a dashboard login session, and an old or expired login cookie can't break it.
 - **GET only.** Any other method gets 405.
 - **Ward-level data only.** Never usernames, officer names, ids of entries, voter counts, lottery notes,
   audit data or internal alarms (a test scans every response).
@@ -681,8 +683,46 @@ They use a **read-only** public API.
   `reverse_proxy { flush_interval -1 }` for `/api/public/stream`, and keep compression off for it.
 
 ```bash
+# These need a screen session cookie (see "Screen access keys"): -b 'churu.screen=<token>'
 curl -N http://localhost:3000/api/public/stream          # watch versions arrive
 curl -s http://localhost:3000/api/public/screens/1 | head -c 600
+```
+
+### Screen access keys ("स्क्रीन सुरक्षा (Screen Keys)")
+Nobody can open a screen URL from home or a shop: the screens show only a key popup until a key
+from the DEO is typed. DM: रिपोर्ट → **स्क्रीन सुरक्षा (Screen Keys)** (`/admin/screens`).
+
+- **Keys:** label + optional expiry (default: until revoked). 12 characters without look-alikes,
+  shown as `XXXX-XXXX-XXXX`; case, spaces and hyphens are ignored when typed. The DM can show/copy a
+  key again later ("URL + key कॉपी करें" copies the 3 URLs and the key together). Stored only as an
+  HMAC-SHA256 (secret derived from `RO_PASSWORD_KEY`) plus an AES-256-GCM copy (same vault as the RO
+  password copies), which is wiped on revoke. Never logged, never in the audit log.
+- **रद्द करें** (revoke): instant. The key's sessions are deleted, its open streams get
+  `event: locked` and close, and the TV shows the popup again. **नई key बनाएँ** = revoke + new key
+  with the same label, one transaction.
+- **Screen session:** cookie `churu.screen` (HttpOnly, SameSite=Strict, path `/api`, Secure in
+  production), 7 days, but it ends at once when its key is revoked or expires. Every request re-checks
+  the key in the DB; open streams are also re-checked every 30 s.
+- **DM preview:** "देखें (Preview)" opens a screen in the DM's own browser without typing a key
+  (8 hours, valid only while that account is an active DM). A logged-in dashboard session by itself
+  is NOT a screen session. ROs and the Super Admin need a key like everybody else.
+- **Brute force:** `POST /api/screen-auth/unlock` has its own per-IP limiters: 10 FAILED attempts per
+  15 minutes (correct keys are not counted), then `429 TOO_MANY_ATTEMPTS` for the rest of the window
+  (one `SCREEN_UNLOCK_LOCKED_OUT` audit row); and 100 attempts of any kind per 15 minutes. Every wrong
+  key (unknown, revoked, expired, malformed) gets the same `401 WRONG_KEY` ("गलत key"); keys are
+  compared in constant time against every non-revoked key. It needs our own `Origin` header.
+- **How the limits interact (one shared venue IP):** the key limiters are separate counters. They
+  never count logins, `/api` or `/api/public` requests, and the login limiter (20 / 15 min) and the
+  `/api` limiter (600 / min) never count key attempts. A lockout only blocks NEW key entries from that
+  IP for up to 15 minutes; already unlocked TVs, the DM preview and all staff logins keep working.
+  Behind a reverse proxy set `TRUST_PROXY`, or every client looks like the proxy's IP.
+- **Audit:** `SCREEN_KEY_CREATED`, `SCREEN_KEY_REVOKED`, `SCREEN_UNLOCKED`, `SCREEN_PREVIEW_OPENED`,
+  `SCREEN_UNLOCK_LOCKED_OUT` (never the key).
+- **Tables:** `screen_key`, `screen_session` (migration `20261025000001_screen_access_keys`). Kept by
+  a master-data replace; screen sessions are not put in backups.
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/api/public/meta   # 401 without a key
 ```
 
 ### Screen layout (which PS appears on screen 1 and 2)

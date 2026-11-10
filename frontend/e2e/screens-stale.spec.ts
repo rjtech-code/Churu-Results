@@ -1,7 +1,10 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
-import { expect, test } from './support';
+import { SCREEN_STATE, expect, test } from './support';
+
+// The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
+test.use({ storageState: SCREEN_STATE });
 
 // Stopping the backend must show the red "old data" banner; starting it again must remove it.
 // Playwright's own web server cannot be stopped, so this spec runs its OWN backend (port 3198,

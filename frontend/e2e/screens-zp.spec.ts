@@ -1,5 +1,8 @@
 import type { Locator } from '@playwright/test';
-import { apiLogin, expect, test, world } from './support';
+import { SCREEN_STATE, apiLogin, expect, test, world } from './support';
+
+// The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
+test.use({ storageState: SCREEN_STATE });
 
 interface SeatRow {
   party: { shortName: string | null; nameHindi: string };
@@ -27,14 +30,13 @@ async function expectTable(table: Locator, rows: SeatRow[], withTotal: boolean) 
 
 test('screen 3: empty pie state; after a ZP declaration the pie, legend and tables match the API', async ({
   page,
-  request,
 }) => {
   await page.goto('/screen/3?interval=120');
   await expect(page.getByTestId('page-title')).toHaveText('ज़िला परिषद');
   await expect(page.getByTestId('pie-empty')).toHaveText('अभी कोई परिणाम घोषित नहीं');
   await expect(page.getByTestId('pie')).toHaveCount(0);
 
-  let api = (await (await request.get('/api/public/screens/3')).json()) as {
+  let api = (await (await page.request.get('/api/public/screens/3')).json()) as {
     partySeats: SeatRow[];
     psPartySeats: SeatRow[];
   };
@@ -57,7 +59,7 @@ test('screen 3: empty pie state; after a ZP declaration the pie, legend and tabl
 
   await expect(page.getByTestId('pie')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('pie-empty')).toHaveCount(0);
-  api = (await (await request.get('/api/public/screens/3')).json()) as {
+  api = (await (await page.request.get('/api/public/screens/3')).json()) as {
     partySeats: SeatRow[];
     psPartySeats: SeatRow[];
   };

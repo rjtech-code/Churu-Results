@@ -1,7 +1,10 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
-import { STATE_DIR, apiLogin, backendTool, expect, test, world } from './support';
+import { SCREEN_STATE, STATE_DIR, apiLogin, backendTool, expect, test, world } from './support';
+
+// The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
+test.use({ storageState: SCREEN_STATE });
 
 // Media-room TV screens: public, no login, no cookies. (Every test also fails on CSP violations.)
 // Serial: the second test switches the Sardarshahar PS to its Hindi name for the tests after it.

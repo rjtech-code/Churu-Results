@@ -36,6 +36,10 @@ export const APP_TABLE_PRIVILEGES: Readonly<Record<string, readonly Privilege[]>
   user_otp: READ_WRITE,
   // Which PS_RO enters each ZP ward's postal ballots (set by the zp-postal:set-default script).
   zp_ward_postal_assignment: READ_WRITE,
+  // Screen access keys (DM-controlled) and the unlocked TV sessions: access-control state, so the
+  // app revokes keys, wipes their encrypted copy and deletes their sessions.
+  screen_key: READ_WRITE,
+  screen_session: READ_WRITE,
 };
 
 /** Knex bookkeeping tables: the app user gets no access at all. */

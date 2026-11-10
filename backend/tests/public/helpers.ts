@@ -8,6 +8,7 @@ import { SseHub } from '../../src/modules/public/sse.js';
 import { PublicSnapshotService } from '../../src/services/public-snapshot.js';
 import { SCREEN_LAYOUT_KEY } from '../../src/services/screen-layout.js';
 import { testAppConfig } from '../auth/helpers.js';
+import { createDm, createKeyDirect, unlockCookie, withCookie } from '../screen-access/helpers.js';
 
 /** Fast timings for tests (production: 500 ms debounce, 2 s minimum interval, 60 s safety, 15 s heartbeat). */
 export const FAST: Partial<PublicApiConfig> = {
@@ -30,14 +31,23 @@ export async function useWorldLayout(pool: Pool): Promise<void> {
 }
 
 export interface PublicHarness {
+  /** The app as an UNLOCKED TV sees it: every request carries a real screen session cookie. */
   app: Express;
+  /** The same app without that cookie (as any browser without the key sees it). */
+  rawApp: Express;
+  /** The screen key behind `app`'s cookie. */
+  screenKey: { id: number; key: string; dmId: number };
   snapshots: PublicSnapshotService;
   hub: SseHub;
   logs: string[];
   stop: () => void;
 }
 
-/** A full app (counting + declare + public) with its own, started snapshot service. */
+/**
+ * A full app (counting + declare + public) with its own, started snapshot service. The public
+ * screens need a screen key since Nov 2026: a DM account and a key are created and unlocked through
+ * the real endpoint, and `app` sends that session cookie on every request.
+ */
 export async function publicApp(
   pool: Pool,
   overrides: Partial<PublicApiConfig> = {},
@@ -56,8 +66,13 @@ export async function publicApp(
     sseHub: hub,
   });
   await snapshots.start();
+  const dmId = await createDm(pool);
+  const key = await createKeyDirect(pool, dmId, { label: 'test harness TV' });
+  const cookie = await unlockCookie(app, key.key);
   return {
-    app,
+    app: withCookie(app, cookie),
+    rawApp: app,
+    screenKey: { id: key.id, key: key.key, dmId },
     snapshots,
     hub,
     logs,

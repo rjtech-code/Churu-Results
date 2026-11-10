@@ -3,11 +3,14 @@
 // ward per browser scenario. Entries are made through the real API (in-process), never by SQL.
 // Refuses to run against anything but a *_test database (loadTestEnv + resetData guards).
 import { writeFileSync } from 'node:fs';
-import type { Pool } from 'mysql2/promise';
+import type { Pool, RowDataPacket } from 'mysql2/promise';
 import request from 'supertest';
 import { createMigrationKnex } from '../../src/db/knex-config.js';
 import { runMigrations } from '../../src/db/migrate.js';
+import { createScreenKey } from '../../src/modules/screen-access/screen-keys.service.js';
+import { parseVaultKey } from '../../src/services/master-data/password-vault.js';
 import { SCREEN_LAYOUT_KEY } from '../../src/services/screen-layout.js';
+import { screenKeyHashSecret } from '../../src/services/screen-key.js';
 import type { ScreenLayout } from '../../src/services/screen-layout.js';
 import { buildApp, createUser, csrfToken, login, seedTwoPs } from '../auth/helpers.js';
 import {
@@ -119,6 +122,8 @@ export interface E2eWorld {
   otherPsWard: number;
   screens: E2eScreens;
   combined: E2eCombined;
+  /** A screen access key ("e2e TV") the screen specs unlock with (global setup). */
+  screenKey: string;
 }
 
 /** Part 14: a PS ward whose booths' ZP ward is open too (the PS RO's combined parchi). */
@@ -344,7 +349,40 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
     JSON.stringify(layout),
     SCREEN_LAYOUT_KEY,
   ]);
-  return { password: E2E_PASSWORD, admin, users, wards, otherPsWard, screens, combined };
+  // Screen access: the TVs need a key. Hashed / encrypted with the SERVER's RO_PASSWORD_KEY (.env),
+  // so the e2e server accepts it and the DM page can show it.
+  const vaultKey = parseVaultKey(process.env.RO_PASSWORD_KEY ?? '');
+  if (vaultKey === null)
+    throw new Error('seed-e2e: RO_PASSWORD_KEY missing or invalid in backend/.env');
+  const [dmRows] = await app.execute<RowDataPacket[]>('SELECT id FROM users WHERE username = ?', [
+    users.dm,
+  ]);
+  const dmKey = await createScreenKey(
+    app,
+    {
+      user: {
+        id: Number(dmRows[0]?.id),
+        username: users.dm,
+        fullName: null,
+        role: 'DM',
+        panchayatSamitiId: null,
+        panchayatSamitiName: null,
+      },
+      ip: null,
+    },
+    { label: 'e2e TV', expiresAt: null },
+    { vaultKey, hashSecret: screenKeyHashSecret(vaultKey) },
+  );
+  return {
+    password: E2E_PASSWORD,
+    admin,
+    users,
+    wards,
+    otherPsWard,
+    screens,
+    combined,
+    screenKey: dmKey.key ?? '',
+  };
 }
 
 type PartyKey = 'BJP' | 'INC' | 'RLP';

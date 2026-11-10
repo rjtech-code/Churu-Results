@@ -25,6 +25,34 @@ export interface AppConfig {
   frontendDist: string | null;
   /** Super Admin panel. Left out: its backups, resets and booth changes are refused. */
   setup?: SetupConfig;
+  /** Screen access keys (limits and lifetimes). Left out: the defaults below. */
+  screenAccess?: Partial<ScreenAccessConfig>;
+}
+
+/** Screen access keys for the public TV screens (DM-controlled). */
+export interface ScreenAccessConfig {
+  /** FAILED key attempts per IP per window; then the key popup is refused until the window ends. */
+  unlockFailureLimit: RateLimitConfig;
+  /** ALL key attempts per IP per window (also correct ones), so a key holder cannot flood sessions. */
+  unlockTotalLimit: RateLimitConfig;
+  /** Lifetime of an unlocked TV (it also ends at once when its key is revoked or expires). */
+  sessionMaxAgeMs: number;
+  /** Lifetime of a DM preview opened from the dashboard (no key typed). */
+  previewMaxAgeMs: number;
+  /** How often open live-update streams are re-checked against the database. */
+  streamRecheckMs: number;
+}
+
+export const SCREEN_ACCESS_DEFAULTS: ScreenAccessConfig = {
+  unlockFailureLimit: { limit: 10, windowMs: 15 * 60_000 },
+  unlockTotalLimit: { limit: 100, windowMs: 15 * 60_000 },
+  sessionMaxAgeMs: 7 * 24 * 3_600_000,
+  previewMaxAgeMs: 8 * 3_600_000,
+  streamRecheckMs: 30_000,
+};
+
+export function screenAccessConfig(config: AppConfig): ScreenAccessConfig {
+  return { ...SCREEN_ACCESS_DEFAULTS, ...config.screenAccess };
 }
 
 /** What the Super Admin panel needs besides the app pool. */

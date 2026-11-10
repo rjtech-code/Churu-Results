@@ -10,6 +10,7 @@ const EMPTY: FeedState = {
   unavailable: false,
   failed: false,
   changed: new Set(),
+  locked: false,
 };
 
 /** Live data of one screen (fetch + SSE, see liveFeed.ts). */

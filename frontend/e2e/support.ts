@@ -8,6 +8,8 @@ export const STATE_DIR = resolve(import.meta.dirname, '.state');
 export const WORLD_FILE = resolve(STATE_DIR, 'world.json');
 /** Browser storage of the Churu PS RO, logged in once in global setup (keeps logins under the rate limit). */
 export const RO_STATE = resolve(STATE_DIR, 'ro.json');
+/** Browser storage of an UNLOCKED TV (screen key typed once in global setup): test.use({ storageState }). */
+export const SCREEN_STATE = resolve(STATE_DIR, 'screen.json');
 const BACKEND = resolve(import.meta.dirname, '../../backend');
 
 export interface E2eWard {
@@ -56,6 +58,8 @@ export interface E2eWorld {
     lottery: { wardNo: number; winnerId: number; loserId: number };
     zpReady: { wardId: number; wardNo: number };
   };
+  /** Screen access key seeded for the screen specs. */
+  screenKey: string;
 }
 
 let cached: E2eWorld | undefined;
@@ -172,4 +176,13 @@ export function backendTool(file: string, args: string[]): string {
     env: { ...process.env, DB_NAME: 'churu_test', NODE_ENV: 'test' },
     encoding: 'utf8',
   });
+}
+
+/** Unlocks the TV screens in this browser context with `key` (as the key popup does). */
+export async function unlockScreens(ctx: APIRequestContext, key = world().screenKey): Promise<void> {
+  const res = await ctx.post('/api/screen-auth/unlock', {
+    headers: { Origin: 'http://localhost:3199' },
+    data: { key },
+  });
+  if (res.status() !== 200) throw new Error(`screen unlock failed: ${res.status()}`);
 }

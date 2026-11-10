@@ -28,6 +28,13 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   METHOD_NOT_ALLOWED: 'यह काम यहाँ नहीं हो सकता',
   SNAPSHOT_UNAVAILABLE: 'परिणाम अभी उपलब्ध नहीं हैं',
   TOO_MANY_STREAMS: 'बहुत अधिक स्क्रीन जुड़ी हैं',
+  // Screen access keys (स्क्रीन सुरक्षा)
+  EXPIRY_NOT_IN_FUTURE: 'समाप्ति का समय अभी से कम से कम 5 मिनट बाद का चुनें',
+  EXPIRY_TOO_FAR: 'समाप्ति का समय 90 दिन के अंदर चुनें',
+  ALREADY_REVOKED: 'यह key पहले ही रद्द हो चुकी है — पेज दोबारा खोलें',
+  SCREEN_LOCKED: 'स्क्रीन key चाहिए',
+  WRONG_KEY: 'गलत key',
+  TOO_MANY_ATTEMPTS: 'बहुत ज़्यादा गलत कोशिशें, कुछ मिनट बाद फिर कोशिश करें',
   [NETWORK_ERROR]: 'सर्वर से संपर्क नहीं हो सका — नेटवर्क जाँचें',
   // Counting
   BOOTH_NOT_IN_WARD: 'यह बूथ इस वार्ड का नहीं है',

@@ -35,7 +35,7 @@ export const TEST_DATA_TABLES: readonly string[] = [
 
 /**
  * Kept by a master-data replace: the audit log (never emptied), the 15 + 1 logins (and their
- * sessions / OTP codes), the district and the Panchayat Samiti rows the RO accounts point to (re-used
+ * sessions / OTP codes), the screen keys and screen sessions, the district and the Panchayat Samiti rows the RO accounts point to (re-used
  * and renamed by the geography import), and the settings. Everything else is emptied.
  */
 export const KEPT_TABLES: ReadonlySet<string> = new Set([
@@ -43,6 +43,9 @@ export const KEPT_TABLES: ReadonlySet<string> = new Set([
   'users',
   'sessions',
   'user_otp',
+  // Screen access: the DM's keys and the unlocked TVs survive a master-data replace (not master data).
+  'screen_key',
+  'screen_session',
   'district',
   'panchayat_samiti',
   'app_settings',

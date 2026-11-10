@@ -1,7 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { request } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { RO_STATE, STATE_DIR, WORLD_FILE, backendScript, world } from './support';
+import {
+  RO_STATE,
+  SCREEN_STATE,
+  STATE_DIR,
+  WORLD_FILE,
+  backendScript,
+  unlockScreens,
+  world,
+} from './support';
 
 // Runs after the web server is up: fresh e2e data in churu_test, then one stored RO login.
 export default async function globalSetup(): Promise<void> {
@@ -16,13 +24,18 @@ export default async function globalSetup(): Promise<void> {
   });
   if (res.status() !== 200) throw new Error(`global setup login failed: ${res.status()}`);
   await ctx.storageState({ path: RO_STATE });
+  // An unlocked TV: the screen specs start from this state (the screens need the DEO's key).
+  const tv = await request.newContext({ baseURL: BASE_URL });
+  await unlockScreens(tv);
+  await tv.storageState({ path: SCREEN_STATE });
   // The seed writes the screen layout last; wait for a public snapshot generated AFTER the seed
   // finished (the layout poll rebuilds within ~2 s), so the TV screens show the finished data.
   for (let i = 0; ; i++) {
-    const meta = (await (await ctx.get('/api/public/meta')).json()) as { generatedAt?: string };
+    const meta = (await (await tv.get('/api/public/meta')).json()) as { generatedAt?: string };
     if (meta.generatedAt !== undefined && Date.parse(meta.generatedAt) > seededAt) break;
     if (i > 40) throw new Error('global setup: public snapshot did not pick up the e2e data');
     await new Promise((r) => setTimeout(r, 500));
   }
   await ctx.dispose();
+  await tv.dispose();
 }

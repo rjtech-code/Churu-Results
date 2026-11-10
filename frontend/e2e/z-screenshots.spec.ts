@@ -1,7 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { eachPage, layoutProblems } from './layout-check';
-import { expect, loginUi, test, world } from './support';
+import { SCREEN_STATE, expect, loginUi, test, world } from './support';
+
+// The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
+test.use({ storageState: SCREEN_STATE });
 
 // Screenshots of every page of the three TV screens at 1920x1080 and 1366x768 with the e2e data,
 // for visual review (frontend/screenshots/, git-ignored). Runs last, after the other specs changed

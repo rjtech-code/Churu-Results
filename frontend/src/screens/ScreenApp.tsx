@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { psTitle } from './format';
 import { useHideCursor, useLiveFeed, useScreenPager, useStageScale } from './hooks';
+import { KeyPrompt } from './KeyPrompt';
 import { cardsOf } from './liveFeed';
 import type { FeedState } from './liveFeed';
 import {
@@ -42,7 +44,11 @@ function Stage({ children }: { children: ReactNode }) {
   );
 }
 
-/** /screen/:n — public, no login, no dashboard header, no /api/auth. */
+/**
+ * /screen/:n — no dashboard login, no header, no /api/auth. The data needs a screen session (the
+ * DEO's screen key, typed once into the popup; or the DM's preview): until then, and again as soon as
+ * the key is revoked or expires, only the key popup is shown.
+ */
 export function ScreenApp() {
   const n = useParams().n;
   const screen: ScreenNo | null = n === '1' ? 1 : n === '2' ? 2 : n === '3' ? 3 : null;
@@ -56,7 +62,34 @@ export function ScreenApp() {
       </Stage>
     );
   }
-  return <LiveScreen screen={screen} />;
+  return <GuardedScreen screen={screen} />;
+}
+
+/** The live screen, or the key popup while the server refuses this browser. */
+function GuardedScreen({ screen }: { screen: ScreenNo }) {
+  // A new run = a fresh feed (remount) after a successful unlock.
+  const [run, setRun] = useState(0);
+  const [locked, setLocked] = useState(false);
+  if (locked) {
+    return (
+      <KeyPrompt
+        screen={screen}
+        onUnlocked={() => {
+          setLocked(false);
+          setRun((r) => r + 1);
+        }}
+      />
+    );
+  }
+  return (
+    <LiveScreen
+      key={run}
+      screen={screen}
+      onLocked={() => {
+        setLocked(true);
+      }}
+    />
+  );
 }
 
 /** Every party short name on this screen, so each party has one colour everywhere on it. */
@@ -75,8 +108,11 @@ function shortNamesOf(bundle: ScreenBundle): string[] {
 
 const emptySummary = { wardsTotal: 0, declared: 0, unopposed: 0, counting: 0, notStarted: 0 };
 
-function LiveScreen({ screen }: { screen: ScreenNo }) {
+function LiveScreen({ screen, onLocked }: { screen: ScreenNo; onLocked: () => void }) {
   const feed = useLiveFeed(screen);
+  useEffect(() => {
+    if (feed.locked) onLocked();
+  }, [feed.locked, onLocked]);
   const intervalS = parseInterval(useLocation().search);
   const bundle = feed.bundle;
   const pages: Page[] =

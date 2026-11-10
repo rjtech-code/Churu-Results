@@ -25,6 +25,7 @@ import { CandidatesHomePage } from './pages/admin/CandidatesHomePage';
 import { PartiesPage } from './pages/admin/PartiesPage';
 import { ProfilePage } from './pages/admin/ProfilePage';
 import { RoBulkAddPage } from './pages/admin/RoBulkAddPage';
+import { ScreenKeysPage } from './pages/admin/ScreenKeysPage';
 import { UserSeatPage } from './pages/admin/UserSeatPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { WardCategoryPage } from './pages/admin/WardCategoryPage';
@@ -53,7 +54,8 @@ function Home() {
 }
 
 export const router = createBrowserRouter([
-  // Media-room TV screens: public, outside the dashboard (no AuthProvider, no /api/auth, no header).
+  // Media-room TV screens: outside the dashboard (no AuthProvider, no /api/auth, no header). The data
+  // needs the DEO's screen key (popup) or the DM's preview.
   { path: '/screen/:n', element: <ScreenApp /> },
   {
     element: <Root />,
@@ -107,6 +109,8 @@ export const router = createBrowserRouter([
           { path: '/admin/booths', element: <BoothsPage /> },
           { path: '/admin/booths/:psId/:boothId', element: <BoothEditPage /> },
           { path: '/admin/wards/:psId', element: <WardCategoryPage /> },
+          // "स्क्रीन सुरक्षा": the screen access keys of the public TV screens.
+          { path: '/admin/screens', element: <ScreenKeysPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

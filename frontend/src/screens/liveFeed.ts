@@ -41,6 +41,8 @@ export interface FeedState {
   failed: boolean;
   /** Ward ids whose card changed in the last 3 s. */
   changed: ReadonlySet<number>;
+  /** No (more) screen access: the key was never typed, or was revoked / expired. Feed stopped. */
+  locked: boolean;
 }
 
 /** The part of EventSource the feed uses. */
@@ -48,7 +50,7 @@ export interface StreamLike {
   readyState: number;
   onopen: ((ev: Event) => void) | null;
   onerror: ((ev: Event) => void) | null;
-  addEventListener(type: 'snapshot', listener: (ev: MessageEvent<string>) => void): void;
+  addEventListener(type: 'snapshot' | 'locked', listener: (ev: MessageEvent<string>) => void): void;
   close(): void;
 }
 
@@ -92,6 +94,7 @@ export class LiveFeed {
   private failed = false;
   private highlightUntil = new Map<number, number>();
   private lastEmitted = '';
+  private locked = false;
 
   constructor(
     private readonly screen: ScreenNo,
@@ -115,6 +118,15 @@ export class LiveFeed {
     if (this.timer !== null) clearInterval(this.timer);
     this.stream?.close();
     this.stream = null;
+  }
+
+  /** The server refused this screen (401 / "locked" event): stop everything, ask for the key. */
+  private lock(): void {
+    if (this.locked) return;
+    this.locked = true;
+    this.bundle = null; // never keep showing results to a screen whose access ended
+    this.stop();
+    this.emit();
   }
 
   private paths(): string[] {
@@ -142,6 +154,10 @@ export class LiveFeed {
         this.reopenAt = this.deps.now() + TIMING.reopenMs;
       }
     };
+    s.addEventListener('locked', (ev) => {
+      // Only the real event (the server ends a revoked / expired session with it).
+      if (ev.type === 'locked') this.lock();
+    });
     s.addEventListener('snapshot', (ev) => {
       this.streamDownSince = null;
       this.lastEventAt = this.deps.now();
@@ -195,6 +211,10 @@ export class LiveFeed {
       this.unavailable = false;
       this.failed = false;
     } catch (err) {
+      if (err instanceof PublicHttpError && err.status === 401) {
+        this.lock();
+        return;
+      }
       if (this.bundle === null) {
         if (err instanceof PublicHttpError && err.code === 'SNAPSHOT_UNAVAILABLE') this.unavailable = true;
         else this.failed = true;
@@ -258,6 +278,7 @@ export class LiveFeed {
       unavailable: this.unavailable,
       failed: this.failed,
       changed: new Set(this.highlightUntil.keys()),
+      locked: this.locked,
     };
     const key = JSON.stringify([
       state.bundle?.version,
@@ -265,6 +286,7 @@ export class LiveFeed {
       state.stale,
       state.unavailable,
       state.failed,
+      state.locked,
       [...state.changed],
     ]);
     if (key === this.lastEmitted) return;

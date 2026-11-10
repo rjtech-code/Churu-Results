@@ -3,8 +3,9 @@
 // not the schema: restore it into the same, migrated database (same schema version), as root:
 //   gunzip -c <file> | mysql -uroot -p <database>
 // Restoring never drops a table, so the append-only triggers stay in place. audit_log is never
-// emptied: its rows are put back with INSERT IGNORE (rows that exist stay). Sessions and one-time
-// codes are not kept (live session ids / code hashes). Only the newest KEEP_BACKUPS files are kept.
+// emptied: its rows are put back with INSERT IGNORE (rows that exist stay). Sessions, screen sessions
+// and one-time codes are not kept (live session ids / token / code hashes). Only the newest
+// KEEP_BACKUPS files are kept.
 import { createWriteStream } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ import { APP_TABLE_PRIVILEGES } from '../../db/grants.js';
 import { formatIst, istStamp } from './report.js';
 
 /** Emptied on restore, never filled (live login data). */
-const NO_ROW_TABLES: ReadonlySet<string> = new Set(['sessions', 'user_otp']);
+const NO_ROW_TABLES: ReadonlySet<string> = new Set(['sessions', 'user_otp', 'screen_session']);
 /** Never emptied on restore: rows are added back with INSERT IGNORE. */
 const NEVER_EMPTIED: ReadonlySet<string> = new Set(['audit_log']);
 const ROWS_PER_INSERT = 200;

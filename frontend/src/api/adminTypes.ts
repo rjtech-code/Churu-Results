@@ -348,3 +348,25 @@ export interface NameCorrected {
   nameHindi: string;
   changedAt: string;
 }
+
+/** "स्क्रीन सुरक्षा": a screen access key as the DM list shows it (GET /api/admin/screen-keys). */
+export type ScreenKeyStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+export interface ScreenKey {
+  id: number;
+  label: string;
+  /** XXXX-XXXX-XXXX, only while ACTIVE (never stored in the browser). */
+  key: string | null;
+  status: ScreenKeyStatus;
+  createdAt: string;
+  createdByName: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  /** Screens of this key seen in the last 5 minutes. */
+  activeScreens: number;
+}
+export const SCREEN_KEY_STATUS_HINDI: Record<ScreenKeyStatus, string> = {
+  ACTIVE: 'सक्रिय',
+  REVOKED: 'रद्द',
+  EXPIRED: 'समाप्त',
+};

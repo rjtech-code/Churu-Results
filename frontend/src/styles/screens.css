@@ -759,3 +759,100 @@ button.tv-scope-chip-on {
   font-size: 32px;
   font-weight: 400;
 }
+
+/* The screen key popup (KeyPrompt). Outside the 1920x1080 stage on purpose: it is sized to the real
+   window, so it is large on a TV across the room and still fits a phone (16px side gutter). */
+.screen-lock {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: var(--tv-header);
+  color: var(--tv-text);
+}
+.screen-lock-card {
+  width: 100%;
+  max-width: 760px;
+  box-sizing: border-box;
+  background: var(--tv-card);
+  border-radius: 16px;
+  padding: clamp(20px, 4vw, 48px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
+  text-align: center;
+}
+.screen-lock-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 4.5vw, 56px);
+  color: var(--tv-header);
+}
+.screen-lock-hint {
+  margin: 0 0 24px;
+  font-size: clamp(17px, 2.2vw, 28px);
+  line-height: 1.45;
+  color: var(--tv-muted);
+}
+.screen-lock-label {
+  display: block;
+  font-size: clamp(18px, 2.2vw, 28px);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.screen-lock-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, 'DejaVu Sans Mono', monospace;
+  font-size: clamp(26px, 5vw, 60px);
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 12px 8px;
+  border: 3px solid var(--tv-card-border);
+  border-radius: 10px;
+  color: var(--tv-text);
+  background: #fff;
+}
+.screen-lock-input:focus {
+  outline: 4px solid var(--st-amber);
+  outline-offset: 2px;
+  border-color: var(--tv-header);
+}
+.screen-lock-input[aria-invalid='true'] {
+  border-color: var(--st-red);
+}
+.screen-lock-error {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: clamp(20px, 2.8vw, 34px);
+  font-weight: 700;
+  background: var(--st-red-bg);
+  color: var(--st-red-ink);
+}
+.screen-lock-button {
+  margin-top: 24px;
+  width: 100%;
+  min-height: 64px;
+  font-size: clamp(22px, 3vw, 40px);
+  font-weight: 700;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tv-header);
+  color: #fff;
+  cursor: pointer;
+}
+.screen-lock-button:focus-visible {
+  outline: 4px solid var(--st-amber);
+  outline-offset: 3px;
+}
+.screen-lock-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+.screen-lock-small {
+  margin: 16px 0 0;
+  font-size: clamp(15px, 1.6vw, 22px);
+  color: var(--tv-muted);
+}

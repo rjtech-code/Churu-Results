@@ -28,6 +28,9 @@ import {
   superAdminRouter,
 } from './modules/superadmin/superadmin.routes.js';
 import { SseHub } from './modules/public/sse.js';
+import { ScreenAccess } from './modules/screen-access/screen-access.js';
+import { screenAuthRouter } from './modules/screen-access/screen-auth.routes.js';
+import { screenKeysRouter } from './modules/screen-access/screen-keys.routes.js';
 import { consoleMailer } from './services/mailer.js';
 import type { Mailer } from './services/mailer.js';
 import { PublicSnapshotService } from './services/public-snapshot.js';
@@ -67,6 +70,8 @@ export function createApp({
     });
   app.locals.publicSnapshot = snapshots;
   app.locals.sseHub = hub;
+  // The DM's screen keys: the gate of /api/public and of its live stream.
+  const screenAccess = new ScreenAccess(pool, config, hub);
 
   // 1. No framework fingerprint; trust proxy only as configured (never "true").
   app.disable('x-powered-by');
@@ -96,8 +101,12 @@ export function createApp({
   app.use('/api/health', healthRouter(pool));
 
   // 3b. Public media-room screens: read-only, own rate limit, ends here (never reaches sessions,
-  //     so no cookie is read or set and an expired session cannot break a TV screen).
-  app.use('/api/public', publicRouter(snapshots, hub, config.publicApi));
+  //     so no dashboard cookie is read or set and an expired login cannot break a TV screen). Every
+  //     request needs a screen session (screen key typed into the popup, or a DM preview).
+  app.use('/api/public', publicRouter(snapshots, hub, config.publicApi, screenAccess.guard));
+  // 3b'. The screen key popup (POST /unlock only): own Origin check and own per-IP limiters, ends
+  //     here (never touches sessions, the /api limiter or the login limiter).
+  app.use('/api/screen-auth', screenAuthRouter(screenAccess, config.appOrigin));
 
   // 3c. The built operator dashboard (static, GET only, never /api): before sessions, so static
   //     files never touch a session. SPA routes fall back to index.html.
@@ -141,6 +150,7 @@ export function createApp({
   app.use('/api/reports', reportsRouter(pool));
   app.use('/api/st-format', stFormatRouter(pool));
   app.use('/api/ward-forms', wardFormsRouter(pool));
+  app.use('/api/admin/screen-keys', screenKeysRouter(screenAccess));
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
   app.use('/api/superadmin', superAdminRouter(pool, config));
