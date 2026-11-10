@@ -179,17 +179,18 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
     expect(mapPrarup7(formSource(), T).signaturePlace).toBe('चूरू');
   });
 
-  it('PS: Panchayat Samiti words, rule numbers left as dots, no Zila Parishad wording anywhere', () => {
+  it('PS: Panchayat Samiti words, the form rule numbers, column rules left as dots, no Zila Parishad wording anywhere', () => {
     expect(PS.text.heading).toBe(
       'पंचायत समिति के सदस्य के पद के लिए निर्वाचन के परिणामों को दर्शित करने वाली विवरणी',
     );
     expect(PS.text.office).toBe('पंचायत समिति के सदस्य');
-    expect(PS.text.rules).toBe(`(नियम ${RULE_NUMBER_BLANK} देखिये)`);
+    // The header blank carries the rule numbers (DEO instruction, Nov 2026), as on the ZP form.
+    expect(PS.text.rules).toBe('(नियम 52, 59, 60, 61 देखिये)');
     expect(PS.text.columns.uncontested).toMatch(new RegExp(`^नियम ${RULE_NUMBER_BLANK} के अधीन`));
     expect(PS.text.columns.lot).toMatch(new RegExp(`^नियम ${RULE_NUMBER_BLANK} के अधीन`));
     expect(PS.text.declarationColumns[1]).toBe('कार्यालय का नाम सदस्य, पंचायत समिति');
     expect(allText(PS.text).filter((t) => t.includes('परिषद'))).toEqual([]);
-    expect(allText(PS.text).filter((t) => /\d{2}/.test(t))).toEqual([]);
+    expect(allText(PS.text).filter((t) => /\d{2}/.test(t))).toEqual([PS.text.rules]);
   });
 
   it('PS header: its own name and its ward count; no "PS names of this ward" item', () => {

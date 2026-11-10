@@ -100,6 +100,7 @@ const LAYOUT: Omit<Prarup7Template, 'title' | 'text' | 'signaturePlace'> = {
   },
   headerGutter: 6,
   footerSplit: 0.5,
+  signatureSpace: 57,
   formats: {
     numbered: (n, text) => `${String(n)}. ${text}`,
     bracketed: (text) => `(${text})`,

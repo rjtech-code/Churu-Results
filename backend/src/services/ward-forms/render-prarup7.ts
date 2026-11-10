@@ -1,12 +1,12 @@
-// Prarup-7 on ONE A4 landscape page: header, result statement, declaration and signature block
-// (the printed form uses two pages). Layout only: words, sizes and widths come from the template.
+// Prarup-7 on one A4 landscape page (two when a ward is too tall): header, result statement,
+// declaration and signature block (the printed form uses two pages). Layout only: words, sizes and widths come from the template.
 import type { Page } from '../pdf/document.js';
 import type { FitStep } from '../pdf/fit.js';
-import { columnsBlock, gridBlock, renderOnePage, textBlock } from '../pdf/flow.js';
+import { columnsBlock, gap, gridBlock, renderOneOrTwoPages, textBlock } from '../pdf/flow.js';
 import type { Block } from '../pdf/flow.js';
 import type { GridCell, GridSpec } from '../pdf/grid.js';
 import type { Align } from '../pdf/typesetter.js';
-import type { Prarup7Data, Prarup7Row } from './form-data.js';
+import type { Cell, Prarup7Data, Prarup7Row } from './form-data.js';
 import { fullWidth, gapAt, styler, tableGrid, textCell } from './layout.js';
 import type { Styler } from './layout.js';
 import { PLACEHOLDER } from './templates/prarup7.template.js';
@@ -174,37 +174,71 @@ function headerLine(d: Prarup7Data, { t, s, page }: Ctx, after: number): Block {
   return columnsBlock(slots, after);
 }
 
-/** स्थान / दिनांक (blank for hand filling) on the left, the Returning Officer's block on the right. */
+/**
+ * The footer, as on the signed sample: first a fixed empty band for the handwritten signature and
+ * stamp, then स्थान / दिनांक on the left and the Returning Officer's block on the right, with the
+ * RO's name right under the "... निर्वाचन" line (a long name wraps inside the right half). One block: measured with the
+ * rest of the page, so it never overlaps the tables and is never split from them.
+ */
 function footer(d: Prarup7Data, { t, s, page, g }: Ctx): Block {
   const split = page.width * t.footerSplit;
   const line = (text: string, x: number, width: number, align: Align) =>
     textBlock(page, text, s('footer'), { x, width, align, after: g(t.gaps.footerLine) });
-  const left = [t.text.place, t.text.date].map((text) => line(text, page.left, split, 'left'));
-  // Empty lines stay as blank lines, for hand filling.
-  const right = [...t.text.signature, d.signaturePlace ?? ''].map((text) =>
-    line(text, page.left + split, page.width - split, 'center'),
+  const labelled = (label: string, value: Cell) =>
+    value === null ? label : t.formats.labelled(label, value);
+  const left = [labelled(t.text.place, d.place), labelled(t.text.date, d.date)].map((text) =>
+    line(text, page.left, split, 'left'),
   );
-  return columnsBlock([left, right], 0);
+  // Empty lines stay as blank lines, for hand filling.
+  // रिटर्निंग अधिकारी, the "... निर्वाचन" line, then the RO's name, then the designation and place.
+  const [title, election, ...rest] = t.text.signature;
+  const officer = [title ?? '', election ?? '', d.roName ?? '', ...rest, d.signaturePlace ?? ''];
+  const right = officer.map((text) => line(text, page.left + split, page.width - split, 'center'));
+  return columnsBlock(
+    [
+      [gap(t.signatureSpace), ...left],
+      [gap(t.signatureSpace), ...right],
+    ],
+    0,
+  );
 }
 
-function prarup7Blocks(d: Prarup7Data, t: Prarup7Template, page: Page, step: FitStep): Block[] {
+/** [header + result table, declaration + its table + footer]: one page, or two when too tall. */
+export function prarup7Parts(
+  d: Prarup7Data,
+  t: Prarup7Template,
+  page: Page,
+  step: FitStep,
+): [Block[], Block[]] {
   const c: Ctx = { page, t, step, s: styler(t.style, step, t.minFontSize), g: gapAt(step) };
   const { s, g } = c;
   const gaps = t.gaps;
   const sentence = t.text.declaration.replace(PLACEHOLDER.ward, d.wardNoPadded);
   return [
-    textBlock(page, t.text.form, s('form'), fullWidth(page, 'center', g(gaps.form))),
-    textBlock(page, t.text.rules, s('rules'), fullWidth(page, 'center', g(gaps.rules))),
-    textBlock(page, t.text.heading, s('heading'), fullWidth(page, 'center', g(gaps.heading))),
-    textBlock(page, t.text.office, s('office'), fullWidth(page, 'left', g(gaps.office))),
-    headerLine(d, c, g(gaps.header)),
-    gridBlock(page, resultTable(d, c), page.left, g(gaps.table)),
-    textBlock(page, sentence, s('declaration'), fullWidth(page, 'left', g(gaps.declaration))),
-    gridBlock(page, declarationTable(d, c), page.left, g(gaps.declarationTable)),
-    footer(d, c),
+    [
+      textBlock(page, t.text.form, s('form'), fullWidth(page, 'center', g(gaps.form))),
+      textBlock(page, t.text.rules, s('rules'), fullWidth(page, 'center', g(gaps.rules))),
+      textBlock(page, t.text.heading, s('heading'), fullWidth(page, 'center', g(gaps.heading))),
+      textBlock(page, t.text.office, s('office'), fullWidth(page, 'left', g(gaps.office))),
+      headerLine(d, c, g(gaps.header)),
+      gridBlock(page, resultTable(d, c), page.left, g(gaps.table)),
+    ],
+    [
+      textBlock(page, sentence, s('declaration'), fullWidth(page, 'left', g(gaps.declaration))),
+      gridBlock(page, declarationTable(d, c), page.left, g(gaps.declarationTable)),
+      footer(d, c),
+    ],
   ];
 }
 
+/**
+ * One A4 landscape page when it fits. A ward too tall for one page (many candidates with long
+ * details, plus the fixed signature band) gets two: the result table on page 1, and the
+ * declaration, its table and the whole footer kept together on page 2 (never split).
+ */
 export function renderPrarup7(data: Prarup7Data, t: Prarup7Template): Promise<Buffer> {
-  return renderOnePage(t, (page, step) => prarup7Blocks(data, t, page, step));
+  return renderOneOrTwoPages(t, {
+    onePage: (page, step) => prarup7Parts(data, t, page, step).flat(),
+    twoPages: (page, step) => prarup7Parts(data, t, page, step),
+  });
 }

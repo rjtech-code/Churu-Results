@@ -24,6 +24,7 @@ import {
   WARD_FORM_NAMES,
 } from '../../services/ward-forms/templates/registry.js';
 import type { WardFormName } from '../../services/ward-forms/templates/registry.js';
+import type { AuthUser } from '../../types/auth.js';
 import { idParam, parse } from '../admin/http.js';
 import { readFormSource, readFormWard } from './ward-forms.data.js';
 
@@ -43,15 +44,22 @@ async function allowedWard(pool: Pool, req: Request): Promise<number> {
 const refusal = (form: WardFormName, src: FormSource) =>
   formRefusal(form, src.result, src.candidates.length);
 
+/**
+ * The Returning Officer's name printed under the Prarup-7 signature: the downloading RO's own
+ * users.full_name. A DM download keeps the line blank (as before; to be decided by the DEO).
+ */
+export const roNameFor = (user: AuthUser): string | null =>
+  user.role === 'DM' ? null : user.fullName;
+
 /** The PDF bytes; a ward whose text cannot fit the one page is 409. */
-async function render(form: WardFormName, src: FormSource): Promise<Buffer> {
+async function render(form: WardFormName, src: FormSource, user: AuthUser): Promise<Buffer> {
   try {
     if (form === 'part2') {
       const t = PART2_TEMPLATES[src.ward.kind];
       return await renderPart2(mapPart2(src, t), t);
     }
     const t = PRARUP7_TEMPLATES[src.ward.kind];
-    return await renderPrarup7(mapPrarup7(src, t), t);
+    return await renderPrarup7(mapPrarup7(src, t, roNameFor(user)), t);
   } catch (err) {
     if (err instanceof FormDoesNotFitError) throw new ApiError(409, 'FORM_DOES_NOT_FIT');
     throw err;
@@ -94,11 +102,13 @@ async function sendExport(pool: Pool, req: Request, res: Response, e: Export): P
 function download(pool: Pool, form: WardFormName): RequestHandler {
   return async (req, res) => {
     const wardId = await allowedWard(pool, req);
+    const user = req.user;
+    if (!user) throw new ApiError(401, 'UNAUTHENTICATED');
     const src = await readFormSource(pool, wardId);
     const reason = refusal(form, src);
     if (reason !== null) throw new ApiError(REFUSAL_STATUS, reason);
     await sendExport(pool, req, res, {
-      body: await render(form, src),
+      body: await render(form, src, user),
       contentType: PDF,
       fileName: fileName(form, src),
       wardId,

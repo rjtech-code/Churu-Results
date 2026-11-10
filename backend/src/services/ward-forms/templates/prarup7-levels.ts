@@ -27,7 +27,9 @@ export const PS_LEVEL: Prarup7Level = {
   title: 'Prarup-7 Panchayat Samiti',
   body: 'पंचायत समिति',
   bodyFormal: 'पंचायत समिति',
-  rules: { form: RULE_NUMBER_BLANK, uncontested: RULE_NUMBER_BLANK, lot: RULE_NUMBER_BLANK },
+  // The form's own rule numbers: as on the ZP form (DEO instruction, Nov 2026). The two column rules
+  // stay blank for hand filling until verified.
+  rules: { form: '52, 59, 60, 61', uncontested: RULE_NUMBER_BLANK, lot: RULE_NUMBER_BLANK },
   // No "Panchayat Samitis of this ward" item: a PS ward lies in its own PS.
   header: [
     { value: 'bodyName', at: 0.02 },

@@ -161,6 +161,11 @@ export interface Prarup7Template extends PageTemplate {
   headerGutter: number;
   /** Where the Returning Officer's block starts (a fraction of the width); स्थान / दिनांक before. */
   footerSplit: number;
+  /**
+   * Empty space above the footer for the handwritten signature and stamp, in pt. Fixed: never
+   * shrunk by the fit steps (20 mm = 56.7 pt).
+   */
+  signatureSpace: number;
   formats: Prarup7Formats;
   /** Digits of the ward number in the declaration ("05"). */
   wardNoDigits: number;

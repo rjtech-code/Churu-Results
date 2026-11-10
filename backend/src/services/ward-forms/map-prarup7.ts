@@ -89,19 +89,37 @@ function declaration(src: FormSource, t: Prarup7Template): Prarup7Declaration {
 
 const blankIfEmpty = (s: string): Cell => (s === '' ? null : s);
 
-export function mapPrarup7(src: FormSource, t: Prarup7Template): Prarup7Data {
+/** The RO's name for the footer: trimmed; empty or missing = null (a blank line, never a username). */
+function nameOrBlank(name: string | null | undefined): Cell {
+  const v = name?.replace(/\s+/g, ' ').trim() ?? '';
+  return v === '' ? null : v;
+}
+
+/**
+ * `roName`: the downloading RO's own full name (users.full_name). The route passes null for a DM
+ * download (that line stays blank, as before).
+ */
+export function mapPrarup7(
+  src: FormSource,
+  t: Prarup7Template,
+  roName: string | null = null,
+): Prarup7Data {
   const contested = src.result.status !== 'UNOPPOSED';
   const rows = src.candidates.map((c) => candidateRow(src, c, t, contested));
   const rejected = src.result.rejectedPostal;
+  const date = src.electionDate === null ? null : t.formats.date(src.electionDate);
   return {
     header: {
       bodyName: src.body.name,
       wardCount: String(src.body.wardCount),
       panchayatSamitis: blankIfEmpty(src.panchayatSamitis.join(t.formats.listSeparator)),
       district: src.district,
-      electionDate: src.electionDate === null ? null : t.formats.date(src.electionDate),
+      electionDate: date,
     },
     signaturePlace: t.signaturePlace === 'district' ? src.district : null,
+    place: src.district,
+    date,
+    roName: nameOrBlank(roName),
     wardNo: String(src.ward.wardNo),
     reservation: src.ward.reservation === null ? null : t.formats.bracketed(src.ward.reservation),
     contested,

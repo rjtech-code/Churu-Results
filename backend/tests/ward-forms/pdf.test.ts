@@ -64,22 +64,30 @@ describe('fitting on one page', () => {
 });
 
 describe('Prarup-7 PDF', () => {
+  // Since the 20 mm signature band (Nov 2026): up to 8 candidates always fit one page; a taller
+  // ward gets two (result table / declaration + footer), never more and never cut.
+  const sizes: readonly (readonly [number, number])[] = [
+    [2, 1],
+    [8, 1],
+    [10, 2],
+    [PRARUP7_MAX_CANDIDATES, 2],
+  ];
   const cases = (['ZP', 'PS'] as const).flatMap((kind) =>
-    [2, 10, PRARUP7_MAX_CANDIDATES].map((n) => [kind, n] as const),
+    sizes.map(([n, pages]) => [kind, n, pages] as const),
   );
-  it.each(cases)('%s ward, %i candidates: one A4 landscape page', async (kind, n) => {
+  it.each(cases)('%s ward, %i candidates: %i A4 landscape page(s)', async (kind, n, pages) => {
     const pdf = await prarup7({
       kind,
       candidates: n,
       details: Array.from({ length: n }, () => FULL),
     });
     expect(isPdf(pdf)).toBe(true);
-    expect(pageCount(pdf)).toBe(1);
+    expect(pageCount(pdf)).toBe(pages);
   });
   it.each(['ZP', 'PS'] as const)('%s uncontested ward: one page', async (kind) => {
     expect(pageCount(await prarup7({ kind, unopposed: true, details: [FULL] }))).toBe(1);
   });
-  it('text that cannot fit one page is refused, never cut or spilled to a second page', async () => {
+  it('text that cannot fit even two pages is refused, never cut or spilled further', async () => {
     const huge = { ...FULL, address: `${ADDRESS} `.repeat(6) };
     await expect(
       prarup7({

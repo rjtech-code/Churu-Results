@@ -42,6 +42,42 @@ export async function renderOnePage(t: OnePageTemplate, build: BuildBlocks): Pro
   return finish(page.ts.doc);
 }
 
+/** Builds the form's pages for one step: each inner list is one page, top to bottom. */
+export type BuildPages = (page: Page, step: FitStep) => Block[][];
+
+/**
+ * Renders on ONE page when any step fits; otherwise on `layouts.twoPages` (every page must fit at the
+ * same step: nothing is ever cut or flows on by itself). Neither fits: FormDoesNotFitError.
+ */
+export async function renderOneOrTwoPages(
+  t: OnePageTemplate & { page: PageSpec },
+  layouts: { onePage: BuildBlocks; twoPages: BuildPages },
+): Promise<Buffer> {
+  const page = await openPage(t.page, t.latin, t.title);
+  const one = firstFit(t.fitSteps, (s) => totalHeight(layouts.onePage(page, s)), page.height);
+  if (one !== null) {
+    drawPage(layouts.onePage(page, one), page.top);
+    return finish(page.ts.doc);
+  }
+  const tallest = (s: FitStep) =>
+    Math.max(...layouts.twoPages(page, s).map((blocks) => totalHeight(blocks)));
+  const two = firstFit(t.fitSteps, tallest, page.height);
+  if (two === null) throw new FormDoesNotFitError(t.title);
+  layouts.twoPages(page, two).forEach((blocks, i) => {
+    if (i > 0) page.ts.doc.addPage({ size: t.page.size, layout: t.page.layout, margin: 0 });
+    drawPage(blocks, page.top);
+  });
+  return finish(page.ts.doc);
+}
+
+function drawPage(blocks: readonly Block[], top: number): void {
+  let y = top;
+  for (const block of blocks) {
+    block.draw(y);
+    y += block.height;
+  }
+}
+
 /** A style at this step's size (never below the template's minimum). */
 export const styleAt = (style: TextStyle, step: FitStep, min: number): TextStyle => ({
   ...style,

@@ -88,6 +88,11 @@ export interface Prarup7Data {
   header: Record<HeaderValue, Cell>;
   /** Below the Returning Officer's signature; null = blank for hand filling. */
   signaturePlace: Cell;
+  /** Footer "स्थान :" (the district) and "दिनांक :" (the election date, as in the header). */
+  place: Cell;
+  date: Cell;
+  /** The Returning Officer's name (users.full_name of the RO who downloads); null = blank line. */
+  roName: Cell;
   /** Column 1: the ward number and, below it, its reservation in brackets. */
   wardNo: string;
   reservation: Cell;

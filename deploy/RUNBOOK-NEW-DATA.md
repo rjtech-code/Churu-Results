@@ -225,7 +225,7 @@ Har password screen par **sirf ek baar** aata hai. Use turant kisi safe jagah no
 
 ## 12. Settings
 
-- **Matdaan (poll) ki tareekh:** DM login → Admin → "Election date". Ye Prarup-7 aur Counting Status Report me "Poll date" ke roop me chhapti hai.
+- **Matdaan (poll) ki tareekh:** DM login → Admin → "Election date". Ye Prarup-7 aur Counting Status Report me "Poll date" ke roop me chhapti hai. Prarup-7 ke footer me "दिनांक :" bhi isi se aata hai (koi alag date nahi); "स्थान :" district ka naam hai. Footer me RO ka naam (users.full_name) RO ke download par chhapta hai; DM ke download par wo line khaali rehti hai. Upar ~20 mm jagah haath se sign ke liye hai.
   Verify:
   ```bash
   SQL "SELECT setting_value FROM app_settings WHERE setting_key='election_date'"
