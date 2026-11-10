@@ -170,12 +170,11 @@ export const v = (pairs: [number, number][]) =>
   pairs.map(([candidateId, votes]) => ({ candidateId, votes }));
 
 /** A valid psW1 booth sheet: A=a, B=b, NOTA=n. */
-export function psW1Sheet(w: World, boothId: number, a = 300, b = 200, n = 10, roundNo = 1) {
+export function psW1Sheet(w: World, boothId: number, a = 300, b = 200, n = 10) {
   return {
     wardId: w.psW1,
     boothId,
     ballotFor: 'PS' as const,
-    roundNo,
     sheetTotal: a + b + n,
     votes: v([
       [w.c.A, a],
@@ -191,7 +190,6 @@ export function zW1Sheet(w: World, boothId: number, e = 100, f = 50, n = 5) {
     wardId: w.zW1,
     boothId,
     ballotFor: 'ZP' as const,
-    roundNo: 1,
     sheetTotal: e + f + n,
     votes: v([
       [w.c.E, e],

@@ -84,8 +84,6 @@ function wardTable(r: CountingStatusReport, kind: WardKind): TableSpec {
       { header: 'Flags', weight: 9 },
       { header: 'Booths Done / Total', weight: 8, align: 'right' as const },
       { header: 'Pending', weight: 5, align: 'right' as const },
-      // A ZP ward has no single round (each PS counts in its own rounds): see "by PS".
-      ...(kind === 'PS' ? [{ header: 'Round', weight: 4, align: 'right' as const }] : []),
       { header: 'Postal', weight: 4 },
       { header: 'Last Entry', weight: 13 },
       { header: 'Winner (Party)', weight: 13 },
@@ -100,7 +98,6 @@ function wardTable(r: CountingStatusReport, kind: WardKind): TableSpec {
         chips.flags,
         ofTotal(w.boothsDone, w.boothsTotal),
         n(w.boothsPending),
-        ...(kind === 'PS' ? [n(w.latestRound)] : []),
         w.postalDone === null ? 'n/a' : w.postalDone ? 'Done' : 'Pending',
         w.lastEntryText ?? '–',
         w.winner === null ? '–' : `${w.winner.name} (${w.winner.party})`,
@@ -123,7 +120,6 @@ function boothTable(r: ScopedReport): TableSpec {
       { header: 'Booth No', weight: 4, align: 'right' },
       { header: 'Booth Name', weight: 22 },
       { header: 'Entry', weight: 6 },
-      { header: 'Round', weight: 4, align: 'right' },
       { header: 'Entered By', weight: 13 },
       { header: 'Entered At', weight: 11 },
       { header: 'Last Edited', weight: 11 },
@@ -138,7 +134,6 @@ function boothTable(r: ScopedReport): TableSpec {
       b.entered === 'NA'
         ? 'n/a'
         : [{ text: ENTRY_TEXT[b.entered], tone: b.entered === 'YES' ? 'ok' : 'muted' }],
-      n(b.round),
       b.enteredBy ?? '–',
       b.enteredAtText ?? '–',
       b.lastEditedAtText ?? '–',
@@ -147,7 +142,7 @@ function boothTable(r: ScopedReport): TableSpec {
   };
 }
 
-/** Per ZP ward: one row per contributing PS (its own round), then the Postal row. */
+/** Per ZP ward: one row per contributing PS (its booths done / total), then the Postal row. */
 function zpByPsTable(r: ScopedReport): TableSpec | null {
   if (r.zpPsProgress.length === 0) return null;
   return {
@@ -156,7 +151,6 @@ function zpByPsTable(r: ScopedReport): TableSpec | null {
       { header: 'ZP Ward', weight: 4, align: 'right' },
       { header: 'Panchayat Samiti', weight: 14 },
       { header: 'Booths Done / Total', weight: 8, align: 'right' },
-      { header: 'Latest Round', weight: 5, align: 'right' },
       { header: 'Last Entry', weight: 13 },
     ],
     rows: r.zpPsProgress.flatMap((z): CellContent[][] => [
@@ -164,7 +158,6 @@ function zpByPsTable(r: ScopedReport): TableSpec | null {
         String(z.wardNo),
         p.psName,
         ofTotal(p.boothsDone, p.boothsTotal),
-        p.latestRound === null ? '-' : String(p.latestRound),
         p.lastEntryText ?? '–',
       ]),
       [
@@ -178,7 +171,6 @@ function zpByPsTable(r: ScopedReport): TableSpec | null {
                 tone: z.postal.entered ? 'ok' : 'muted',
               },
             ],
-        '',
         z.postal.lastEntryText ?? '–',
       ],
     ]),

@@ -58,7 +58,6 @@ describe('booth entries — happy paths', () => {
         wardId: w.psW1,
         boothId: w.b1,
         ballotFor: 'PS',
-        roundNo: 1,
         sheetTotal: 510,
         rowVersion: 1,
         enteredBy: { username: 'ro_ps1_x1' },
@@ -138,7 +137,6 @@ describe('booth entries — happy paths', () => {
         wardId: w.psW1,
         boothId: w.b1,
         ballotFor: 'PS',
-        roundNo: 1,
         sheetTotal: 510,
         sum: 510,
         votes: [
@@ -172,7 +170,6 @@ describe('booth entries — happy paths', () => {
     try {
       res = await ro.put(`/entries/${entryId}`, {
         rowVersion: 1,
-        roundNo: 2,
         sheetTotal: 511,
         votes: v([
           [w.c.A, 301],
@@ -188,7 +185,6 @@ describe('booth entries — happy paths', () => {
     expect(res.status).toBe(200);
     expect((res.body as { entry: unknown }).entry).toMatchObject({
       rowVersion: 2,
-      roundNo: 2,
       sheetTotal: 511,
       updatedBy: { username: 'ro_ps1_x1' },
       votes: v([
@@ -203,7 +199,6 @@ describe('booth entries — happy paths', () => {
       reason: REASON,
       old_value: {
         sheet_total: 510,
-        round_no: 1,
         row_version: 1,
         votes: v([
           [w.c.A, 300],
@@ -213,7 +208,6 @@ describe('booth entries — happy paths', () => {
       },
       new_value: {
         sheet_total: 511,
-        round_no: 2,
         row_version: 2,
         votes: v([
           [w.c.A, 301],

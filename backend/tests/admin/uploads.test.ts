@@ -273,7 +273,6 @@ describe('DM candidate upload', () => {
       wardId: w.psW1,
       boothId: w.b1,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 3,
       votes: [
         { candidateId: w.c.A, votes: 1 },

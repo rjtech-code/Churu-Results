@@ -37,7 +37,7 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
          FROM booth ORDER BY id`,
     );
     const [entries] = await conn.execute<RowDataPacket[]>(
-      `SELECT e.booth_id, e.ballot_for, e.round_no, e.sheet_total, e.entered_at, e.updated_at,
+      `SELECT e.booth_id, e.ballot_for, e.sheet_total, e.entered_at, e.updated_at,
               u.username, u.role, ups.name_english AS user_ps
          FROM booth_entry e
          JOIN users u ON u.id = e.entered_by
@@ -119,7 +119,6 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
       return {
         boothId: Number(e.booth_id),
         ballotFor: e.ballot_for === 'ZP' ? 'ZP' : 'PS',
-        roundNo: Number(e.round_no),
         sheetTotal: Number(e.sheet_total),
         enteredAt: toDate(e.entered_at),
         updatedAt: toDateOrNull(e.updated_at),

@@ -43,7 +43,6 @@ export interface BoothItem {
   registeredVotersTotal: number | null;
   entered: boolean;
   entryId: number | null;
-  roundNo: number | null;
   enteredAt: string | null;
 }
 
@@ -77,7 +76,6 @@ export interface BoothEntryView {
   wardId: number;
   boothId: number;
   ballotFor: 'PS' | 'ZP';
-  roundNo: number;
   sheetTotal: number;
   rowVersion: number;
   enteredBy: UserRef | null;
@@ -148,7 +146,6 @@ export interface EntryPreview {
     wardId: number;
     boothId: number | null;
     ballotFor: 'PS' | 'ZP' | null;
-    roundNo: number | null;
     sheetTotal: number;
     rejectedCount: number | null;
     sum: number;
@@ -227,13 +224,12 @@ export interface PsZpWardItem {
   boothsTotal: number;
 }
 
-/** One contributing PS of a ZP ward (its ZP-ballot booths only; its own round). */
+/** One contributing PS of a ZP ward (its ZP-ballot booths only; the rows add up to the ward). */
 export interface ZpPsRow {
   psId: number;
   psName: string;
   boothsDone: number;
   boothsTotal: number;
-  latestRound: number | null;
   lastEntryAt: string | null;
   lastEntryText: string | null;
 }

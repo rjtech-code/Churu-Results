@@ -670,9 +670,6 @@ function WardTable({ wards, onOpenWard }: { wards: CsWardRow[]; onOpenWard: (w: 
                 <th scope="col" className="cs-num">
                   Pending
                 </th>
-                <th scope="col" className="cs-num">
-                  Round
-                </th>
                 <th scope="col">Postal</th>
                 <th scope="col">Last Entry</th>
                 <th scope="col">Winner (Party)</th>
@@ -722,9 +719,6 @@ function WardTable({ wards, onOpenWard }: { wards: CsWardRow[]; onOpenWard: (w: 
                   </td>
                   <td className="cs-num" data-label="Pending">
                     {fmt(w.boothsPending)}
-                  </td>
-                  <td className="cs-num" data-label="Round">
-                    {fmt(w.latestRound)}
                   </td>
                   <td data-label="Postal">
                     {w.postalDone === null ? 'n/a' : w.postalDone ? 'Done' : 'Pending'}
@@ -792,14 +786,6 @@ function WardDetail({
               {w.postalDone === null ? 'n/a' : w.postalDone ? 'Entered' : 'Pending'}
             </span>
           </div>
-          {w.kind === 'PS' && (
-            <div className="cs-tile">
-              <span className="cs-tile-label">Latest round</span>
-              <span className="cs-tile-text">
-                {w.latestRound === null ? '–' : `Round ${String(w.latestRound)}`}
-              </span>
-            </div>
-          )}
           <div className="cs-tile">
             <span className="cs-tile-label">Last entry</span>
             <span className="cs-tile-text">{w.lastEntryText ?? 'No entry yet'}</span>
@@ -838,7 +824,7 @@ function WardDetail({
   );
 }
 
-/** A ZP ward by Panchayat Samiti: each PS with its own round (never merged), then the Postal row. */
+/** A ZP ward by Panchayat Samiti: each PS with its booths done / total (adding up to the ward), then the Postal row. */
 function ByPsSection({ progress }: { progress: ZpWardPsProgress }) {
   const { postal } = progress;
   return (
@@ -852,9 +838,6 @@ function ByPsSection({ progress }: { progress: ZpWardPsProgress }) {
               <th scope="col" className="cs-num">
                 Booths Done / Total
               </th>
-              <th scope="col" className="cs-num">
-                Latest Round
-              </th>
               <th scope="col">Last Entry</th>
             </tr>
           </thead>
@@ -865,9 +848,6 @@ function ByPsSection({ progress }: { progress: ZpWardPsProgress }) {
                 <td data-label="Booths Done / Total" className="cs-num">
                   {fmt(r.boothsDone)} / {fmt(r.boothsTotal)}
                 </td>
-                <td data-label="Latest Round" className="cs-num">
-                  {r.latestRound ?? '-'}
-                </td>
                 <td data-label="Last Entry">{r.lastEntryText ?? '–'}</td>
               </tr>
             ))}
@@ -875,9 +855,6 @@ function ByPsSection({ progress }: { progress: ZpWardPsProgress }) {
               <td data-label="Panchayat Samiti">Postal – {postal.label}</td>
               <td data-label="Status" className="cs-num">
                 {postal.entered === null ? 'n/a' : postal.entered ? 'Entered' : 'Pending'}
-              </td>
-              <td data-label="Latest Round" className="cs-num">
-                –
               </td>
               <td data-label="Last Entry">{postal.lastEntryText ?? '–'}</td>
             </tr>
@@ -917,9 +894,6 @@ function BoothTable({
                 {(withPs || withBallot) && <th scope="col">Panchayat Samiti</th>}
                 <th scope="col">Booth Name</th>
                 <th scope="col">Entry</th>
-                <th scope="col" className="cs-num">
-                  Round
-                </th>
                 <th scope="col">Entered By</th>
                 <th scope="col">Entered At</th>
                 <th scope="col">Last Edited</th>
@@ -953,9 +927,6 @@ function BoothTable({
                     ) : (
                       'n/a'
                     )}
-                  </td>
-                  <td className="cs-num" data-label="Round">
-                    {fmt(b.round)}
                   </td>
                   <td className="cs-nowrap" data-label="Entered by">
                     {b.enteredBy ?? '–'}

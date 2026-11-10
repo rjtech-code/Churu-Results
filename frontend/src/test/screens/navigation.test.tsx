@@ -14,7 +14,6 @@ const ward = (wardId: number): WardCard => ({
   status: 'COUNTING',
   boothsEntered: 1,
   boothsTotal: 2,
-  latestRound: 1,
   postalEntered: false,
   top3: [],
   margin: null,

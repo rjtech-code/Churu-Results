@@ -121,7 +121,6 @@ describe('public responses never leak internal data', () => {
       wardId: w.zW1,
       boothId: w.b3,
       ballotFor: 'ZP',
-      roundNo: 1,
       sheetTotal: 3,
       votes: v([
         [w.c.E, 2],

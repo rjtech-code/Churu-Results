@@ -95,7 +95,7 @@ export async function readWardInputs(
   );
   // 4-5. Booth entries and their votes.
   const [boothEntries] = await conn.execute<RowDataPacket[]>(
-    `SELECT id, ward_id, booth_id, round_no, sheet_total FROM booth_entry WHERE ward_id IN (${inList})`,
+    `SELECT id, ward_id, booth_id, sheet_total FROM booth_entry WHERE ward_id IN (${inList})`,
     ids,
   );
   const [boothVotes] = await conn.execute<RowDataPacket[]>(
@@ -146,7 +146,6 @@ export async function readWardInputs(
     );
     const entries: BoothEntryInput[] = (entriesByWard.get(wardId) ?? []).map((e) => ({
       boothId: Number(e.booth_id),
-      roundNo: Number(e.round_no),
       sheetTotal: Number(e.sheet_total),
       votes: toVotes(boothVotesByEntry.get(Number(e.id))),
     }));

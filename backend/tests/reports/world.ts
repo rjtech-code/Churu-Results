@@ -160,7 +160,6 @@ export async function buildReportWorld(pool: Pool, migrator: Pool): Promise<Repo
         wardId: x.id,
         boothId: x.boothId,
         ballotFor,
-        roundNo: 1,
         sheetTotal: sheet[0] + sheet[1] + sheet[2],
         votes: rows(x, sheet),
       }),
@@ -193,16 +192,15 @@ export async function buildReportWorld(pool: Pool, migrator: Pool): Promise<Repo
   };
 
   // close100: an edit before declaring (history: 1 edit), then declare (margin 100, valid 910).
-  await fill(ro1, 'close100', [500, 400, 10]);
+  await fill(ro1, 'close100', [499, 400, 11]);
   const c100 = w.close100;
   if (!c100) throw new Error('close100');
   ok(
     await ro1.put(`/entries/${c100.entryId ?? 0}`, {
       rowVersion: 1,
-      roundNo: 2,
       sheetTotal: 910,
       votes: rows(c100, [500, 400, 10]),
-      reason: 'राउंड संख्या गलत',
+      reason: 'उम्मीदवारों के मत गलत लिखे थे',
     }),
     'close100 edit',
   );
@@ -225,7 +223,6 @@ export async function buildReportWorld(pool: Pool, migrator: Pool): Promise<Repo
       wardId: nc.id,
       boothId: nc.boothId,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 10000,
       votes: rows(nc, [5050, 4949, 1]),
     }),
@@ -314,7 +311,6 @@ export async function buildReportWorld(pool: Pool, migrator: Pool): Promise<Repo
       wardId: pl.id,
       boothId: pl.boothId,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 90,
       votes: rows(pl, [50, 40, 0]),
     }),

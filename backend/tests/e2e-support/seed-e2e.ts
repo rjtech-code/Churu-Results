@@ -289,7 +289,6 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
         wardId: w.id,
         boothId: w.booths[b.no],
         ballotFor: 'PS',
-        roundNo: 1,
         sheetTotal: b.votes[0] + b.votes[1] + b.votes[2],
         votes: rows(b.votes),
       });
@@ -312,7 +311,7 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
       });
     }
   }
-  const screens = await seedScreens(app, server, { ps1, ps3, ward, lock }, users.zp);
+  const screens = await seedScreens(app, server, { ps1, ps3, ward, lock });
 
   // Part 13: Bidasar, two unlocked wards without candidates (the admin spec uploads them).
   const ps4 = await insert(
@@ -383,7 +382,6 @@ async function seedScreens(
     ward: (type: 'PS' | 'ZP', ps: number | null, no: number) => Promise<number>;
     lock: (w: number) => Promise<unknown>;
   },
-  zpUser: string,
 ): Promise<E2eScreens> {
   const { ps3, ward, lock } = ctx;
   const party: Record<PartyKey, number> = {
@@ -502,7 +500,6 @@ async function seedScreens(
       wardId: w.id,
       boothId: w.booth,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: sheet[0] + sheet[1] + sheet[2],
       votes: rows(w.c, sheet),
     });
@@ -574,24 +571,27 @@ async function seedScreens(
     },
   });
 
-  // ZP: ward 2 fully entered (READY), ward 3 counting (one booth).
-  const zp = await apiAs(server, zpUser);
+  // ZP: ward 2 fully entered (READY), ward 3 counting (one booth). Official order: the booths are
+  // all in this PS, so its PS_RO enters their ZP ballots (one parchi carries both), and ZP ward 2's
+  // postal ballots are assigned to this PS, so the same PS_RO enters them. The ZP_RO enters nothing.
+  await app.execute('INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id) VALUES (?, ?)', [
+    zp2,
+    ps3,
+  ]);
   for (let i = 0; i < 7; i++) {
-    await zp('/api/counting/entries', {
+    await ro('/api/counting/entries', {
       wardId: zp2,
       boothId: at(i).booth,
       ballotFor: 'ZP',
-      roundNo: 1,
       sheetTotal: 82,
       votes: rows(zp2c, [50, 30, 2]),
     });
   }
-  await zp(`/api/counting/wards/${zp2}/postal`, { sheetTotal: 3, votes: rows(zp2c, [2, 1, 0]) });
-  await zp('/api/counting/entries', {
+  await ro(`/api/counting/wards/${zp2}/postal`, { sheetTotal: 3, votes: rows(zp2c, [2, 1, 0]) });
+  await ro('/api/counting/entries', {
     wardId: zp3,
     boothId: at(7).booth,
     ballotFor: 'ZP',
-    roundNo: 1,
     sheetTotal: 101,
     votes: rows(zp3c, [40, 60, 1]),
   });

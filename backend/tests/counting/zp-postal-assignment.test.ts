@@ -184,7 +184,6 @@ describe('ZP_RO: no entries, but declares', () => {
       (
         await zp.put(`/entries/${mine}`, {
           rowVersion: 1,
-          roundNo: 1,
           sheetTotal: 155,
           votes: zW1Sheet(w, w.b1).votes,
           reason: REASON,
@@ -208,14 +207,14 @@ describe('ZP_RO: no entries, but declares', () => {
 });
 
 describe('ZP ward progress by Panchayat Samiti', () => {
-  it('two PS: rows per PS with their own round; postal row assigned to one; same in the report and CSV', async () => {
+  it('two PS: booths done / total per PS add up to the ward; postal row assigned to one; same in the list, report and CSV', async () => {
     const app = countingApp(pool);
     const ro1 = await clientFor(app, 'ro_ps1_x1');
     const ro2 = await clientFor(app, 'ro_ps2_x2');
     const zp = await clientFor(app, 'zp_ro_x3');
-    await ro1.post('/entries', { ...zW1Sheet(w, w.b1), roundNo: 2 });
-    await ro1.post('/entries', { ...zW1Sheet(w, w.b2), roundNo: 5 });
-    await ro2.post('/entries', { ...zW1Sheet(w, w.b3), roundNo: 1 });
+    expect((await ro1.post('/entries', zW1Sheet(w, w.b1))).status).toBe(201);
+    expect((await ro1.post('/entries', zW1Sheet(w, w.b2))).status).toBe(201);
+    expect((await ro2.post('/entries', zW1Sheet(w, w.b3))).status).toBe(201);
 
     const res = await zp.get(`/wards/${w.zW1}/zp-progress`);
     expect(res.status).toBe(200);
@@ -225,11 +224,33 @@ describe('ZP ward progress by Panchayat Samiti', () => {
       wardNo: 1,
       rows: [
         // ps1 = पंचायत समिति चूरू (English "Churu"), ps2 = Rajgarh: name order
-        { psId: w.ps1, boothsDone: 2, boothsTotal: 5, latestRound: 5 },
-        { psId: w.ps2, boothsDone: 1, boothsTotal: 1, latestRound: 1 },
+        { psId: w.ps1, boothsDone: 2, boothsTotal: 5 },
+        { psId: w.ps2, boothsDone: 1, boothsTotal: 1 },
       ],
       postal: { assignedPsId: w.ps1, entered: false, lastEntryAt: null },
     });
+    // The ZP_RO's ward list shows the same numbers: the ward across both PS, and per PS.
+    const listed = (
+      (await zp.get('/wards')).body as {
+        wards: {
+          id: number;
+          boothsEntered: number;
+          boothsTotal: number;
+          boothsByPs: { psId: number; entered: number; total: number }[];
+        }[];
+      }
+    ).wards.find((x) => x.id === w.zW1);
+    expect(listed).toMatchObject({ boothsEntered: 3, boothsTotal: 6 });
+    expect(
+      [...(listed?.boothsByPs ?? [])]
+        .sort((a, b) => a.psId - b.psId)
+        .map((p) => [p.psId, p.entered, p.total]),
+    ).toEqual(
+      [
+        [w.ps1, 2, 5],
+        [w.ps2, 1, 1],
+      ].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0)),
+    );
     const rows = (progress as { rows: { lastEntryAt: string | null }[] }).rows;
     expect(rows.every((r) => r.lastEntryAt !== null)).toBe(true);
     expect((progress as { postal: { label: string } }).postal.label).toMatch(/^Assigned to /);
@@ -263,14 +284,18 @@ describe('ZP ward progress by Panchayat Samiti', () => {
     const csv = (
       await agent.get(`/api/reports/counting-status/zp-by-ps.csv?level=WARD&wardId=${w.zW1}`)
     ).text;
-    const lines = csv.replace(/^\uFEFF/, '').replaceAll('"', '').trim().split(/\r?\n/);
+    const lines = csv
+      .replace(/^\uFEFF/, '')
+      .replaceAll('"', '')
+      .trim()
+      .split(/\r?\n/);
     expect(lines[0]).toBe(
-      'zp_ward_no,row,ps_name,booths_done,booths_total,latest_round,postal,last_entry_ist,report_time_ist,counting_date',
+      'zp_ward_no,row,ps_name,booths_done,booths_total,postal,last_entry_ist,report_time_ist,counting_date',
     );
-    expect(lines.slice(1).map((l) => l.split(',').slice(0, 7).join(','))).toEqual([
-      expect.stringMatching(/^1,booths,.+,2,5,5,$/) as string,
-      expect.stringMatching(/^1,booths,.+,1,1,1,$/) as string,
-      expect.stringMatching(/^1,postal,.+,,,,entered$/) as string,
+    expect(lines.slice(1).map((l) => l.split(',').slice(0, 6).join(','))).toEqual([
+      expect.stringMatching(/^1,booths,.+,2,5,$/) as string,
+      expect.stringMatching(/^1,booths,.+,1,1,$/) as string,
+      expect.stringMatching(/^1,postal,.+,,,entered$/) as string,
     ]);
   });
 });

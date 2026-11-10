@@ -47,7 +47,6 @@ describe('business rules (each its own code)', () => {
       wardId: w.psW4,
       boothId: w.b6,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 3,
       votes: v([
         [w.c.G, 1],
@@ -63,7 +62,6 @@ describe('business rules (each its own code)', () => {
       wardId: w.psW3,
       boothId: w.b5,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 1,
       votes: v([[w.c.U, 1]]),
     };
@@ -162,7 +160,6 @@ describe('business rules (each its own code)', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 1, 1, 1);
     const ok = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -170,7 +167,6 @@ describe('business rules (each its own code)', () => {
     expect(ok.status).toBe(200);
     const stale = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -224,8 +220,7 @@ describe('Zod validation -> 400 VALIDATION_FAILED with field details', () => {
       }),
     ],
     ['negative sheetTotal', (b) => ({ ...b, sheetTotal: -1 })],
-    ['round 0', (b) => ({ ...b, roundNo: 0 })],
-    ['round 100', (b) => ({ ...b, roundNo: 100 })],
+    ['a round number (rounds no longer exist)', (b) => ({ ...b, roundNo: 1 })],
     ['ballotFor XX', (b) => ({ ...b, ballotFor: 'XX' })],
     ['booth id 0', (b) => ({ ...b, boothId: 0 })],
     ['no vote rows', (b) => ({ ...b, votes: [] })],
@@ -256,7 +251,6 @@ describe('Zod validation -> 400 VALIDATION_FAILED with field details', () => {
     for (const reason of ['too short', '         x         ', 'x'.repeat(501), undefined]) {
       const put = await ro.put(`/entries/${id}`, {
         rowVersion: 1,
-        roundNo: 1,
         sheetTotal,
         votes,
         reason,
@@ -274,7 +268,6 @@ describe('Zod validation -> 400 VALIDATION_FAILED with field details', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1);
     const res = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -289,7 +282,10 @@ describe('Zod validation -> 400 VALIDATION_FAILED with field details', () => {
   });
 
   it('error details never echo the submitted values', async () => {
-    const res = await ro.post('/entries', { ...psW1Sheet(w, w.b1), roundNo: 'SECRET-VALUE-123' });
+    const res = await ro.post('/entries', {
+      ...psW1Sheet(w, w.b1),
+      sheetTotal: 'SECRET-VALUE-123',
+    });
     expect(JSON.stringify(res.body)).not.toContain('SECRET-VALUE-123');
   });
 });

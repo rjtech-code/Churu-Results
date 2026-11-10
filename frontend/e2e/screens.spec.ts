@@ -57,7 +57,6 @@ test('Hindi PS names after ps:set-hindi-names; an entry still updates its card w
     wardId: s.live.wardId,
     boothId: s.live.boothId,
     ballotFor: 'PS',
-    roundNo: 1,
     sheetTotal: 901,
     votes: [
       { candidateId: s.live.candidates.A, votes: 500 },

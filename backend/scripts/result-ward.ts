@@ -17,7 +17,7 @@ export function describeResult(label: string, r: WardResult): string[] {
   const lines = [
     `Ward:      ${label}`,
     `Status:    ${r.status}`,
-    `Booths:    ${r.boothsEntered} of ${r.boothsTotal} entered; rounds seen: ${r.roundsSeen.join(', ') || '-'}`,
+    `Booths:    ${r.boothsEntered} / ${r.boothsTotal} entered`,
     `Postal:    ${r.postalEntered ? 'entered' : 'NOT entered'}${r.rejectedPostal === null ? '' : `; rejected postal ballots: ${r.rejectedPostal}`}`,
     `Valid votes: ${r.totalValidVotes} (NOTA ${r.notaVotes})`,
     '',

@@ -57,11 +57,9 @@ interface Props {
   onChange: (values: SheetValues) => void;
   /** Enter on the last field ("कुल योग"). */
   onSubmit: () => void;
-  /** Optional round field, typed first (Enter moves on to the first candidate). */
-  round?: { value: string; onChange: (value: string) => void } | undefined;
   autoFocusFirstCandidate?: boolean;
   /**
-   * 'split': candidates on the left; round, total, sum line, extras, error and actions in a sticky
+   * 'split': candidates on the left; total, sum line, extras, error and actions in a sticky
    * panel on the right (one screen). 'stacked' (default): everything in one column.
    */
   layout?: 'split' | 'stacked';
@@ -79,9 +77,9 @@ interface Props {
 }
 
 /**
- * Optional round, one row per candidate in ballot order (NOTA last), the sheet total, and a live
- * line comparing the operator's sum with the sheet's total (colour always with text).
- * Enter moves: round -> candidates -> NOTA -> total -> onSubmit (the same in both layouts).
+ * One row per candidate in ballot order (NOTA last), the sheet total, and a live line comparing the
+ * operator's sum with the sheet's total (colour always with text).
+ * Enter moves: candidates -> NOTA -> total -> onSubmit (the same in both layouts).
  */
 export function VoteSheet({
   idPrefix,
@@ -89,7 +87,6 @@ export function VoteSheet({
   values,
   onChange,
   onSubmit,
-  round,
   autoFocusFirstCandidate,
   layout = 'stacked',
   extra,
@@ -101,7 +98,6 @@ export function VoteSheet({
     (a, b) => Number(a.isNota) - Number(b.isNota) || a.ballotPosition - b.ballotPosition,
   );
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const offset = round === undefined ? 0 : 1; // index of the first candidate in the Enter order
   const focus = (i: number) => {
     refs.current[i]?.focus();
     refs.current[i]?.select();
@@ -116,24 +112,6 @@ export function VoteSheet({
   const emptyCount = ordered.length - filled.length + (values.total === '' ? 1 : 0);
   const split = layout === 'split';
 
-  const roundField = round !== undefined && (
-    <div className="field-row">
-      <label htmlFor={`${idPrefix}-round`}>राउंड संख्या</label>
-      <NumberField
-        id={`${idPrefix}-round`}
-        label="राउंड संख्या"
-        className="num-small"
-        value={round.value}
-        inputRef={(el) => {
-          refs.current[0] = el;
-        }}
-        onChange={round.onChange}
-        onEnter={() => {
-          focus(offset);
-        }}
-      />
-    </div>
-  );
   const totalLabel = <label htmlFor={`${idPrefix}-total`}>कुल योग (पर्ची के अनुसार)</label>;
   const totalField = (
     <NumberField
@@ -141,7 +119,7 @@ export function VoteSheet({
       label="कुल योग (पर्ची के अनुसार)"
       value={values.total}
       inputRef={(el) => {
-        refs.current[offset + ordered.length] = el;
+        refs.current[ordered.length] = el;
       }}
       onChange={(v) => {
         onChange({ ...values, total: v });
@@ -184,14 +162,14 @@ export function VoteSheet({
                 label={`${c.nameHindi} के मत`}
                 value={values.votes[c.candidateId] ?? ''}
                 inputRef={(el) => {
-                  refs.current[offset + i] = el;
+                  refs.current[i] = el;
                 }}
                 autoFocus={autoFocusFirstCandidate === true && i === 0}
                 onChange={(v) => {
                   onChange({ ...values, votes: { ...values.votes, [c.candidateId]: v } });
                 }}
                 onEnter={() => {
-                  focus(offset + i + 1);
+                  focus(i + 1);
                 }}
               />
             </td>
@@ -214,7 +192,6 @@ export function VoteSheet({
         main={table}
         panel={
           <>
-            {roundField}
             <div className="field-row total-field">
               {totalLabel}
               {totalField}
@@ -230,7 +207,6 @@ export function VoteSheet({
   }
   return (
     <div className="sheet">
-      {roundField}
       {table}
       {sumline}
       {extra}

@@ -32,13 +32,11 @@ export const nota = (id: number, ballotPosition: number): ResultCandidateInput =
 export function booth(
   boothId: number,
   votes: Record<number, number>,
-  roundNo = 1,
   sheetTotal?: number,
 ): BoothEntryInput {
   const rows = Object.entries(votes).map(([id, v]) => ({ candidateId: Number(id), votes: v }));
   return {
     boothId,
-    roundNo,
     sheetTotal: sheetTotal ?? rows.reduce((s, r) => s + r.votes, 0),
     votes: rows,
   };

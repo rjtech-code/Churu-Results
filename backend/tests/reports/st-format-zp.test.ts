@@ -209,7 +209,6 @@ async function buildZpWorld(db: Pool): Promise<void> {
         wardId,
         boothId,
         ballotFor: 'ZP',
-        roundNo: 1,
         sheetTotal: v.reduce((s, x) => s + x, 0),
         votes: votes(ids, v),
       }),

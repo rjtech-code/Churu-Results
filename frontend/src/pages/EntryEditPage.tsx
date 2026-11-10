@@ -34,7 +34,6 @@ export function EntryEditPage() {
     };
   }, [entryId, role]);
   const [values, setValues] = useState<SheetValues | null>(null);
-  const [round, setRound] = useState<string | null>(null);
   const [reason, setReason] = useState<ReasonValue>(emptyReason);
   const [stage, setStage] = useState<'form' | 'confirm'>('form');
   const [error, setError] = useState<unknown>(null);
@@ -46,12 +45,8 @@ export function EntryEditPage() {
   const { entry, ward, ballot } = data;
   const saved = sheetValues(ballot, entry);
   const sheet = values ?? saved;
-  const roundValue = round ?? String(entry.roundNo);
   const dirty =
-    JSON.stringify(sheet) !== JSON.stringify(saved) ||
-    roundValue !== String(entry.roundNo) ||
-    reason.choice !== '' ||
-    reason.details !== '';
+    JSON.stringify(sheet) !== JSON.stringify(saved) || reason.choice !== '' || reason.details !== '';
 
   const onNext = () => {
     setError(null);
@@ -60,11 +55,7 @@ export function EntryEditPage() {
       setError(check.message);
       return;
     }
-    if (roundValue === '' || Number(roundValue) < 1 || Number(roundValue) > 99) {
-      setError('राउंड संख्या 1 से 99 के बीच लिखें');
-      return;
-    }
-    if (Number(roundValue) === entry.roundNo && sameAsSaved(ballot, sheet, entry)) {
+    if (sameAsSaved(ballot, sheet, entry)) {
       setError(NO_CHANGE_TEXT); // nothing to correct: no confirm screen
       return;
     }
@@ -84,7 +75,6 @@ export function EntryEditPage() {
     try {
       await api('PUT', `/api/counting/entries/${entryId}`, {
         rowVersion: entry.rowVersion,
-        roundNo: Number(roundValue),
         sheetTotal: check.sheetTotal,
         votes: check.votes,
         reason: reasonText(reason),
@@ -136,7 +126,6 @@ export function EntryEditPage() {
               if (typeof error === 'string') setError(null); // a local check message is stale now
             }}
             onSubmit={onNext}
-            round={{ value: roundValue, onChange: setRound }}
             error={error}
             errorView={stale ? STALE_TEXT : undefined}
             extra={

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Alarm, ReportWardRef, ScopeSections } from '../../api/reportTypes';
-import { formatDateTime } from '../../components/format';
+import { boothProgress, formatDateTime } from '../../components/format';
 import { ALARM_LABEL, REPORT_STATUS, csvUrl, num, pct } from './reportFormat';
 
 export function WardLink({ ward }: { ward: ReportWardRef }) {
@@ -97,7 +97,7 @@ export function Progress({ s }: { s: ScopeSections['progress'] }) {
       <Stat label="शुरू नहीं" value={num(s.notStarted)} />
       {s.noCandidates > 0 && <Stat label="उम्मीदवार सूची बाकी" value={num(s.noCandidates)} />}
       {s.unavailable > 0 && <Stat label="उपलब्ध नहीं" value={num(s.unavailable)} tone="rp-red" />}
-      <Stat label="बूथ दर्ज" value={`${num(s.boothsEntered)} / ${num(s.boothsTotal)}`} />
+      <Stat label="बूथ दर्ज" value={boothProgress(s.boothsEntered, s.boothsTotal)} />
       <Stat label="डाक मत दर्ज" value={`${num(s.postalEntered)} / ${num(s.postalTotal)}`} />
     </div>
   );

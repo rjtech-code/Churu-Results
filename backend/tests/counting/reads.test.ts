@@ -77,7 +77,6 @@ describe('counting reads', () => {
       wardId: w.zW1,
       boothId: w.b3,
       ballotFor: 'ZP',
-      roundNo: 4,
       sheetTotal: 3,
       votes: v([
         [w.c.E, 1],
@@ -92,7 +91,6 @@ describe('counting reads', () => {
         boothId: number;
         entered: boolean;
         entryId: number | null;
-        roundNo: number | null;
         panchayatSamiti: string;
       }[];
       postal: unknown;
@@ -101,9 +99,9 @@ describe('counting reads', () => {
     expect(body.booths.find((b) => b.boothId === w.b3)).toMatchObject({
       entered: true,
       entryId,
-      roundNo: 4,
       panchayatSamiti: 'पंचायत समिति राजगढ़',
     });
+    expect(body.booths.every((b) => !('roundNo' in b))).toBe(true);
     expect(body.booths.filter((b) => b.entered)).toHaveLength(1);
     expect(body.postal).toEqual({ entered: false, entryId: null, enteredAt: null });
     expect((await zp.get(`/wards/${w.psW1}/booths`)).status).toBe(403);
@@ -151,7 +149,6 @@ describe('counting reads', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 1, 2, 3);
     await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 2,
       sheetTotal,
       votes,
       reason: 'Corrected all three counts',

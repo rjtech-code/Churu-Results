@@ -44,7 +44,6 @@ function ward(over: Partial<CsWardRow>): CsWardRow {
     boothsTotal: 4,
     boothsPending: 4,
     boothsPercent: 0,
-    latestRound: null,
     postalDone: false,
     lastEntryAt: null,
     lastEntryText: null,

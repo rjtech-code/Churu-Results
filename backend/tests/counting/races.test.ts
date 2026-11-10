@@ -48,7 +48,7 @@ describe('races', () => {
       .entry.id;
     const edit = (x: number) => {
       const { votes, sheetTotal } = psW1Sheet(w, w.b1, x, 1, 1);
-      return { rowVersion: 1, roundNo: 1, sheetTotal, votes, reason: REASON };
+      return { rowVersion: 1, sheetTotal, votes, reason: REASON };
     };
     const results = await Promise.all([
       a.put(`/entries/${id}`, edit(7)),

@@ -36,13 +36,11 @@ export interface BoothCreateBody {
   wardId: number;
   boothId: number;
   ballotFor: BallotFor;
-  roundNo: number;
   sheetTotal: number;
   votes: SheetVote[];
 }
 export interface BoothUpdateBody {
   rowVersion: number;
-  roundNo: number;
   sheetTotal: number;
   votes: SheetVote[];
   reason: string;
@@ -72,7 +70,6 @@ export interface PreviewSummary {
     wardId: number;
     boothId: number | null;
     ballotFor: BallotFor | null;
-    roundNo: number | null;
     sheetTotal: number;
     rejectedCount: number | null;
     sum: number;
@@ -150,12 +147,7 @@ export async function previewBoothEntry(
       ...input,
       boothEntries: [
         ...input.boothEntries,
-        {
-          boothId: body.boothId,
-          roundNo: body.roundNo,
-          sheetTotal: body.sheetTotal,
-          votes: plainVotes(body.votes),
-        },
+        { boothId: body.boothId, sheetTotal: body.sheetTotal, votes: plainVotes(body.votes) },
       ],
     });
     return {
@@ -163,7 +155,6 @@ export async function previewBoothEntry(
         wardId: body.wardId,
         boothId: body.boothId,
         ballotFor: body.ballotFor,
-        roundNo: body.roundNo,
         sheetTotal: body.sheetTotal,
         rejectedCount: null,
         sum: sheetSum(body.votes),
@@ -185,9 +176,9 @@ async function insertBoothEntry(
   let entryId: number;
   try {
     const [inserted] = await conn.execute<ResultSetHeader>(
-      `INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [body.boothId, body.ballotFor, body.wardId, body.roundNo, body.sheetTotal, ctx.user.id],
+      `INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [body.boothId, body.ballotFor, body.wardId, body.sheetTotal, ctx.user.id],
     );
     entryId = inserted.insertId;
   } catch (err) {
@@ -209,7 +200,6 @@ async function insertBoothEntry(
       ward_id: body.wardId,
       booth_id: body.boothId,
       ballot_for: body.ballotFor,
-      round_no: body.roundNo,
       sheet_total: body.sheetTotal,
       votes: plainVotes(body.votes),
     },
@@ -238,7 +228,6 @@ export interface LiveBoothEntry {
   wardId: number;
   boothId: number;
   ballotFor: BallotFor;
-  roundNo: number;
   sheetTotal: number;
   rowVersion: number;
   enteredBy: number;
@@ -254,9 +243,9 @@ export async function readBoothEntry(
 ): Promise<LiveBoothEntry> {
   const [rows] = await conn.execute<RowDataPacket[]>(
     forUpdate
-      ? `SELECT id, ward_id, booth_id, ballot_for, round_no, sheet_total, row_version, entered_by, entered_at,
+      ? `SELECT id, ward_id, booth_id, ballot_for, sheet_total, row_version, entered_by, entered_at,
                 updated_by, updated_at FROM booth_entry WHERE id = ? FOR UPDATE`
-      : `SELECT id, ward_id, booth_id, ballot_for, round_no, sheet_total, row_version, entered_by, entered_at,
+      : `SELECT id, ward_id, booth_id, ballot_for, sheet_total, row_version, entered_by, entered_at,
                 updated_by, updated_at FROM booth_entry WHERE id = ?`,
     [entryId],
   );
@@ -267,7 +256,6 @@ export async function readBoothEntry(
     wardId: Number(r.ward_id),
     boothId: Number(r.booth_id),
     ballotFor: r.ballot_for === 'ZP' ? 'ZP' : 'PS',
-    roundNo: Number(r.round_no),
     sheetTotal: Number(r.sheet_total),
     rowVersion: Number(r.row_version),
     enteredBy: Number(r.entered_by),
@@ -348,7 +336,6 @@ export async function writeBoothChange(
   entry: LiveBoothEntry,
   change: {
     rowVersion: number;
-    roundNo: number;
     sheetTotal: number;
     votes: SheetVote[];
     reason: string;
@@ -358,9 +345,9 @@ export async function writeBoothChange(
 ): Promise<void> {
   const oldVotes = await readEntryVotes(conn, 'booth_entry_vote', entry.id);
   const [updated] = await conn.execute<ResultSetHeader>(
-    `UPDATE booth_entry SET round_no = ?, sheet_total = ?, updated_by = ?, row_version = row_version + 1
+    `UPDATE booth_entry SET sheet_total = ?, updated_by = ?, row_version = row_version + 1
       WHERE id = ? AND row_version = ?`,
-    [change.roundNo, change.sheetTotal, ctx.user.id, entry.id, change.rowVersion],
+    [change.sheetTotal, ctx.user.id, entry.id, change.rowVersion],
   );
   if (updated.affectedRows !== 1) throw new ApiError(409, 'STALE_VERSION');
   for (const v of namedVotes(candidates, change.votes)) {
@@ -377,7 +364,6 @@ export async function writeBoothChange(
     oldValue: {
       ward_id: entry.wardId,
       booth_id: entry.boothId,
-      round_no: entry.roundNo,
       sheet_total: entry.sheetTotal,
       row_version: entry.rowVersion,
       votes: oldVotes.map((v) => ({ candidateId: v.candidateId, votes: v.votes })),
@@ -385,7 +371,6 @@ export async function writeBoothChange(
     newValue: {
       ward_id: entry.wardId,
       booth_id: entry.boothId,
-      round_no: change.roundNo,
       sheet_total: change.sheetTotal,
       row_version: entry.rowVersion + 1,
       votes: plainVotes(change.votes),
@@ -406,11 +391,7 @@ export async function updateBoothEntry(
     const entry = await lockBoothEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
     const candidates = await checkBoothChange(conn, entry, body);
     const saved = await readEntryVotes(conn, 'booth_entry_vote', entry.id);
-    if (
-      body.roundNo === entry.roundNo &&
-      body.sheetTotal === entry.sheetTotal &&
-      sameVotes(saved, body.votes)
-    ) {
+    if (body.sheetTotal === entry.sheetTotal && sameVotes(saved, body.votes)) {
       throw new ApiError(400, 'NO_CHANGE'); // nothing written: the transaction rolls back
     }
     await writeBoothChange(conn, ctx, entry, body, candidates);
@@ -430,15 +411,14 @@ export async function voidBoothEntry(
     const entry = await lockBoothEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
     const votes = await readEntryVotes(conn, 'booth_entry_vote', entryId);
     const [archived] = await conn.execute<ResultSetHeader>(
-      `INSERT INTO voided_entry (entry_kind, original_entry_id, ward_id, booth_id, ballot_for, round_no, sheet_total,
+      `INSERT INTO voided_entry (entry_kind, original_entry_id, ward_id, booth_id, ballot_for, sheet_total,
          rejected_count, row_version, entered_by, entered_at, updated_by, updated_at, votes, voided_by, void_reason)
-       VALUES ('BOOTH', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ('BOOTH', ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         entry.id,
         entry.wardId,
         entry.boothId,
         entry.ballotFor,
-        entry.roundNo,
         entry.sheetTotal,
         entry.rowVersion,
         entry.enteredBy,
@@ -459,7 +439,6 @@ export async function voidBoothEntry(
         ward_id: entry.wardId,
         booth_id: entry.boothId,
         ballot_for: entry.ballotFor,
-        round_no: entry.roundNo,
         sheet_total: entry.sheetTotal,
         row_version: entry.rowVersion,
         entered_by: entry.enteredBy,
@@ -529,7 +508,6 @@ export async function previewPostalEntry(
         wardId,
         boothId: null,
         ballotFor: null,
-        roundNo: null,
         sheetTotal: body.sheetTotal,
         rejectedCount: body.rejectedCount ?? null,
         sum: sheetSum(body.votes),
@@ -743,9 +721,9 @@ export async function voidPostalEntry(
     const entry = await lockPostalEntryForChange(pool, conn, ctx, entryId, body.rowVersion);
     const votes = await readEntryVotes(conn, 'postal_entry_vote', entryId);
     const [archived] = await conn.execute<ResultSetHeader>(
-      `INSERT INTO voided_entry (entry_kind, original_entry_id, ward_id, booth_id, ballot_for, round_no, sheet_total,
+      `INSERT INTO voided_entry (entry_kind, original_entry_id, ward_id, booth_id, ballot_for, sheet_total,
          rejected_count, row_version, entered_by, entered_at, updated_by, updated_at, votes, voided_by, void_reason)
-       VALUES ('POSTAL', ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ('POSTAL', ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         entry.id,
         entry.wardId,

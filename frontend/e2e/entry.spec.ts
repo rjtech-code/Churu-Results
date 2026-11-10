@@ -13,8 +13,9 @@ test('ward list, then a booth: a mismatch blocks, the correct sheet saves and th
   await page.getByLabel('वार्ड संख्या से खोजें').fill('1');
   const row = page.getByRole('row', { name: /^वार्ड 1 / });
   await expect(row).toContainText('शुरू नहीं');
-  await expect(row).toContainText('0/2');
+  await expect(row).toContainText('0 / 2');
   await row.getByRole('link', { name: 'खोलें' }).click();
+  await expect(page.getByTestId('ward-progress')).toHaveText('बूथ 0 / 2 · डाक मत: बाकी');
 
   await page.getByRole('row', { name: /^1 / }).getByRole('link', { name: 'एंट्री करें' }).click();
   await expect(page.getByText('बूथ संख्या 1 — राजकीय विद्यालय 1')).toBeVisible();
@@ -32,7 +33,8 @@ test('ward list, then a booth: a mismatch blocks, the correct sheet saves and th
   await page.getByLabel('कुल योग (पर्ची के अनुसार)').fill('51');
   await expect(page.getByTestId('entry-sumline')).toContainText('✓ बराबर');
   await page.getByLabel('कुल योग (पर्ची के अनुसार)').press('Enter');
-  await expect(page.getByText('पुष्टि करें — बूथ 1, राउंड 1')).toBeVisible();
+  await expect(page.getByText('पुष्टि करें — बूथ 1', { exact: true })).toBeVisible();
+  await expect(page.getByText(/राउंड/)).toHaveCount(0);
   await expect(page.getByTestId('confirm-votes')).toHaveText(['30', '20', '1']);
   await expect(page.getByTestId('confirm-total')).toHaveText('51');
   await page.getByRole('button', { name: 'पुष्टि करें और सेव करें' }).dblclick(); // double click saves once
@@ -41,9 +43,10 @@ test('ward list, then a booth: a mismatch blocks, the correct sheet saves and th
   await expect(page.getByText('बूथ 1 की एंट्री सेव हो गई')).toBeVisible();
   await expect(page.getByRole('link', { name: 'अगला बूथ: एंट्री करें' })).toBeFocused();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('मतगणना जारी');
+  await expect(page.getByTestId('ward-progress')).toHaveText('बूथ 1 / 2 · डाक मत: बाकी');
 
   await page.getByRole('link', { name: '← मेरे वार्ड' }).click();
-  await expect(page.getByRole('row', { name: /^वार्ड 1 / })).toContainText('1/2');
+  await expect(page.getByRole('row', { name: /^वार्ड 1 / })).toContainText('1 / 2');
 });
 
 test('the same booth a second time is refused with ALREADY_ENTERED', async ({ page }) => {

@@ -5,7 +5,7 @@ import { useRole } from '../auth/AuthContext';
 import { ErrorBox } from '../components/ErrorBox';
 import { StFormatPanel } from '../components/StFormatPanel';
 import { StatusBadge } from '../components/StatusBadge';
-import { formatDateTime, formatTime, wardShort } from '../components/format';
+import { boothProgress, formatDateTime, formatTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 
 const REFRESH_MS = 15_000;
@@ -39,7 +39,7 @@ function PsZpWardList() {
               <tr key={w.id}>
                 <td className="ward-name">वार्ड {w.wardNo}</td>
                 <td className="numcell">
-                  {w.boothsEntered}/{w.boothsTotal}
+                  {boothProgress(w.boothsEntered, w.boothsTotal)}
                   {w.state === 'DECLARED' && <div className="small muted">घोषित</div>}
                 </td>
                 <td>
@@ -195,10 +195,10 @@ function PsWardList() {
                   <StatusBadge status={w.status} />
                 </td>
                 <td className="numcell">
-                  {w.boothsEntered}/{w.boothsTotal}
+                  {boothProgress(w.boothsEntered, w.boothsTotal)}
                   {w.kind === 'ZP' && w.boothsByPs.length > 0 && (
                     <div className="small muted" data-testid="booths-by-ps">
-                      {w.boothsByPs.map((p) => `${p.psName} ${p.entered}/${p.total}`).join(', ')}
+                      {w.boothsByPs.map((p) => `${p.psName} ${boothProgress(p.entered, p.total)}`).join(', ')}
                     </div>
                   )}
                 </td>

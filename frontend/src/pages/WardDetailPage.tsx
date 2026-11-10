@@ -5,7 +5,7 @@ import { useRole } from '../auth/AuthContext';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { StatusBadge } from '../components/StatusBadge';
 import { WardFormDownloads } from '../components/WardFormDownloads';
-import { formatDateTime, wardShort } from '../components/format';
+import { boothProgress, formatDateTime, wardShort } from '../components/format';
 import { useApiData } from '../components/useApiData';
 import { ZpProgressTable } from '../components/ZpProgressTable';
 
@@ -55,6 +55,12 @@ export function WardDetailPage() {
         {wardShort(ward)} <StatusBadge status={ward.status} />
       </h1>
       <SuccessBox text={state.flash} />
+      {!ward.isUnopposed && (
+        <p className="big" data-testid="ward-progress">
+          बूथ {boothProgress(ward.boothsEntered, ward.boothsTotal)} · डाक मत:{' '}
+          {ward.postalEntered ? 'दर्ज' : 'बाकी'}
+        </p>
+      )}
       {!ward.ballotLocked && (
         <p className="msg msg-warn">! इस वार्ड की उम्मीदवार सूची अभी लॉक नहीं है — एंट्री नहीं हो सकती।</p>
       )}
@@ -115,7 +121,6 @@ export function WardDetailPage() {
             <th>बूथ संख्या</th>
             <th>बूथ का नाम</th>
             <th>स्थिति</th>
-            <th>राउंड</th>
             <th>समय</th>
             <th />
           </tr>
@@ -131,7 +136,6 @@ export function WardDetailPage() {
                   {ward.kind === 'ZP' ? <small className="muted"> ({b.panchayatSamiti})</small> : null}
                 </td>
                 <td>{b.entered ? '✓ दर्ज' : 'बाकी'}</td>
-                <td className="numcell">{b.roundNo ?? '—'}</td>
                 <td>{formatDateTime(b.enteredAt)}</td>
                 <td className="actions">
                   {!b.entered && open && (

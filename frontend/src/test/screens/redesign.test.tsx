@@ -37,7 +37,6 @@ const card = (status: PublicStatus, over: Partial<WardCard> = {}): WardCard => (
   status,
   boothsEntered: 1,
   boothsTotal: 2,
-  latestRound: 1,
   postalEntered: false,
   top3: [],
   margin: null,

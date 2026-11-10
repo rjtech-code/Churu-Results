@@ -264,8 +264,9 @@ async function simulateActor(
     ];
     log(`[${actor.label}] ${tasks.length} ward ballot(s) to count as ${username}`);
 
-    // Round by round (10 booths per ward per round), all wards interleaved like a real hall.
-    for (let round = 1; !isStopping(); round++) {
+    // Up to 10 booths per ward per pass, all wards interleaved like a real hall.
+    const boothsTotal = tasks.reduce((s, t) => s + t.booths.length, 0);
+    while (!isStopping()) {
       let did = false;
       for (const t of tasks) {
         const todo = t.booths.filter((b) => !b.entered);
@@ -276,7 +277,6 @@ async function simulateActor(
             wardId: t.id,
             boothId: b.boothId,
             ballotFor: t.ballotFor,
-            roundNo: round,
             sheetTotal: total,
             votes: t.ballot.map((c, i) => ({ candidateId: c.candidateId, votes: votes[i] ?? 0 })),
           });
@@ -308,8 +308,9 @@ async function simulateActor(
         }
       }
       if (!did) break;
+      const boothsEntered = tasks.reduce((s, t) => s + t.booths.filter((b) => b.entered).length, 0);
       log(
-        `[${actor.label}] round ${round} done (${stats.booths} booths, ${stats.postal} postal, ${stats.declared} declared)`,
+        `[${actor.label}] booths ${boothsEntered} / ${boothsTotal} (${stats.booths} saved now, ${stats.postal} postal, ${stats.declared} declared)`,
       );
     }
   } finally {

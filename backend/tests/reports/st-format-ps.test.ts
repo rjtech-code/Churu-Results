@@ -198,7 +198,6 @@ async function buildPsWorld(db: Pool): Promise<{ ps1: number; ps2: number }> {
         wardId,
         boothId,
         ballotFor: 'PS',
-        roundNo: 1,
         sheetTotal: v.reduce((s, x) => s + x, 0),
         votes: votes(cs, v),
       }),

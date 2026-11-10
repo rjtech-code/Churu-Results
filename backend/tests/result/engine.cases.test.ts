@@ -26,8 +26,8 @@ const result = (over: Parameters<typeof wardInput>[0] = {}) => computeWardResult
 const fullEntries = () => ({
   boothEntries: [
     booth(1, { [A]: 20, [B]: 15, [C]: 5, [N]: 2 }),
-    booth(2, { [A]: 25, [B]: 10, [C]: 3, [N]: 1 }, 2),
-    booth(3, { [A]: 10, [B]: 10, [C]: 2, [N]: 2 }, 2),
+    booth(2, { [A]: 25, [B]: 10, [C]: 3, [N]: 1 }),
+    booth(3, { [A]: 10, [B]: 10, [C]: 2, [N]: 2 }),
   ],
   postalEntry: postal({ [A]: 5, [B]: 5, [C]: 0, [N]: 0 }, 3),
 });
@@ -56,7 +56,6 @@ describe('result engine — cases', () => {
       boothsTotal: 3,
       boothsEntered: 3,
       postalEntered: true,
-      roundsSeen: [1, 2],
       winnerCandidateId: null,
       declaration: null,
       declarationMismatch: false,
@@ -198,7 +197,6 @@ describe('result engine — cases', () => {
       boothsEntered: 0,
       postalEntered: false,
       totalValidVotes: 0,
-      roundsSeen: [],
       rejectedPostal: null,
     });
     expect(r.topTied).toBe(true); // 0 = 0, shown but not a lottery while not started
@@ -486,7 +484,6 @@ describe('result engine — cases', () => {
           boothEntries: [
             {
               boothId: 1,
-              roundNo: 1,
               sheetTotal: 2,
               votes: [
                 { candidateId: A, votes: 1 },
@@ -537,7 +534,7 @@ describe('result engine — cases', () => {
       ],
       [
         'booth votes do not match the sheet total',
-        wardInput({ boothEntries: [booth(1, { [A]: 1, [B]: 2, [C]: 0, [N]: 0 }, 1, 4)] }),
+        wardInput({ boothEntries: [booth(1, { [A]: 1, [B]: 2, [C]: 0, [N]: 0 }, 4)] }),
         /votes add up to 3 but the sheet total is 4/,
       ],
       [
@@ -552,7 +549,7 @@ describe('result engine — cases', () => {
       ],
       [
         'invalid sheet total',
-        wardInput({ boothEntries: [booth(1, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }, 1, -1)] }),
+        wardInput({ boothEntries: [booth(1, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }, -1)] }),
         /sheet total must be a whole number/,
       ],
       [
@@ -564,16 +561,6 @@ describe('result engine — cases', () => {
         'invalid rejected count',
         wardInput({ postalEntry: postal({ [A]: 0, [B]: 0, [C]: 0, [N]: 0 }, -1) }),
         /rejected count/,
-      ],
-      [
-        'invalid round number',
-        wardInput({ boothEntries: [booth(1, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }, 0)] }),
-        /round number/,
-      ],
-      [
-        'non-integer round number',
-        wardInput({ boothEntries: [booth(1, { [A]: 0, [B]: 0, [C]: 0, [N]: 0 }, 1.5)] }),
-        /round number/,
       ],
       [
         'more than one NOTA',
@@ -672,7 +659,7 @@ describe('result engine — cases', () => {
     const huge = Number.MAX_SAFE_INTEGER - 1;
     // Sum inside one entry becomes unsafe.
     expect(() =>
-      result({ boothEntries: [booth(1, { [A]: huge, [B]: huge, [C]: 0, [N]: 0 }, 1, 0)] }),
+      result({ boothEntries: [booth(1, { [A]: huge, [B]: huge, [C]: 0, [N]: 0 }, 0)] }),
     ).toThrow(/sum of votes is too large/);
     // Booth totals across entries become unsafe.
     expect(() =>
@@ -705,7 +692,7 @@ describe('result engine — cases', () => {
       wardInput({
         boothEntries: [
           booth(1, { [A]: 5, [B]: 5, [C]: 5, [N]: 0 }),
-          booth(3, { [A]: 1, [B]: 0, [C]: 1, [N]: 9 }, 4),
+          booth(3, { [A]: 1, [B]: 0, [C]: 1, [N]: 9 }),
         ],
       }),
       wardInput({

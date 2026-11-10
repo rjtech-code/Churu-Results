@@ -43,7 +43,6 @@ const MAX_COUNT = 4_294_967_295;
 
 const id = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const count = z.number().int().min(0).max(MAX_COUNT);
-const roundNo = z.number().int().min(1).max(99);
 const reason = z.string().trim().min(10).max(500);
 const votes = z
   .array(z.object({ candidateId: id, votes: count }).strict())
@@ -55,14 +54,11 @@ const boothCreate = z
     wardId: id,
     boothId: id,
     ballotFor: z.enum(['PS', 'ZP']),
-    roundNo,
     sheetTotal: count,
     votes,
   })
   .strict();
-const boothUpdate = z
-  .object({ rowVersion: id, roundNo, sheetTotal: count, votes, reason })
-  .strict();
+const boothUpdate = z.object({ rowVersion: id, sheetTotal: count, votes, reason }).strict();
 const voidBody = z.object({ rowVersion: id, reason }).strict();
 const historyQuery = z.object({ ballotFor: z.enum(['PS', 'ZP']) }).strict();
 const postalCreate = z

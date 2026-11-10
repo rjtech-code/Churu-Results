@@ -50,7 +50,6 @@ export function ZpWardPage() {
             <th>बूथ संख्या</th>
             <th>बूथ का नाम</th>
             <th>स्थिति</th>
-            <th>राउंड</th>
             <th>समय</th>
             <th />
           </tr>
@@ -63,7 +62,6 @@ export function ZpWardPage() {
                 <td className="numcell">{b.boothNo}</td>
                 <td>{b.nameHindi}</td>
                 <td>{b.entered ? '✓ दर्ज' : 'बाकी'}</td>
-                <td className="numcell">{b.roundNo ?? '—'}</td>
                 <td>{formatDateTime(b.enteredAt)}</td>
                 <td className="actions">
                   {!b.entered && open && (

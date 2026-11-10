@@ -26,7 +26,6 @@ function card(status: PublicStatus, over: Partial<WardCard> = {}): WardCard {
     status,
     boothsEntered: 3,
     boothsTotal: 5,
-    latestRound: 2,
     postalEntered: false,
     top3: [top(11, 'सुरेश कुमार', 123456, 1, BJP), top(12, 'महेश चंद', 23456, 2), top(13, 'रमेश', 456, 3)],
     margin: 100000,
@@ -46,9 +45,7 @@ const winnerRows = (root: HTMLElement) => [...root.querySelectorAll('.tv-row-win
 
 describe('ward card', () => {
   it('NOT_STARTED: only "मतगणना शुरू नहीं" — no names, no numbers', () => {
-    const root = show(
-      card('NOT_STARTED', { top3: [], margin: null, boothsEntered: 0, latestRound: null, notaVotes: 0 }),
-    );
+    const root = show(card('NOT_STARTED', { top3: [], margin: null, boothsEntered: 0, notaVotes: 0 }));
     expect(root.textContent).toContain('वार्ड 7');
     expect(root.textContent).toContain('मतगणना शुरू नहीं');
     expect(root.textContent).not.toContain('सुरेश');
@@ -66,7 +63,8 @@ describe('ward card', () => {
     expect(rows[0]?.textContent).toContain('1,23,456');
     expect(rows[1]?.textContent).toContain('निर्दलीय');
     expect(root.textContent).toContain('आगे 1,00,000 मत');
-    expect(root.textContent).toContain('बूथ 3/5 · राउंड 2 · नोटा 1,234');
+    expect(root.textContent).toContain('बूथ 3 / 5 · डाक मत: बाकी · नोटा 1,234');
+    expect(root.textContent).not.toMatch(/राउंड/);
     expect(winnerRows(root)).toHaveLength(0);
   });
 
@@ -80,7 +78,7 @@ describe('ward card', () => {
     const root = show(card('READY_TO_DECLARE', { boothsEntered: 5, postalEntered: true }));
     expect(screen.getByText('घोषणा बाकी')).toBeTruthy();
     expect(root.textContent).toContain('आगे 1,00,000 मत');
-    expect(root.textContent).toContain('डाक ✓');
+    expect(root.textContent).toContain('बूथ 5 / 5 · डाक मत: दर्ज');
     expect(winnerRows(root)).toHaveLength(0);
   });
 
@@ -131,7 +129,6 @@ describe('ward card', () => {
         winner: { candidateId: 31, name: 'हरि राम', party: BJP },
         notaVotes: 0,
         boothsEntered: 0,
-        latestRound: null,
       }),
     );
     expect(root.textContent).toContain('हरि राम');

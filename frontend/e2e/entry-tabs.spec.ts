@@ -42,7 +42,7 @@ test('ZP tab: the tab is in the URL and survives refresh; only own-PS booths; no
   await page.reload();
   await expect(tab(page, 'जिला परिषद')).toHaveAttribute('aria-selected', 'true');
   const row = page.getByRole('row', { name: /^वार्ड 4 / });
-  await expect(row).toContainText('0/2');
+  await expect(row).toContainText('0 / 2');
   await row.getByRole('link', { name: 'खोलें' }).click();
   await expect(page).toHaveURL(new RegExp(`/zp/${c.zpWardId}$`));
   await expect(page.getByRole('row', { name: /^21 / })).toBeVisible();
@@ -68,14 +68,14 @@ test('ZP save: same form for the ZP ballot, no ward totals on the confirm screen
   await page.getByLabel('नोटा के मत').fill('9');
   await page.getByLabel(TOTAL).fill('499');
   await page.getByRole('button', { name: 'आगे' }).click();
-  await expect(page.getByText('पुष्टि करें — बूथ 21, राउंड 1')).toBeVisible();
+  await expect(page.getByText('पुष्टि करें — बूथ 21', { exact: true })).toBeVisible();
   await expect(page.getByText('वार्ड का कुल योग')).toHaveCount(0);
   await page.getByRole('button', { name: SAVE }).dblclick(); // double click saves once
   await expect(page).toHaveURL(new RegExp(`/zp/${c.zpWardId}$`));
   await expect(page.getByText('बूथ 21 की एंट्री सेव हो गई')).toBeVisible();
   await expect(page.getByRole('row', { name: /^21 / })).toContainText('✓ दर्ज');
   await page.goto('/wards?ballot=ZP');
-  await expect(page.getByRole('row', { name: /^वार्ड 4 / })).toContainText('1/2');
+  await expect(page.getByRole('row', { name: /^वार्ड 4 / })).toContainText('1 / 2');
 });
 
 test('ZP edit (reason required) and void return to the ZP ward', async ({ page }) => {

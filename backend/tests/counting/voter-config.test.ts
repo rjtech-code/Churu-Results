@@ -64,7 +64,6 @@ describe('no registered-voter checks', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b4, 1, 1, 1);
     const upd = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -82,7 +81,6 @@ describe('no registered-voter checks', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 2000, 900, 5);
     const upd = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -109,7 +107,6 @@ describe('no registered-voter checks', () => {
     const id = (ok.body as { entry: { id: number } }).entry.id;
     const badEdit = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal: 9,
       votes: v([
         [w.c.A, 1],

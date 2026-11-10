@@ -200,7 +200,7 @@ describe('post-declare correction', () => {
     expect(await versions()).toHaveLength(1);
   });
 
-  it('NO_CHANGE: identical numbers, or a round-only change', async () => {
+  it('NO_CHANGE: identical numbers; a change carrying a round number is refused', async () => {
     const same = {
       kind: 'BOOTH',
       entryId: filled.entries.b1,
@@ -215,11 +215,11 @@ describe('post-declare correction', () => {
     const result = await loadWardResult(pool, w.psW1);
     const res = await ro.dpost(`/wards/${w.psW1}/correction`, correctionBody(result, [same]));
     expect([res.status, res.body]).toEqual([400, { error: 'NO_CHANGE' }]);
-    const roundOnly = await ro.dpost(
+    const withRound = await ro.dpost(
       `/wards/${w.psW1}/correction`,
       correctionBody(result, [{ ...same, roundNo: 9 }]),
     );
-    expect(roundOnly.body).toEqual({ error: 'NO_CHANGE' });
+    expect((withRound.body as { error: string }).error).toBe('VALIDATION_FAILED');
     expect(
       (await ro.dpost(`/wards/${w.psW1}/correction/preview`, { changes: [same] })).body,
     ).toEqual({ error: 'NO_CHANGE' });
@@ -242,7 +242,6 @@ describe('post-declare correction', () => {
       wardId: w.zW1,
       boothId: w.b1,
       ballotFor: 'ZP',
-      roundNo: 1,
       sheetTotal: 2,
       votes: v([
         [w.c.E, 1],
@@ -304,7 +303,6 @@ describe('post-declare correction', () => {
           kind: 'POSTAL',
           entryId: filled.entries.postal,
           rowVersion: 1,
-          roundNo: 2,
           sheetTotal: 0,
           votes: [],
         },

@@ -1,6 +1,7 @@
 // THE result engine. All result math (totals, ranks, leader, margin, top-3, tie) lives ONLY here
 // (CLAUDE.md, correctness rule 1). Pure: no database, no I/O, no clock, no randomness.
 // The same input always gives the same output, whatever order the input lists are in.
+import { boothProgress } from './booth-progress.js';
 
 // ---------------------------------------------------------------- input types
 
@@ -29,7 +30,6 @@ export interface VoteInput {
 
 export interface BoothEntryInput {
   boothId: number;
-  roundNo: number;
   sheetTotal: number;
   votes: readonly VoteInput[];
 }
@@ -116,10 +116,10 @@ export interface WardResult {
   /** All candidates + NOTA, booth + postal. */
   totalValidVotes: number;
   rejectedPostal: number | null;
+  /** Booth progress (booth-progress.ts): booths with a live entry / every booth of the ward. */
   boothsTotal: number;
   boothsEntered: number;
   postalEntered: boolean;
-  roundsSeen: number[];
   /** Up to 3 REAL candidates: votes descending; equal votes: declared winner first, then ballot position. */
   top3: RankedRow[];
   /** Real candidates only. Declared wards: always the declared winner (unless declarationMismatch).
@@ -279,17 +279,12 @@ export function computeWardResult(input: WardResultInput): WardResult {
 
   // Booth entries.
   const entered = new Set<number>();
-  const rounds = new Set<number>();
   const entries = [...input.boothEntries].sort((a, b) => a.boothId - b.boothId);
   for (const entry of entries) {
     const entryLabel = `${label}, booth ${entry.boothId}`;
     if (!wardBooths.has(entry.boothId)) fail(`${entryLabel}: this booth is not in the ward`);
     if (entered.has(entry.boothId)) fail(`${entryLabel}: entered twice`);
     entered.add(entry.boothId);
-    if (!Number.isSafeInteger(entry.roundNo) || entry.roundNo < 1) {
-      fail(`${entryLabel}: round number must be a whole number 1 or more`);
-    }
-    rounds.add(entry.roundNo);
     checkCount(entry.sheetTotal, `${entryLabel}: sheet total`);
     const { rows, sum } = readVotes(entry.votes, byId, entryLabel);
     if (sum !== entry.sheetTotal) {
@@ -360,7 +355,11 @@ export function computeWardResult(input: WardResultInput): WardResult {
 
   // Status.
   const postalEntered = postal !== null;
-  const allEntered = entered.size === wardBooths.size && postalEntered;
+  const progress = boothProgress(
+    ward.boothIds.map((id) => ({ id })),
+    entered,
+  );
+  const allEntered = progress.entered === progress.total && postalEntered;
   let status: ResultStatus;
   let winnerCandidateId: number | null = null;
   let declared: WardResult['declaration'] = null;
@@ -392,7 +391,7 @@ export function computeWardResult(input: WardResultInput): WardResult {
   } else if (ward.isUnopposed) {
     status = 'UNOPPOSED';
     winnerCandidateId = leader.candidateId;
-  } else if (entered.size === 0 && !postalEntered) {
+  } else if (progress.entered === 0 && !postalEntered) {
     status = 'NOT_STARTED';
   } else if (!allEntered) {
     status = 'COUNTING';
@@ -408,10 +407,9 @@ export function computeWardResult(input: WardResultInput): WardResult {
     notaVotes,
     totalValidVotes,
     rejectedPostal: postal?.rejectedCount ?? null,
-    boothsTotal: wardBooths.size,
-    boothsEntered: entered.size,
+    boothsTotal: progress.total,
+    boothsEntered: progress.entered,
     postalEntered,
-    roundsSeen: [...rounds].sort((a, b) => a - b),
     top3,
     leader,
     runnerUp,

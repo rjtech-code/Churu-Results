@@ -400,16 +400,25 @@ The PS ROs type each booth's approved result sheet (parchi, both ballots) and th
 | GET | `/api/counting/entries/:entryId` | One booth entry with its votes and `rowVersion` (for the edit form) |
 | GET | `/api/counting/entries/:entryId/history` | Who did what and when, with old/new values and reasons (also after a void) |
 | POST | `/api/counting/entries/preview` | Same body and checks as create; **saves nothing**. Returns the summary and the ward as it would become (the confirm screen). |
-| POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, roundNo, sheetTotal, votes:[{candidateId, votes}]}` |
-| PUT | `/api/counting/entries/:entryId` | Correct votes/round before declare: `{rowVersion, roundNo, sheetTotal, votes, reason}` |
+| POST | `/api/counting/entries` | Save a booth sheet → 201: `{wardId, boothId, ballotFor, sheetTotal, votes:[{candidateId, votes}]}` |
+| PUT | `/api/counting/entries/:entryId` | Correct votes before declare: `{rowVersion, sheetTotal, votes, reason}` |
 | POST | `/api/counting/entries/:entryId/void` | Void a wrong entry: `{rowVersion, reason}` |
 | GET | `/api/counting/zp-wards` | Part 14.1, PS_RO only: ZP wards that hold booths of its own PS, with own-PS `boothsEntered/boothsTotal` and a `state`. Never ward totals or leader. |
 | GET | `/api/counting/zp-wards/:wardId/ps-booths` | Part 14.1, PS_RO only: that ZP ward's booths of its own PS (404 unknown/non-ZP ward), the ballot candidates and `progress` (its own PS row + the postal row). No totals, leader or postal votes. |
 | GET | `/api/counting/zp-postal` | PS_RO only: the ZP wards whose postal ballots are assigned to its PS, with `state` and postal entry state |
 | GET | `/api/counting/zp-postal/:wardId` | PS_RO only: one assigned ZP ward: ward, ballot, postal state (403 when not assigned). No ward totals. |
-| GET | `/api/counting/wards/:wardId/zp-progress` | ZP_RO only (ZP ward): progress by Panchayat Samiti: per contributing PS booths done/total, its own latest round, last entry; and the postal row (assigned PS, entered or pending). Built by `buildZpPsProgress` (`counting-status.ts`), the same builder as the report. |
+| GET | `/api/counting/wards/:wardId/zp-progress` | ZP_RO only (ZP ward): progress by Panchayat Samiti: per contributing PS booths done/total (the rows add up to the ward) and its last entry; and the postal row (assigned PS, entered or pending). Built by `buildZpPsProgress` (`counting-status.ts`), the same builder as the report. |
 
-**Part 14 / official order — PS_RO and ZP entries.** A PS_RO creates/edits/voids the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots), and the postal sheet of a ZP ward assigned to its PS (`zp_ward_postal_assignment`). Declare, lottery and correction of ZP wards stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry or previews/saves a ZP postal sheet, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward. Rounds are labels only: a ZP ward has no single round (each PS has its own; see `zp-progress`).
+**Part 14 / official order — PS_RO and ZP entries.** A PS_RO creates/edits/voids the ZP-ballot entry of a booth in its own PS (one parchi carries both ballots), and the postal sheet of a ZP ward assigned to its PS (`zp_ward_postal_assignment`). Declare, lottery and correction of ZP wards stay ZP_RO only. When a PS_RO saves/edits/voids a ZP entry or previews/saves a ZP postal sheet, `wardResult` / `wardAfter` are left out (`null`): a PS_RO never sees ZP ward totals. The ZP_RO's `GET /api/counting/wards` adds `boothsByPs` per ZP ward (the same numbers as `zp-progress`).
+
+**Counting progress = booths entered / total booths** (DEO order, Nov 2026; there are no rounds). A booth is
+entered when it has a live (not voided) entry for the ward's ballot; the total is every booth of the ward (a
+ZP ward: across every Panchayat Samiti). Postal ballots are never part of the count and are shown next to
+it ("बूथ 4 / 50 · डाक मत: दर्ज/बाकी"). It is counted in ONE place, `backend/src/services/booth-progress.ts`,
+used by the result engine, the RO lists, ZP progress by PS and the Counting Status Report, so no two
+screens can disagree. Each booth ballot has exactly one live entry (`UNIQUE (booth_id, ballot_for)`); a void
+moves it to `voided_entry`, after which the booth can be entered once more. A body with `roundNo` is
+refused with 400 `VALIDATION_FAILED`.
 | GET | `/api/counting/booths/:boothId/history?ballotFor=PS\|ZP` | The **whole story** of one booth ballot, oldest first: every entry ever made for it (the live one and every voided one, from `voided_entry`) with all their audit rows: created, updated, voided, re-created … Each event has `entryId` and `entryVoided`. Same permission as the entry. |
 | GET | `/api/counting/postal/:entryId` and `.../history` | Postal entry, and its history |
 | GET | `/api/counting/wards/:wardId/postal/history` | The whole story of the ward's postal ballots (live + every voided postal entry), oldest first. Same permission as the postal entry. |
@@ -430,7 +439,7 @@ The PS ROs type each booth's approved result sheet (parchi, both ballots) and th
 - `reason` (PUT and void): 10–500 characters. The dashboard builds it from a standard reason (पर्ची पढ़ने में
   गलती / टाइपिंग में गलती / गलत बूथ चुना गया / पर्ची बाद में संशोधित हुई / अन्य) plus details, as
   "<reason> — <details>"; "अन्य" needs details of at least 10 characters.
-- **No-change edits:** a PUT identical to the saved entry (same round, total, rejected count and votes) is
+- **No-change edits:** a PUT identical to the saved entry (same total, rejected count and votes) is
   refused with 400 `NO_CHANGE`. Nothing is written: no `row_version` bump and no audit row.
 - Candidate names, wards and booths are always looked up on the server, never taken from the client.
 
@@ -522,7 +531,7 @@ answer `WARD_DECLARED`. One request, one transaction:
    database blocks it.
 
 There is never a "reopened" ward. If the corrected numbers are identical to the current ones, the
-answer is `NO_CHANGE`; a round number alone is not a result change.
+answer is `NO_CHANGE`.
 
 **Lock order.** Declare and correction follow the same lock order as Part 5:
 1. Password check, **before** any lock.
@@ -751,8 +760,9 @@ process.
 
 ### Using it (operator's view)
 1. **Log in.** The page goes to मेरे वार्ड (refreshes every 15 s; filter by ward number), then open a ward.
-2. **Booth entry.** Type the round, then each candidate's votes in ballot order (NOTA last), then the sheet
-   total ("कुल योग").
+2. **Booth entry.** Type each candidate's votes in ballot order (NOTA last), then the sheet total
+   ("कुल योग"). The ward page shows the progress as "बूथ 4 / 50 · डाक मत: दर्ज/बाकी" and every booth as
+   दर्ज or बाकी.
    - **Enter** moves to the next field. Enter on the total is "आगे".
    - **Live line:** "आपका जोड़ / पर्ची का योग" shows ✓ बराबर (green) or ✗ बराबर नहीं (red), always with text.
    - **Empty is not 0:** type 0 for zero.
@@ -785,7 +795,6 @@ process.
   On `CSRF_FAILED` the client fetches a new token and retries once.
 - **Session lost:** any 401 (`SESSION_EXPIRED` / `UNAUTHENTICATED`) clears the state and returns to the
   login page with the reason.
-- **Last round used:** remembered only in memory, per tab.
 
 ### Frontend scripts (in `frontend/`)
 
@@ -895,7 +904,7 @@ shows a Hindi message.
 | Card status (badge) | Colour (top stripe + badge) | Shows |
 |---|---|---|
 | शुरू नहीं / उम्मीदवार सूची बाकी | grey; light-grey "quiet" card | only "मतगणना शुरू नहीं" / "उम्मीदवार सूची बाकी" (no names, no numbers) |
-| मतगणना जारी / घोषणा बाकी | blue | top 3 rows, then "आगे X मत" or "बराबर", and "बूथ a/b · राउंड r · नोटा n · डाक ✓" |
+| मतगणना जारी / घोषणा बाकी | blue | top 3 rows, then "आगे X मत" or "बराबर", and "बूथ a / b · डाक मत: दर्ज/बाकी · नोटा n" |
 | बराबर — लॉटरी बाकी | amber | top 3 and "बराबर"; nobody is marked as winner |
 | विजयी | green | top 3; the winner row is light green, bold, and starts with "✓". Also "अंतर X मत" |
 | विजयी (लॉटरी) | purple | as विजयी, for the **lottery** winner (picked by candidate id); "अंतर 0 मत (लॉटरी से)" |
@@ -1031,10 +1040,11 @@ The DM logs in and lands on **`/reports`**, a read-only dashboard in Hindi (`/dm
   the JSON, the PDF and every CSV. Its options list only ZP wards (no Panchayat Samiti), and its booth
   picker goes through a ZP ward. Exports are audited (`REPORT_EXPORTED`) for both roles.
 - **ZP wards by Panchayat Samiti:** for each ZP ward, one row per contributing PS (ZP-ballot booths
-  done/total, that PS's own latest round or "-", last entry) and a Postal row ("Assigned to <PS>",
-  entered or pending). Shown in the one-ward drill-down, in the PDF and as
-  `GET /api/reports/counting-status/zp-by-ps.csv`. A ZP ward has no single round: rounds of different
-  PS are never merged into one number (the ward rows leave `latestRound` empty for ZP).
+  done/total and last entry; the rows add up to the ward's booths done/total) and a Postal row
+  ("Assigned to <PS>", entered or pending). Shown in the one-ward drill-down, in the PDF and as
+  `GET /api/reports/counting-status/zp-by-ps.csv`.
+- **No rounds:** progress is booths done / total everywhere (page, PDF, every CSV); there is no round
+  column.
 
 ## प्रबंधन और उम्मीदवार (Part 13)
 

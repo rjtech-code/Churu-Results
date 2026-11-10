@@ -224,7 +224,7 @@ export async function addBoothEntry(h: Harness, ballotFor: 'PS' | 'ZP'): Promise
   const b = booth[0];
   await insert(
     h.app,
-    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, ?, ?, 1, 0, ?)',
+    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, ?, ?, 0, ?)',
     [Number(b?.id), ballotFor, Number(ballotFor === 'PS' ? b?.ps_ward_id : b?.zp_ward_id), userId],
   );
 }

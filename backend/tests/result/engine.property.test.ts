@@ -57,16 +57,12 @@ const wardArb: fc.Arbitrary<WardResultInput> = fc.integer({ min: 1, max: 12 }).c
             minLength: boothCount,
             maxLength: boothCount,
           }),
-          rounds: fc.array(fc.integer({ min: 1, max: 20 }), {
-            minLength: boothCount,
-            maxLength: boothCount,
-          }),
           postal: fc.option(fc.array(voteArb, { minLength: nCand, maxLength: nCand }), {
             nil: null,
           }),
           rejected: fc.option(fc.integer({ min: 0, max: 100 }), { nil: null }),
         })
-        .map(({ entered, votes, rounds, postal, rejected }): WardResultInput => {
+        .map(({ entered, votes, postal, rejected }): WardResultInput => {
           const toRows = (vs: number[]) =>
             candidates.map((c, i) => ({ candidateId: c.id, votes: vs[i] ?? 0 }));
           const boothEntries: BoothEntryInput[] = boothIds.flatMap((boothId, b) => {
@@ -75,7 +71,6 @@ const wardArb: fc.Arbitrary<WardResultInput> = fc.integer({ min: 1, max: 12 }).c
             return [
               {
                 boothId,
-                roundNo: rounds[b] ?? 1,
                 sheetTotal: vs.reduce((s, v) => s + v, 0),
                 votes: toRows(vs),
               },

@@ -59,7 +59,6 @@ describe('integrity', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 101, 50, 5);
     await ro.put(`/entries/${first}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: 'Corrected candidate A count',

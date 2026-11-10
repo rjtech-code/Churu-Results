@@ -20,7 +20,6 @@ export const WARD_CSV_HEADERS = [
   'booths_done',
   'booths_total',
   'booths_pending',
-  'latest_round',
   'postal_done',
   'last_entry_ist',
   'winner',
@@ -45,7 +44,6 @@ export function wardCsvRows(r: CountingStatusReport): Cell[][] {
       w.boothsDone,
       w.boothsTotal,
       w.boothsPending,
-      w.latestRound,
       w.postalDone === null ? 'n/a' : yesNo(w.postalDone),
       w.lastEntryText,
       w.winner?.name ?? null,
@@ -65,7 +63,6 @@ export const BOOTH_CSV_HEADERS = [
   'booth_no',
   'booth_name',
   'entered',
-  'round',
   'entered_by',
   'entered_at_ist',
   'last_edited_at_ist',
@@ -86,7 +83,6 @@ export function boothCsvRows(r: CountingStatusReport): Cell[][] {
       b.boothNo,
       b.boothName,
       ENTERED[b.entered],
-      b.round,
       b.enteredBy,
       b.enteredAtText,
       b.lastEditedAtText,
@@ -103,7 +99,6 @@ export const ZP_BY_PS_CSV_HEADERS = [
   'ps_name',
   'booths_done',
   'booths_total',
-  'latest_round',
   'postal',
   'last_entry_ist',
   'report_time_ist',
@@ -111,8 +106,8 @@ export const ZP_BY_PS_CSV_HEADERS = [
 ] as const;
 
 /**
- * "By Panchayat Samiti": per ZP ward one row per contributing PS (its own latest round; rounds of
- * different PS are never merged) and one Postal row (the assigned PS, entered or pending).
+ * "By Panchayat Samiti": per ZP ward one row per contributing PS (its booths done / total; the rows
+ * add up to the ward) and one Postal row (the assigned PS, entered or pending).
  */
 export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
   return [
@@ -124,7 +119,6 @@ export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
         p.psName,
         p.boothsDone,
         p.boothsTotal,
-        p.latestRound ?? '-',
         null,
         p.lastEntryText,
         r.asOfText,
@@ -134,7 +128,6 @@ export function zpByPsCsvRows(r: CountingStatusReport): Cell[][] {
         z.wardNo,
         'postal',
         z.postal.assignedPsName,
-        null,
         null,
         null,
         z.postal.entered === null ? 'n/a' : z.postal.entered ? 'entered' : 'pending',

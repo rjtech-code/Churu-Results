@@ -62,7 +62,7 @@ export async function wardDetail(pool: Pool, wardId: number) {
       [wardId],
     );
     const [entries] = await conn.execute<RowDataPacket[]>(
-      `SELECT e.id, e.booth_id, e.round_no, e.sheet_total, e.entered_at, e.updated_at,
+      `SELECT e.id, e.booth_id, e.sheet_total, e.entered_at, e.updated_at,
               ue.username AS e_user, ue.full_name AS e_full, uu.username AS u_user, uu.full_name AS u_full
          FROM booth_entry e JOIN users ue ON ue.id = e.entered_by LEFT JOIN users uu ON uu.id = e.updated_by
         WHERE e.ward_id = ?`,
@@ -204,7 +204,6 @@ export async function wardDetail(pool: Pool, wardId: number) {
         registeredVoters:
           b.registered_voters_total === null ? null : Number(b.registered_voters_total),
         entered: e !== undefined,
-        roundNo: e === undefined ? null : Number(e.round_no),
         sheetTotal: e === undefined ? null : Number(e.sheet_total),
         votes: e === undefined ? [] : (votesByEntry.get(Number(e.id)) ?? []),
         enteredBy: e === undefined ? null : userName(e.e_full, e.e_user),

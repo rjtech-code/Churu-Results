@@ -1,9 +1,10 @@
 import type { Knex } from 'knex';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { APP_TABLE_PRIVILEGES } from '../src/db/grants.js';
 import { createMigrationKnex } from '../src/db/knex-config.js';
 import { runMigrations } from '../src/db/migrate.js';
 import * as boothSuffix from '../src/db/migrations/20261022000001_booth_suffix.js';
+import * as removeRoundNo from '../src/db/migrations/20261023000001_remove_round_no.js';
 import { migrationSource } from '../src/db/migrations/index.js';
 import { createTestMigrationPool, testEnv, wipeAllData } from './helpers/db.js';
 
@@ -89,6 +90,86 @@ describe('migrations', () => {
     await boothSuffix.up(db);
     expect(await labels()).toEqual(['12']);
     // case 1 (next) wipes the data and re-runs every migration.
+  });
+
+  describe('remove_round_no', () => {
+    const entryCount = async () =>
+      Number((await rows<{ n: number }>('SELECT COUNT(*) AS n FROM booth_entry'))[0]?.n);
+    const hasRoundColumn = async (table: string) =>
+      (
+        await rows(
+          "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'round_no'",
+          [testEnv.TEST_DB, table],
+        )
+      ).length === 1;
+    const addEntry = () =>
+      db.raw(
+        "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (1, 'PS', 1, 0, 1)",
+      );
+
+    beforeEach(async () => {
+      const migrator = createTestMigrationPool();
+      try {
+        await wipeAllData(migrator);
+      } finally {
+        await migrator.end();
+      }
+      await db.raw(
+        "INSERT INTO district (id, code, name_english, name_hindi) VALUES (1, 'CHURU', 'Churu', 'चूरू')",
+      );
+      await db.raw(
+        "INSERT INTO panchayat_samiti (id, district_id, name_english, name_hindi) VALUES (1, 1, 'A PS', 'ए')",
+      );
+      await db.raw(
+        "INSERT INTO ward (id, ward_type, district_id, panchayat_samiti_id, ward_no) VALUES (1, 'PS', 1, 1, 1), (2, 'ZP', 1, NULL, 1)",
+      );
+      await db.raw(
+        "INSERT INTO booth (id, panchayat_samiti_id, booth_no, name_hindi, ps_ward_id, zp_ward_id) VALUES (1, 1, 1, 'बूथ', 1, 2)",
+      );
+      await db.raw(
+        "INSERT INTO users (id, username, password_hash, role) VALUES (1, 'zp_ro', 'x', 'ZP_RO')",
+      );
+    });
+
+    it('up refuses, changing nothing, while a booth ballot has more than one live entry', async () => {
+      // Only possible on a damaged database: uq_booth_entry_booth_ballot is lifted for this test.
+      await db.raw('ALTER TABLE booth_entry ADD KEY idx_tmp_booth (booth_id)');
+      await db.raw('ALTER TABLE booth_entry DROP INDEX uq_booth_entry_booth_ballot');
+      try {
+        await addEntry();
+        await addEntry();
+        await expect(removeRoundNo.up(db)).rejects.toThrow(
+          /Cannot remove round_no: 1 booth ballot\(s\) have more than one live entry/,
+        );
+        expect(await entryCount()).toBe(2);
+      } finally {
+        await db.raw('DELETE FROM booth_entry');
+        await db.raw(
+          'ALTER TABLE booth_entry ADD UNIQUE KEY uq_booth_entry_booth_ballot (booth_id, ballot_for)',
+        );
+        await db.raw('ALTER TABLE booth_entry DROP INDEX idx_tmp_booth');
+      }
+    });
+
+    it('down refuses while a booth entry exists; on an empty table it restores round_no, and up removes it again', async () => {
+      expect(await hasRoundColumn('booth_entry')).toBe(false);
+      expect(await hasRoundColumn('voided_entry')).toBe(false);
+      await addEntry();
+      await expect(removeRoundNo.down(db)).rejects.toThrow(/Cannot roll back remove_round_no/);
+      expect(await entryCount()).toBe(1);
+      expect(await hasRoundColumn('booth_entry')).toBe(false);
+
+      await db.raw('DELETE FROM booth_entry');
+      await removeRoundNo.down(db);
+      expect(await hasRoundColumn('booth_entry')).toBe(true);
+      expect(await hasRoundColumn('voided_entry')).toBe(true);
+      await removeRoundNo.up(db);
+      expect(await hasRoundColumn('booth_entry')).toBe(false);
+      expect(await hasRoundColumn('voided_entry')).toBe(false);
+      // One live entry per booth ballot is still the database rule.
+      await addEntry();
+      await expect(addEntry()).rejects.toMatchObject({ code: 'ER_DUP_ENTRY' });
+    });
   });
 
   it('case 1: run fully down and up again without errors', async () => {

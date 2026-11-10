@@ -18,7 +18,6 @@ export interface WardCard {
   status: PublicStatus;
   boothsEntered: number;
   boothsTotal: number;
-  latestRound: number | null;
   postalEntered: boolean;
   top3: {
     candidateId: number;
@@ -97,7 +96,6 @@ export function wardCard(
     return { candidateId: id, name: c?.name ?? '', party: partyRef(c?.partyId ?? null, parties) };
   };
   const counted = result !== null && status !== 'NOT_STARTED';
-  const roundsSeen = result?.roundsSeen ?? [];
   const winnerId = result !== null && WINNER_STATUSES.has(status) ? result.winnerCandidateId : null;
   return {
     wardId: meta.id,
@@ -105,7 +103,6 @@ export function wardCard(
     status,
     boothsEntered: result?.boothsEntered ?? 0,
     boothsTotal: result?.boothsTotal ?? meta.boothCount,
-    latestRound: roundsSeen.length > 0 ? Math.max(...roundsSeen) : null,
     postalEntered: result?.postalEntered ?? false,
     // No leader is shown before counting starts.
     top3: counted

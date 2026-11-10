@@ -103,7 +103,7 @@ export function addBoothEntry(
 ) {
   return insert(
     pool,
-    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, ?, ?, 1, ?, ?)',
+    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, ?, ?, ?, ?)',
     [boothId, ballotFor, wardId, sheetTotal, userId],
   );
 }

@@ -52,7 +52,6 @@ async function zpEntries(app: PublicHarness['app'], count: number, gapMs: number
       wardId: w.zW1,
       boothId,
       ballotFor: 'ZP',
-      roundNo: 1,
       sheetTotal: 3,
       votes: v([
         [w.c.E, 2],
@@ -72,7 +71,6 @@ async function zpEntries(app: PublicHarness['app'], count: number, gapMs: number
       };
       await writer.put(`/entries/${String(id)}`, {
         rowVersion: entry.entry.rowVersion,
-        roundNo: 2,
         sheetTotal: 3 + i,
         votes: v([
           [w.c.E, 2 + i],

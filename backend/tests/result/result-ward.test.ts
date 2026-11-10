@@ -36,7 +36,8 @@ describe('npm run result:ward', () => {
     const text = output.join('\n');
     expect(text).toContain(`Ward:      PS ward 1 of ALPHA PANCHAYAT SAMITI (ward id ${id})`);
     expect(text).toContain('Status:    NOT_STARTED');
-    expect(text).toContain('Booths:    0 of 2 entered');
+    expect(text).toContain('Booths:    0 / 2 entered');
+    expect(text).not.toMatch(/round/i);
     expect(text).toContain('Postal:    NOT entered');
     expect(text).toMatch(/1\s+\d+\s+0\s+0\s+0\s+1\s+राम/);
     expect(text).toContain('[NOTA]');

@@ -3,7 +3,7 @@ import { api } from '../../api/api';
 import { idParam } from '../../api/loaders';
 import type { ReportWardDetail } from '../../api/reportTypes';
 import { ErrorBox } from '../../components/ErrorBox';
-import { formatDateTime } from '../../components/format';
+import { boothProgress, formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
 import { WardFormDownloads } from '../../components/WardFormDownloads';
 import { GENDER, REPORT_STATUS, num } from './reportFormat';
@@ -70,9 +70,7 @@ export function WardReport({ d }: { d: ReportWardDetail }) {
           <span className="rp-stat-label">नोटा</span>
         </div>
         <div className="rp-stat">
-          <span className="rp-stat-value">
-            {num(w.boothsEntered)} / {num(w.boothsTotal)}
-          </span>
+          <span className="rp-stat-value">{boothProgress(w.boothsEntered, w.boothsTotal)}</span>
           <span className="rp-stat-label">बूथ दर्ज</span>
         </div>
         <div className="rp-stat">
@@ -135,7 +133,6 @@ export function WardReport({ d }: { d: ReportWardDetail }) {
                 <th>नाम</th>
                 {w.kind === 'ZP' && <th>पंचायत समिति</th>}
                 <th className="num">मतदाता</th>
-                <th className="num">राउंड</th>
                 {columns.map((c) => (
                   <th key={c.id} className="num">
                     {c.isNota ? 'नोटा' : c.name}
@@ -154,7 +151,6 @@ export function WardReport({ d }: { d: ReportWardDetail }) {
                   <td>{b.name}</td>
                   {w.kind === 'ZP' && <td>{b.psName}</td>}
                   <td className="num">{b.registeredVoters === null ? '—' : num(b.registeredVoters)}</td>
-                  <td className="num">{b.roundNo ?? '—'}</td>
                   {columns.map((c) => {
                     const v = voteOf(b.votes, c.id);
                     return (

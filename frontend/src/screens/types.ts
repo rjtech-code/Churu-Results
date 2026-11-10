@@ -37,7 +37,6 @@ export interface WardCard {
   status: PublicStatus;
   boothsEntered: number;
   boothsTotal: number;
-  latestRound: number | null;
   postalEntered: boolean;
   top3: TopRow[];
   margin: number | null;

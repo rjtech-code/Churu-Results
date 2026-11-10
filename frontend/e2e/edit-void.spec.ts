@@ -48,7 +48,6 @@ test('an edit after someone else changed the entry gets the STALE message', asyn
     headers: { 'X-CSRF-Token': token },
     data: {
       rowVersion: current.entry.rowVersion,
-      roundNo: 1,
       sheetTotal: 123,
       votes: [
         { candidateId: w.candidates.A, votes: 80 },

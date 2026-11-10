@@ -64,7 +64,6 @@ describe('PS_RO on ZP booth ballots (single-ballot API)', () => {
 
     const noReason = await ro1.put(`/entries/${entry.id}`, {
       rowVersion: entry.rowVersion,
-      roundNo: 1,
       sheetTotal: 156,
       votes: v([
         [w.c.E, 101],
@@ -75,7 +74,6 @@ describe('PS_RO on ZP booth ballots (single-ballot API)', () => {
     expect(noReason.status).toBe(400);
     const edited = await ro1.put(`/entries/${entry.id}`, {
       rowVersion: entry.rowVersion,
-      roundNo: 1,
       sheetTotal: 156,
       votes: v([
         [w.c.E, 101],
@@ -114,7 +112,6 @@ describe('PS_RO on ZP booth ballots (single-ballot API)', () => {
       (
         await ro2.put(`/entries/${id}`, {
           rowVersion: 1,
-          roundNo: 1,
           sheetTotal: 155,
           votes: zW1Sheet(w, w.b1).votes,
           reason: REASON,
@@ -196,7 +193,6 @@ describe('after a ZP ward is declared', () => {
     const before = await tableCounts(pool);
     const edit = await ro1.put(`/entries/${mine.id}`, {
       rowVersion: mine.rowVersion,
-      roundNo: 1,
       sheetTotal: 156,
       votes: v([
         [w.c.E, 101],
@@ -280,7 +276,7 @@ describe('PS_RO ZP tab read endpoints', () => {
     // Progress: only this PS's row; the postal row says who enters it, never its numbers.
     expect((res.body as { progress: unknown }).progress).toMatchObject({
       wardId: w.zW1,
-      rows: [{ psId: w.ps1, boothsDone: 0, boothsTotal: 5, latestRound: null }],
+      rows: [{ psId: w.ps1, boothsDone: 0, boothsTotal: 5 }],
       postal: { assignedPsId: w.ps2, entered: false },
     });
     const body = res.body as {

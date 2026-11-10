@@ -113,21 +113,20 @@ describe('public data', () => {
       winner: null,
       boothsEntered: 0,
       boothsTotal: 3,
-      latestRound: null,
       declarationVersion: null,
       isCorrected: false,
     });
+    expect(card).not.toHaveProperty('latestRound');
   });
 
   it('COUNTING card has top3 and margin; UNOPPOSED has a winner', async () => {
     const ro = await declareClient(h.app, 'ro_ps1_x1');
     const v0 = h.snapshots.get()?.version ?? 0;
-    await ro.post('/entries', psW1Sheet(w, w.b1, 300, 200, 10, 3));
+    await ro.post('/entries', psW1Sheet(w, w.b1, 300, 200, 10));
     await nextVersion(h, v0);
     expect(await cardOf(w.psW1)).toMatchObject({
       status: 'COUNTING',
       boothsEntered: 1,
-      latestRound: 3,
       top3: [
         { name: 'ए', party: null, votes: 300, rank: 1, tiedWithPrevious: false },
         { name: 'बी', party: null, votes: 200, rank: 2, tiedWithPrevious: false },
@@ -211,7 +210,7 @@ describe('public data', () => {
     );
     // An entry without vote rows: the engine refuses this ward.
     await pool.execute(
-      "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, 'PS', ?, 1, 0, ?)",
+      "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, 'PS', ?, 0, ?)",
       [w.b3, w.psW2, w.users.ro2],
     );
     h.snapshots.requestRebuild();
@@ -247,7 +246,6 @@ describe('public data', () => {
       wardId: w.zW1,
       boothId: w.b2,
       ballotFor: 'ZP',
-      roundNo: 1,
       sheetTotal: 3,
       votes: [
         { candidateId: w.c.E, votes: 1 },

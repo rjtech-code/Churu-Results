@@ -158,14 +158,12 @@ beforeAll(async () => {
     boothId: number,
     ballotFor: 'PS' | 'ZP',
     votes: number[],
-    roundNo = 1,
   ) => {
     const body = ok(
       await c.post('/entries', {
         wardId,
         boothId,
         ballotFor,
-        roundNo,
         sheetTotal: votes.reduce((s, v) => s + v, 0),
         votes: rows(key, votes),
       }),
@@ -175,8 +173,8 @@ beforeAll(async () => {
   };
 
   // PS1 W1: LEADER clearly ahead in 2 of 3 booths, then both entries moved 45 minutes back.
-  const e1 = await enter(ro1, 'w1', ids.w1, b1, 'PS', [400, 100, 5], 1);
-  const e2 = await enter(ro1, 'w1', ids.w1, b2, 'PS', [300, 100, 5], 2);
+  const e1 = await enter(ro1, 'w1', ids.w1, b1, 'PS', [400, 100, 5]);
+  const e2 = await enter(ro1, 'w1', ids.w1, b2, 'PS', [300, 100, 5]);
   await migrator.execute(
     'UPDATE booth_entry SET entered_at = NOW(3) - INTERVAL 45 MINUTE, updated_at = NULL WHERE id IN (?, ?)',
     [e1, e2],
@@ -205,8 +203,8 @@ beforeAll(async () => {
   ids.b6Entry = await enter(ro2, 'v1', ids.v1, b6, 'PS', [50, 40, 1]);
   ids.b7Entry = await enter(ro2, 'v1', ids.v1, b7, 'PS', [20, 30, 2]);
   // ZP1: b1 and b2 by ps1's RO (one parchi carries both ballots); b6 (in PS2) pending.
-  await enter(ro1, 'zp1', ids.zp1, b1, 'ZP', [210, 200, 3], 1);
-  await enter(ro1, 'zp1', ids.zp1, b2, 'ZP', [110, 100, 1], 3);
+  await enter(ro1, 'zp1', ids.zp1, b1, 'ZP', [210, 200, 3]);
+  await enter(ro1, 'zp1', ids.zp1, b2, 'ZP', [110, 100, 1]);
 });
 afterAll(async () => {
   await pool.end();
@@ -300,7 +298,7 @@ describe('definitions, on the hand-built district', () => {
     v = await view();
   });
 
-  it('ward status, booths, round, postal, stalled', () => {
+  it('ward status, booths, postal, stalled', () => {
     const w1 = wardOf(v, ids.w1);
     expect(w1).toMatchObject({
       status: 'IN_PROGRESS',
@@ -309,7 +307,6 @@ describe('definitions, on the hand-built district', () => {
       boothsTotal: 3,
       boothsPending: 1,
       boothsPercent: 66.6,
-      latestRound: 2,
       postalDone: false,
       stalled: true,
       winner: null,
@@ -358,12 +355,12 @@ describe('definitions, on the hand-built district', () => {
 
   it('(c) ZP and PS wards count their own booths; a ZP ward spans two PS', async () => {
     const zp1 = wardOf(v, ids.zp1);
-    // No single ZP round: each PS counts in its own rounds (see zpPsProgress).
-    expect(zp1).toMatchObject({ boothsDone: 2, boothsTotal: 3, latestRound: null });
+    // The ward counts every booth in every PS; the per-PS rows add up to it.
+    expect(zp1).toMatchObject({ boothsDone: 2, boothsTotal: 3 });
     expect(v.zpPsProgress.find((z) => z.wardId === ids.zp1)).toMatchObject({
       rows: [
-        { psId: ids.ps1, psName: 'CHURU', boothsDone: 2, boothsTotal: 2, latestRound: 3 },
-        { psId: ids.ps2, psName: 'RAJGARH', boothsDone: 0, boothsTotal: 1, latestRound: null },
+        { psId: ids.ps1, psName: 'CHURU', boothsDone: 2, boothsTotal: 2 },
+        { psId: ids.ps2, psName: 'RAJGARH', boothsDone: 0, boothsTotal: 1 },
       ],
       postal: { assignedPsId: null, label: 'Not assigned', entered: false },
     });
@@ -457,6 +454,28 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
     pdf = pdfTexts(pr.body as Buffer);
   });
 
+  it('no round anywhere (rounds are gone): progress is booths done / total in the page, CSVs and PDF', async () => {
+    const zpByPs = await (await as(users.dm)).get('/api/reports/counting-status/zp-by-ps.csv');
+    expect(zpByPs.status).toBe(200);
+    const roundWord = /round/i;
+    expect(JSON.stringify(v)).not.toMatch(roundWord);
+    for (const text of [
+      Object.keys(wardsCsv[0] ?? {}).join(','),
+      Object.keys(boothsCsv[0] ?? {}).join(','),
+      parseCsv(zpByPs.text)[0]?.join(',') ?? '',
+      pdf.join(' '),
+    ]) {
+      expect(text).not.toMatch(roundWord);
+    }
+    expect(Object.keys(wardsCsv[0] ?? {})).toEqual(
+      expect.arrayContaining(['booths_done', 'booths_total', 'booths_pending', 'postal_done']),
+    );
+    expect(parseCsv(zpByPs.text)[0]).toEqual(
+      expect.arrayContaining(['booths_done', 'booths_total', 'postal']),
+    );
+    expect(pdf).toContain('Booths Done / Total');
+  });
+
   it('ward-wise CSV = the page, row for row', () => {
     expect(wardsCsv.map((r) => Number(r.ward_no))).toEqual(v.wards.map((w) => w.wardNo));
     const str = (x: number | null) => (x === null ? '' : String(x));
@@ -471,7 +490,6 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
         booths_done: str(w.boothsDone),
         booths_total: str(w.boothsTotal),
         booths_pending: str(w.boothsPending),
-        latest_round: str(w.latestRound),
         postal_done: w.postalDone === null ? 'n/a' : w.postalDone ? 'yes' : 'no',
         winner: w.winner?.name ?? '',
         margin: str(w.margin),
@@ -492,7 +510,6 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
         booth_no: b.boothNo,
         booth_name: b.boothName,
         entered: { YES: 'yes', NO: 'no', NA: 'n/a' }[b.entered],
-        round: b.round === null ? '' : String(b.round),
         entered_by: b.enteredBy ?? '',
         total_votes: b.totalVotes === null ? '' : String(b.totalVotes),
       });
@@ -547,9 +564,7 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
       expect(at, `ward ${w.kind} ${String(w.wardNo)}`).toBeGreaterThanOrEqual(0);
       const doneTotal = w.boothsTotal === null ? '–' : `${n(w.boothsDone)} / ${n(w.boothsTotal)}`;
       const postal = w.postalDone === null ? 'n/a' : w.postalDone ? 'Done' : 'Pending';
-      // ZP ward tables have no Round column (each PS has its own rounds: "by Panchayat Samiti").
-      const round = w.kind === 'PS' ? [n(w.latestRound)] : [];
-      const tail = [doneTotal, n(w.boothsPending), ...round, postal];
+      const tail = [doneTotal, n(w.boothsPending), postal];
       const tailAt = findRun(pdf, tail, at + head.length);
       expect(tailAt - (at + head.length), `ward ${String(w.wardNo)} tail`).toBeLessThanOrEqual(5);
       expect(tailAt).toBeGreaterThanOrEqual(0);
@@ -897,7 +912,6 @@ describe('scopes: the DM picks what to see', () => {
         b.boothNo,
         b.boothName,
         entryText[b.entered],
-        n(b.round),
         b.enteredBy ?? '–',
       ]);
       expect(at, `booth ${b.psName} ${b.boothNo}`).toBeGreaterThanOrEqual(0);
@@ -912,17 +926,25 @@ describe('scopes: the DM picks what to see', () => {
     expect(s.json.scope.label).toBe('CHURU - Booth 1');
     expect(s.json.kinds).toEqual([]);
     expect(
-      s.json.booths.map((b) => [b.kind, b.wardId, b.entered, b.round, b.totalVotes, b.enteredBy]),
+      s.json.booths.map((b) => [b.kind, b.wardId, b.entered, b.totalVotes, b.enteredBy]),
     ).toEqual([
-      ['PS', ids.w1, 'YES', 1, 505, `PS RO (CHURU) · ${users.ro1}`],
-      ['ZP', ids.zp1, 'YES', 1, 413, `PS RO (CHURU) · ${users.ro1}`],
+      ['PS', ids.w1, 'YES', 505, `PS RO (CHURU) · ${users.ro1}`],
+      ['ZP', ids.zp1, 'YES', 413, `PS RO (CHURU) · ${users.ro1}`],
     ]);
     // Each ballot row is exactly that booth's row of the district report.
     const all = [...(await wardView(ids.w1)).booths, ...(await wardView(ids.zp1)).booths];
     expect(s.json.booths).toEqual(all.filter((b) => b.boothId === b1.boothId));
     sameEverywhere(s, s.json.booths);
     expect(
-      findRun(s.pdf, ['PS', '1', 'CHURU', '1', b1.boothName, 'Entered', '1']),
+      findRun(s.pdf, [
+        'PS',
+        '1',
+        'CHURU',
+        '1',
+        b1.boothName,
+        'Entered',
+        `PS RO (CHURU) · ${users.ro1}`,
+      ]),
     ).toBeGreaterThanOrEqual(0);
   });
 
@@ -1009,25 +1031,24 @@ describe('scopes: the DM picks what to see', () => {
 describe('(f) edits and voids', () => {
   it('an edit keeps the count; a void makes the booth pending again', async () => {
     const before = wardOf(await view(), ids.v1);
-    expect(before).toMatchObject({ boothsDone: 2, boothsTotal: 2, latestRound: 1 });
+    expect(before).toMatchObject({ boothsDone: 2, boothsTotal: 2 });
 
     const votes = Object.values(cand.v1 ?? {}).map((candidateId, i) => ({
       candidateId,
-      votes: [50, 40, 1][i] ?? 0,
+      votes: [49, 41, 1][i] ?? 0,
     }));
     ok(
       await ro2.put(`/entries/${String(ids.b6Entry)}`, {
         rowVersion: 1,
-        roundNo: 4,
         sheetTotal: 91,
         votes,
-        reason: 'राउंड संख्या गलत थी',
+        reason: 'उम्मीदवारों के मत गलत लिखे थे',
       }),
       'edit',
     );
     const edited = await wardView(ids.v1);
-    expect(edited.ward).toMatchObject({ boothsDone: 2, boothsPending: 0, latestRound: 4 });
-    expect(edited.booths[0]).toMatchObject({ entered: 'YES', round: 4, totalVotes: 91 });
+    expect(edited.ward).toMatchObject({ boothsDone: 2, boothsTotal: 2, boothsPending: 0 });
+    expect(edited.booths[0]).toMatchObject({ entered: 'YES', totalVotes: 91 });
     expect(edited.booths[0]?.lastEditedAtText).toMatch(/IST$/);
 
     ok(
@@ -1045,7 +1066,7 @@ describe('(f) edits and voids', () => {
       status: 'IN_PROGRESS',
     });
     const after = await wardView(ids.v1);
-    expect(after.booths[1]).toMatchObject({ entered: 'NO', round: null, totalVotes: null });
+    expect(after.booths[1]).toMatchObject({ entered: 'NO', totalVotes: null });
     expect(v.summary.PS.boothsDone).toBe(4);
     expect(v.psTable.find((p) => p.psId === ids.ps2)?.psBoothsDone).toBe(1);
   });
@@ -1097,7 +1118,6 @@ describe('pure helpers', () => {
         {
           boothId: 1,
           ballotFor: 'PS',
-          roundNo: 1,
           sheetTotal: 10,
           enteredAt: new Date(asOf.getTime() - minutesAgo * 60_000),
           updatedAt: null,

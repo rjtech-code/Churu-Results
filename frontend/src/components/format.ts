@@ -34,6 +34,13 @@ const dateTimeFormat = new Intl.DateTimeFormat('en-IN', {
   hour12: false,
 });
 
+const progressNumber = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+
+/** Counting progress: booths entered / total booths, Western digits ("4 / 50", "0 / 1,359"). */
+export function boothProgress(entered: number, total: number): string {
+  return `${progressNumber.format(entered)} / ${progressNumber.format(total)}`;
+}
+
 /** Western digits, India time. */
 export function formatTime(date: Date): string {
   return timeFormat.format(date);

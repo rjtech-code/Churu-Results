@@ -59,7 +59,6 @@ describe('races', () => {
       a.dpost(`/wards/${w.psW1}`, confirmBody(result)),
       b.put(`/entries/${filled.entries.b1}`, {
         rowVersion: 1,
-        roundNo: 1,
         sheetTotal,
         votes,
         reason: 'Late correction racing the declare',

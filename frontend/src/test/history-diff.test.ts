@@ -8,7 +8,6 @@ const BALLOT: BallotCandidate[] = [
   { candidateId: 11, ballotPosition: 1, nameHindi: 'ए', partyShortName: null, isNota: false },
 ];
 const before = {
-  round_no: 1,
   sheet_total: 155,
   votes: [
     { candidateId: 11, votes: 100 },
@@ -17,7 +16,6 @@ const before = {
   ],
 };
 const after = {
-  round_no: 1,
   sheet_total: 156,
   votes: [
     { candidateId: 11, votes: 101 },
@@ -29,22 +27,10 @@ const changedKeys = (items: { key: string; changed: boolean }[] | null) =>
   (items ?? []).filter((i) => i.changed).map((i) => i.key);
 
 describe('historyDiff', () => {
-  it('update: both columns list round, candidates in ballot order (NOTA last), total; only changed values flagged', () => {
+  it('update: both columns list candidates in ballot order (NOTA last), total; only changed values flagged', () => {
     const d = historyDiff('ENTRY_UPDATED', before, after, BALLOT);
-    expect(d.before?.map((i) => `${i.label}:${i.value}`)).toEqual([
-      'राउंड:1',
-      'ए:100',
-      'बी:50',
-      'नोटा:5',
-      'योग:155',
-    ]);
-    expect(d.after?.map((i) => `${i.label}:${i.value}`)).toEqual([
-      'राउंड:1',
-      'ए:101',
-      'बी:50',
-      'नोटा:5',
-      'योग:156',
-    ]);
+    expect(d.before?.map((i) => `${i.label}:${i.value}`)).toEqual(['ए:100', 'बी:50', 'नोटा:5', 'योग:155']);
+    expect(d.after?.map((i) => `${i.label}:${i.value}`)).toEqual(['ए:101', 'बी:50', 'नोटा:5', 'योग:156']);
     expect(changedKeys(d.before)).toEqual(['c11', 'total']);
     expect(changedKeys(d.after)).toEqual(['c11', 'total']);
     expect(d.voided).toBe(false);
@@ -63,7 +49,7 @@ describe('historyDiff', () => {
     expect(changedKeys(d.before)).toEqual([]);
   });
 
-  it('postal: the rejected count is a row and a change to it alone is flagged; round change is flagged', () => {
+  it('postal: the rejected count is a row and a change to it alone is flagged', () => {
     const d = historyDiff(
       'POSTAL_UPDATED',
       { sheet_total: 3, rejected_count: 2, votes: before.votes.map((v) => ({ ...v, votes: 1 })) },
@@ -72,8 +58,12 @@ describe('historyDiff', () => {
     );
     expect(changedKeys(d.after)).toEqual(['rejected']);
     expect(d.after?.find((i) => i.key === 'rejected')?.value).toBe('—');
-    const r = historyDiff('ENTRY_UPDATED', before, { ...before, round_no: 2 }, BALLOT);
-    expect(changedKeys(r.after)).toEqual(['round']);
+  });
+
+  it('an audit row written before rounds were removed (with round_no) shows no round', () => {
+    const d = historyDiff('ENTRY_UPDATED', { ...before, round_no: 1 }, { ...after, round_no: 2 }, BALLOT);
+    expect(d.after?.map((i) => i.label)).toEqual(['ए', 'बी', 'नोटा', 'योग']);
+    expect(changedKeys(d.after)).toEqual(['c11', 'total']);
   });
 
   it('a candidate id not on the ballot is still shown (as #id); the correction version is kept', () => {

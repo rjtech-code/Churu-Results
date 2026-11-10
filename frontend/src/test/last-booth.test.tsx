@@ -38,7 +38,6 @@ const booth = (boothId: number, entered: boolean): BoothItem => ({
   registeredVotersTotal: 900,
   entered,
   entryId: entered ? boothId * 10 : null,
-  roundNo: entered ? 1 : null,
   enteredAt: entered ? '2026-11-20T10:00:00+05:30' : null,
 });
 

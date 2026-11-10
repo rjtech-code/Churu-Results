@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
 import { idParam, loadBallot, loadBooths, loadPsZpWard, loadWard } from '../api/loaders';
 import type { EntryPreview } from '../api/types';
-import { getLastRound, setLastRound } from '../auth/lastRound';
 import { ConfirmPanel, WardAfter } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { LastBoothNotice } from '../components/LastBoothNotice';
@@ -46,7 +45,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
   const wardPath = psZp ? `/zp/${wardId}` : `/wards/${wardId}`;
 
   const [values, setValues] = useState<SheetValues | null>(null);
-  const [round, setRound] = useState(String(getLastRound()));
   const [stage, setStage] = useState<'form' | 'confirm'>('form');
   const [preview, setPreview] = useState<EntryPreview | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -66,7 +64,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
     wardId,
     boothId,
     ballotFor: ward.kind,
-    roundNo: Number(round),
     sheetTotal: check.sheetTotal,
     votes: check.votes,
   });
@@ -74,10 +71,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
   const onNext = async () => {
     if (busy) return;
     setError(null);
-    if (round === '' || Number(round) < 1 || Number(round) > 99) {
-      setError('राउंड संख्या 1 से 99 के बीच लिखें');
-      return;
-    }
     const check = checkSheet(ballot, sheet);
     if (!check.ok) {
       setError(check.message);
@@ -100,7 +93,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
     setError(null);
     try {
       await api('POST', '/api/counting/entries', body(checkSheet(ballot, sheet)));
-      setLastRound(Number(round));
       allowLeave.current = true;
       const next = booths.booths.find((b) => !b.entered && b.boothId !== boothId);
       const state: WardFlash = {
@@ -156,7 +148,6 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
               if (typeof error === 'string') setError(null); // a local check message is stale now
             }}
             onSubmit={() => void onNext()}
-            round={{ value: round, onChange: setRound }}
             autoFocusFirstCandidate
             error={error}
             errorView={
@@ -183,7 +174,7 @@ export function BoothEntryPage({ psZp = false }: { psZp?: boolean }) {
           panelLabel="पुष्टि"
           main={
             <ConfirmPanel
-              title={`पुष्टि करें — बूथ ${booth.boothNo}, राउंड ${preview.summary.roundNo ?? round}`}
+              title={`पुष्टि करें — बूथ ${booth.boothNo}`}
               rows={preview.summary.votes.map((v) => ({
                 key: v.candidateId,
                 label: v.isNota ? 'नोटा' : `${v.ballotPosition}. ${v.nameHindi}`,

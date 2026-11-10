@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import type { ReactNode } from 'react';
+import { boothProgress } from '../components/format';
 import { STATUS_LABEL, STATUS_TONE, fmt, isQuiet, partyShort, wardLabel } from './format';
 import { gridRows } from './paging';
 import { usePartyColour } from './partyContext';
@@ -142,9 +143,8 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
         <>
           {lead !== null && <p className="tv-lead">{lead}</p>}
           <p className="tv-small">
-            बूथ {card.boothsEntered}/{card.boothsTotal} · राउंड {card.latestRound ?? '—'} · नोटा{' '}
-            {fmt(card.notaVotes)}
-            {card.postalEntered ? ' · डाक ✓' : ''}
+            बूथ {boothProgress(card.boothsEntered, card.boothsTotal)} · डाक मत:{' '}
+            {card.postalEntered ? 'दर्ज' : 'बाकी'} · नोटा {fmt(card.notaVotes)}
           </p>
         </>
       );

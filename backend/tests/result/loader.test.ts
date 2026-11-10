@@ -94,14 +94,13 @@ async function boothEntry(
   w: World,
   boothId: number,
   ballot: 'PS' | 'ZP',
-  round: number,
   votes: [number, number][],
 ) {
   const wardId = ballot === 'PS' ? w.psWard : w.zpWard;
   const total = votes.reduce((s, [, v]) => s + v, 0);
   const entry = await ins(
-    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, ?, ?, ?, ?, ?)',
-    [boothId, ballot, wardId, round, total, ballot === 'PS' ? w.users.ro : w.users.zp],
+    'INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, ?, ?, ?, ?)',
+    [boothId, ballot, wardId, total, ballot === 'PS' ? w.users.ro : w.users.zp],
   );
   for (const [cid, v] of votes) {
     await ins(
@@ -140,12 +139,12 @@ describe('result loader', () => {
   it('a ZP ward loads the booths of both Panchayat Samitis, and equals the engine on hand-built input', async () => {
     const { b1, b2, b3 } = w.booths;
     const { zpA, zpB, zpNota } = w.c;
-    await boothEntry(w, b1, 'ZP', 1, [
+    await boothEntry(w, b1, 'ZP', [
       [zpA, 10],
       [zpB, 4],
       [zpNota, 1],
     ]);
-    await boothEntry(w, b3, 'ZP', 2, [
+    await boothEntry(w, b3, 'ZP', [
       [zpA, 2],
       [zpB, 9],
       [zpNota, 0],
@@ -167,7 +166,6 @@ describe('result loader', () => {
       boothEntries: [
         {
           boothId: b1,
-          roundNo: 1,
           sheetTotal: 15,
           votes: [
             { candidateId: zpA, votes: 10 },
@@ -177,7 +175,6 @@ describe('result loader', () => {
         },
         {
           boothId: b3,
-          roundNo: 2,
           sheetTotal: 11,
           votes: [
             { candidateId: zpA, votes: 2 },
@@ -203,7 +200,6 @@ describe('result loader', () => {
       boothsTotal: 3,
       boothsEntered: 2,
       status: 'COUNTING',
-      roundsSeen: [1, 2],
       rejectedPostal: 3,
     });
     // A PS entry on booth b1 belongs to the PS ward only.
@@ -213,12 +209,12 @@ describe('result loader', () => {
   it('reads the LATEST declaration version and checks it against its snapshot', async () => {
     const { b1, b2 } = w.booths;
     const { psA, psB, psNota } = w.c;
-    await boothEntry(w, b1, 'PS', 1, [
+    await boothEntry(w, b1, 'PS', [
       [psA, 7],
       [psB, 3],
       [psNota, 0],
     ]);
-    await boothEntry(w, b2, 'PS', 1, [
+    await boothEntry(w, b2, 'PS', [
       [psA, 1],
       [psB, 1],
       [psNota, 1],
@@ -264,7 +260,7 @@ describe('result loader', () => {
 
   it('invalid stored data surfaces as ResultInputError (e.g. an entry without vote rows)', async () => {
     await ins(
-      "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, 'PS', ?, 1, 0, ?)",
+      "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, 'PS', ?, 0, ?)",
       [w.booths.b1, w.psWard, w.users.ro],
     );
     await expect(loadWardResult(app, w.psWard)).rejects.toBeInstanceOf(ResultInputError);
@@ -295,7 +291,7 @@ describe('result loader', () => {
         [wardId],
       );
       const entry = await ins(
-        "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, round_no, sheet_total, entered_by) VALUES (?, 'PS', ?, 1, 3, ?)",
+        "INSERT INTO booth_entry (booth_id, ballot_for, ward_id, sheet_total, entered_by) VALUES (?, 'PS', ?, 3, ?)",
         [boothId, wardId, w.users.ro],
       );
       for (const [cid, v] of [

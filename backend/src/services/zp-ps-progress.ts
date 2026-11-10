@@ -33,8 +33,8 @@ export async function loadZpPsProgress(
     );
     const [entries] = await conn.execute<RowDataPacket[]>(
       one
-        ? "SELECT booth_id, round_no, entered_at, updated_at FROM booth_entry WHERE ballot_for = 'ZP' AND ward_id = ?"
-        : "SELECT booth_id, round_no, entered_at, updated_at FROM booth_entry WHERE ballot_for = 'ZP'",
+        ? "SELECT booth_id, entered_at, updated_at FROM booth_entry WHERE ballot_for = 'ZP' AND ward_id = ?"
+        : "SELECT booth_id, entered_at, updated_at FROM booth_entry WHERE ballot_for = 'ZP'",
       one ? [wardId] : [],
     );
     const [postal] = await conn.execute<RowDataPacket[]>(
@@ -68,7 +68,6 @@ export async function loadZpPsProgress(
     entries: read.entries.map((e) => ({
       boothId: Number(e.booth_id),
       ballotFor: 'ZP' as const,
-      roundNo: Number(e.round_no),
       enteredAt: toDate(e.entered_at),
       updatedAt: toDateOrNull(e.updated_at),
     })),

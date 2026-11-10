@@ -16,17 +16,7 @@ const BALLOT: BallotCandidate[] = [
 
 function Harness({ onSubmit = () => undefined }: { onSubmit?: () => void }) {
   const [values, setValues] = useState<SheetValues>(sheetValues(BALLOT));
-  const [round, setRound] = useState('1');
-  return (
-    <VoteSheet
-      idPrefix="t"
-      ballot={BALLOT}
-      values={values}
-      onChange={setValues}
-      onSubmit={onSubmit}
-      round={{ value: round, onChange: setRound }}
-    />
-  );
+  return <VoteSheet idPrefix="t" ballot={BALLOT} values={values} onChange={setValues} onSubmit={onSubmit} />;
 }
 
 describe('VoteSheet', () => {
@@ -58,12 +48,16 @@ describe('VoteSheet', () => {
     expect(line().className).toContain('sum-ok');
   });
 
-  it('Enter moves round -> candidates -> NOTA -> total; Enter on the total submits', async () => {
+  it('has no round field: candidates and the sheet total only', () => {
+    render(<Harness />);
+    expect(screen.queryByText(/राउंड/)).toBeNull();
+    expect(screen.getAllByRole('textbox')).toHaveLength(BALLOT.length + 1);
+  });
+
+  it('Enter moves candidates -> NOTA -> total; Enter on the total submits', async () => {
     const onSubmit = vi.fn();
     render(<Harness onSubmit={onSubmit} />);
-    await userEvent.click(screen.getByLabelText('राउंड संख्या'));
-    await userEvent.keyboard('{Enter}');
-    expect(document.activeElement).toBe(screen.getByLabelText('ए के मत'));
+    await userEvent.click(screen.getByLabelText('ए के मत'));
     await userEvent.keyboard('5{Enter}');
     expect(document.activeElement).toBe(screen.getByLabelText('बी के मत'));
     await userEvent.keyboard('4{Enter}');

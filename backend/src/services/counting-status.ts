@@ -1,13 +1,15 @@
 // The DM's Counting Status Report: a PURE builder from one consistent read (counting-status.data.ts).
 // The UI (JSON), the PDF and both CSVs are all rendered from the ONE object built here, so they can
-// never disagree. Nothing here adds votes: ward status, booths entered and margins come from
-// result.ts; a booth's "total votes" is its saved sheet_total (checked by result.ts against its votes).
+// never disagree. Nothing here adds votes: ward status and margins come from result.ts, booths entered
+// / total from booth-progress.ts; a booth's "total votes" is its saved sheet_total (checked by
+// result.ts against its votes).
 // Before a ward is declared nothing about its candidates leaves this file (no leader, no votes).
 import { COUNTING_DATE } from '../config/election.js';
 import { istIso } from './public-views.js';
 import type { ResultStatus, WardResult } from './result.js';
 import { boothLabel, compareBoothNo, parseBoothNo } from './booth-no.js';
 import type { BoothNo } from './booth-no.js';
+import { boothProgress, boothProgressByPs } from './booth-progress.js';
 
 /** A ward in counting with no new entry for this long is "Stalled". */
 export const STALLED_AFTER_MINUTES = 30;
@@ -65,7 +67,6 @@ export interface CountingStatusRaw {
   entries: {
     boothId: number;
     ballotFor: WardKind;
-    roundNo: number;
     sheetTotal: number;
     enteredAt: Date;
     updatedAt: Date | null;
@@ -106,9 +107,6 @@ export interface WardRow {
   boothsPending: number | null;
   /** Booths done %, rounded DOWN to 1 decimal; null for an unopposed ward (or no booths). */
   boothsPercent: number | null;
-  /** PS wards only. A ZP ward is counted by several PS ROs, each in its own rounds: see the
-   *  per-PS rows (zpPsProgress); rounds of different PS are never merged into one number. */
-  latestRound: number | null;
   /** null for an unopposed ward. */
   postalDone: boolean | null;
   lastEntryAt: string | null;
@@ -136,7 +134,6 @@ export interface BoothRow {
   boothName: string;
   /** NA = the ward is unopposed (no entry is ever made). */
   entered: EnteredFlag;
-  round: number | null;
   enteredBy: string | null;
   enteredAt: string | null;
   enteredAtText: string | null;
@@ -189,8 +186,6 @@ export interface ZpPsRow {
   psName: string;
   boothsDone: number;
   boothsTotal: number;
-  /** Highest round_no of THIS PS's entries in this ward (a label only, never used in any sum). */
-  latestRound: number | null;
   lastEntryAt: string | null;
   lastEntryText: string | null;
 }
@@ -225,7 +220,6 @@ export interface ZpPsProgressInput {
   entries: readonly {
     boothId: number;
     ballotFor: WardKind;
-    roundNo: number;
     enteredAt: Date;
     updatedAt: Date | null;
   }[];
@@ -393,6 +387,8 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
   const declarations = new Map(raw.declarations.map((d) => [d.wardId, d]));
   const postalByWard = new Map(raw.postal.map((p) => [p.wardId, p]));
   const entryOf = new Map(raw.entries.map((e) => [`${String(e.boothId)}:${e.ballotFor}`, e]));
+  const enteredBooths: Record<WardKind, Set<number>> = { PS: new Set(), ZP: new Set() };
+  for (const e of raw.entries) enteredBooths[e.ballotFor].add(e.boothId);
   const fullPs = (id: number | null) => (id === null ? '' : (psById.get(id) ?? ''));
 
   const boothRows: BoothRow[] = [];
@@ -422,7 +418,6 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
         boothNo: b.boothNo,
         boothName: b.name,
         entered: w.isUnopposed ? 'NA' : e === undefined ? 'NO' : 'YES',
-        round: e?.roundNo ?? null,
         enteredBy: e === undefined ? null : userLabel(e.enteredBy),
         enteredAt: e === undefined ? null : istIso(e.enteredAt),
         enteredAtText: e === undefined ? null : istText(e.enteredAt),
@@ -432,8 +427,7 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
       });
     }
 
-    const done = entries.length;
-    const total = booths.length;
+    const { entered: done, total } = boothProgress(booths, enteredBooths[w.kind]);
     const postal = postalByWard.get(w.id);
     const last = latest([
       ...entries.flatMap((e) => [e.enteredAt, e.updatedAt]),
@@ -510,8 +504,6 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
       boothsTotal: w.isUnopposed ? null : total,
       boothsPending: w.isUnopposed ? null : total - done,
       boothsPercent: w.isUnopposed ? null : percentDown(done, total),
-      latestRound:
-        w.kind === 'ZP' || entries.length === 0 ? null : Math.max(...entries.map((e) => e.roundNo)),
       postalDone: w.isUnopposed ? null : postal !== undefined,
       lastEntryAt: last === null ? null : istIso(last),
       lastEntryText: last === null ? null : istText(last),
@@ -533,15 +525,19 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
   const rank = new Map(wardRows.map((w, i) => [w.wardId, i]));
   boothRows.sort((a, b) => (rank.get(a.wardId) ?? 0) - (rank.get(b.wardId) ?? 0));
 
+  // ZP-ballot booths count per PS only for ZP wards that need counting (not unopposed).
+  const countedZpWards = new Set(
+    raw.wards.filter((w) => w.kind === 'ZP' && !w.isUnopposed).map((w) => w.id),
+  );
   const psTable: PsRow[] = raw.ps
     .map((p) => {
       const wards = wardRows.filter((w) => w.kind === 'PS' && w.psId === p.id);
       const psDone = wards.reduce((s, w) => s + (w.boothsDone ?? 0), 0);
       const psTotal = wards.reduce((s, w) => s + (w.boothsTotal ?? 0), 0);
-      const zpBooths = boothRows.filter(
-        (b) => b.kind === 'ZP' && b.psId === p.id && b.entered !== 'NA',
+      const zp = boothProgress(
+        raw.booths.filter((b) => b.psId === p.id && countedZpWards.has(b.zpWardId)),
+        enteredBooths.ZP,
       );
-      const zpDone = zpBooths.filter((b) => b.entered === 'YES').length;
       return {
         psId: p.id,
         psName: displayPsName(p.nameEnglish),
@@ -552,9 +548,9 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
         psBoothsTotal: psTotal,
         psBoothsPending: psTotal - psDone,
         psBoothsPercent: percentDown(psDone, psTotal),
-        zpBoothsDone: zpDone,
-        zpBoothsTotal: zpBooths.length,
-        zpBoothsPending: zpBooths.length - zpDone,
+        zpBoothsDone: zp.entered,
+        zpBoothsTotal: zp.total,
+        zpBoothsPending: zp.total - zp.entered,
       };
     })
     .sort((a, b) => a.psName.localeCompare(b.psName, 'en'));
@@ -585,14 +581,15 @@ const istPair = (d: Date | null) => ({
 
 /**
  * Every ZP ward of the input, with one row per PS that has booths in it (booths done / total of
- * the ZP ballot, that PS's own latest round and last entry) and the postal row (assigned PS,
- * entered or pending). Counts booths and entries only; never adds votes.
+ * the ZP ballot and that PS's last entry; the rows add up to the ward) and the postal row (assigned
+ * PS, entered or pending). Counts booths and entries only; never adds votes.
  */
 export function buildZpPsProgress(input: ZpPsProgressInput): ZpWardPsProgress[] {
   const psName = new Map(input.ps.map((p) => [p.id, displayPsName(p.nameEnglish)]));
   const zpEntry = new Map(
     input.entries.filter((e) => e.ballotFor === 'ZP').map((e) => [e.boothId, e]),
   );
+  const zpEntered = new Set(zpEntry.keys());
   const postalByWard = new Map(input.postal.map((p) => [p.wardId, p]));
   const assigned = new Map(input.postalAssignments.map((a) => [a.wardId, a.psId]));
 
@@ -600,27 +597,21 @@ export function buildZpPsProgress(input: ZpPsProgressInput): ZpWardPsProgress[] 
     .filter((w) => w.kind === 'ZP')
     .sort((a, b) => a.wardNo - b.wardNo)
     .map((w) => {
-      const byPs = new Map<
-        number,
-        { total: number; entries: ZpPsProgressInput['entries'][number][] }
-      >();
-      for (const b of input.booths) {
-        if (b.zpWardId !== w.id) continue;
-        const slot = byPs.get(b.psId) ?? { total: 0, entries: [] };
-        slot.total++;
-        const e = zpEntry.get(b.id);
-        if (e !== undefined) slot.entries.push(e);
-        byPs.set(b.psId, slot);
-      }
-      const rows: ZpPsRow[] = [...byPs.entries()]
-        .map(([psId, slot]) => ({
+      const booths = input.booths.filter((b) => b.zpWardId === w.id);
+      const lastEntryOfPs = (psId: number) =>
+        latest(
+          booths.flatMap((b) => {
+            const e = b.psId === psId ? zpEntry.get(b.id) : undefined;
+            return e === undefined ? [] : [e.enteredAt, e.updatedAt];
+          }),
+        );
+      const rows: ZpPsRow[] = [...boothProgressByPs(booths, zpEntered)]
+        .map(([psId, progress]) => ({
           psId,
           psName: psName.get(psId) ?? '',
-          boothsDone: slot.entries.length,
-          boothsTotal: slot.total,
-          latestRound:
-            slot.entries.length === 0 ? null : Math.max(...slot.entries.map((e) => e.roundNo)),
-          ...istPair(latest(slot.entries.flatMap((e) => [e.enteredAt, e.updatedAt]))),
+          boothsDone: progress.entered,
+          boothsTotal: progress.total,
+          ...istPair(lastEntryOfPs(psId)),
         }))
         .sort((a, b) => a.psName.localeCompare(b.psName, 'en'));
 

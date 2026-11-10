@@ -31,7 +31,6 @@ const PROGRESS: ZpWardPsProgress = {
       psName: 'RATANGARH',
       boothsDone: 4,
       boothsTotal: 6,
-      latestRound: 3,
       lastEntryAt: null,
       lastEntryText: '20 Nov 2026, 11:00 AM IST',
     },
@@ -40,7 +39,6 @@ const PROGRESS: ZpWardPsProgress = {
       psName: 'SUJANGARH',
       boothsDone: 0,
       boothsTotal: 2,
-      latestRound: null,
       lastEntryAt: null,
       lastEntryText: null,
     },
@@ -75,7 +73,6 @@ const BOOTH = {
   registeredVotersTotal: null,
   entered: true,
   entryId: 77,
-  roundNo: 3,
   enteredAt: null,
 };
 
@@ -157,18 +154,22 @@ describe('PS_RO: ZP postal ballots assigned to its PS', () => {
       '/api/counting/wards/201/postal/preview',
       expect.objectContaining({ sheetTotal: 5 }),
     );
-    expect(screen.queryByText(/राउंड/)).toBeNull(); // postal has no round
+    expect(screen.queryByText(/राउंड/)).toBeNull(); // rounds no longer exist
   });
 });
 
 describe('ZP_RO: ZP ward page is read-only', () => {
-  it('progress by Panchayat Samiti with each PS round; no entry, edit, void or postal buttons', async () => {
+  it('progress by Panchayat Samiti as booths entered / total; no entry, edit, void or postal buttons', async () => {
     auth.role = 'ZP_RO';
     renderAt('/wards/201');
     const table = await screen.findByTestId('zp-progress');
     expect(table.textContent).toContain('RATANGARH');
-    expect(table.textContent).toContain('4/6');
+    expect(table.textContent).toContain('4 / 6');
     expect(table.textContent).toContain('SUJANGARH');
+    expect(table.textContent).toContain('0 / 2');
+    expect(table.textContent).not.toMatch(/round/i);
+    // The whole ward, across every PS (4 + 0 of 6 + 2), with the postal ballots next to it.
+    expect(screen.getByTestId('ward-progress').textContent).toBe('बूथ 4 / 8 · डाक मत: बाकी');
     expect(screen.getByTestId('zp-progress-postal').textContent).toContain('RATANGARH को सौंपा गया');
     for (const name of ['एंट्री करें', 'सुधारें', 'रद्द करें', 'डाक मत दर्ज करें', 'घोषणा करें'])
       expect(screen.queryByRole('link', { name })).toBeNull();

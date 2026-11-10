@@ -16,7 +16,6 @@ function card(
     status,
     boothsEntered: 1,
     boothsTotal: 1,
-    latestRound: 1,
     postalEntered: false,
     top3:
       status === 'NOT_STARTED'

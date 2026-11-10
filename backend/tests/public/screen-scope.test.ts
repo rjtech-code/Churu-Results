@@ -57,7 +57,6 @@ describe('per-screen /recent and /winners', () => {
       wardId: w.psW2,
       boothId: w.b3,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 310,
       votes: v([
         [w.c.C, 200],

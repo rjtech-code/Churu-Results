@@ -27,7 +27,6 @@ const ZP_WARD: PsZpWardBooths = {
       registeredVotersTotal: 900,
       entered: false,
       entryId: null,
-      roundNo: null,
       enteredAt: null,
     },
   ],
@@ -48,7 +47,7 @@ function serve() {
     if (path === '/api/counting/zp-postal') return Promise.resolve({ wards: [] });
     if (path === '/api/counting/entries/preview')
       return Promise.resolve({
-        summary: { roundNo: 1, sheetTotal: 5, votes: [] },
+        summary: { sheetTotal: 5, votes: [] },
         warnings: [],
         body,
       }); // no wardAfter: a PS_RO never gets ZP totals
@@ -83,7 +82,7 @@ describe('PS_RO tabs', () => {
     expect(apiMock).not.toHaveBeenCalledWith('GET', '/api/counting/zp-wards');
     await userEvent.setup().click(screen.getByRole('tab', { name: 'जिला परिषद' }));
     expect(router.state.location.search).toBe('?ballot=ZP');
-    expect(await screen.findByText('1/4')).toBeTruthy();
+    expect(await screen.findByText('1 / 4')).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'जिला परिषद' }).getAttribute('aria-selected')).toBe('true');
   });
 

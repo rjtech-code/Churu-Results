@@ -52,7 +52,6 @@ export type CorrectionChange =
       kind: 'BOOTH';
       entryId: number;
       rowVersion: number;
-      roundNo?: number | undefined;
       sheetTotal: number;
       votes: SheetVote[];
     }
@@ -336,7 +335,6 @@ interface CheckedChange {
   change: CorrectionChange;
   booth: LiveBoothEntry | null;
   postal: LivePostalEntry | null;
-  roundNo: number;
   rejectedCount: number | null;
   candidates: Awaited<ReturnType<typeof checkPostalChange>>;
 }
@@ -378,7 +376,6 @@ async function checkChanges(
         change,
         booth: entry,
         postal: null,
-        roundNo: change.roundNo ?? entry.roundNo,
         rejectedCount: null,
         candidates,
       });
@@ -395,7 +392,7 @@ async function checkChanges(
       const rejectedCount =
         change.rejectedCount === undefined ? entry.rejectedCount : change.rejectedCount;
       const candidates = await checkPostalChange(conn, entry, { ...change, rejectedCount });
-      checked.push({ change, booth: null, postal: entry, roundNo: 0, rejectedCount, candidates });
+      checked.push({ change, booth: null, postal: entry, rejectedCount, candidates });
     }
   }
   return checked;
@@ -410,12 +407,7 @@ function applyChanges(input: WardResultInput, checked: readonly CheckedChange[])
       const boothId = c.booth.boothId;
       boothEntries = boothEntries.map((e) =>
         e.boothId === boothId
-          ? {
-              boothId,
-              roundNo: c.roundNo,
-              sheetTotal: c.change.sheetTotal,
-              votes: plainVotes(c.change.votes),
-            }
+          ? { boothId, sheetTotal: c.change.sheetTotal, votes: plainVotes(c.change.votes) }
           : e,
       );
     } else {
@@ -489,7 +481,6 @@ export async function correctWard(
           c.booth,
           {
             rowVersion: c.change.rowVersion,
-            roundNo: c.roundNo,
             sheetTotal: c.change.sheetTotal,
             votes: c.change.votes,
             reason: body.reason,

@@ -23,9 +23,9 @@ const loadPostalEntry = async (entryId: number | null) =>
     : (await api<{ entry: PostalEntryView }>('GET', `/api/counting/postal/${entryId}`)).entry;
 
 /**
- * Postal ballots of a ward: create (with preview) or edit (with reason) the single postal entry
- * (no round: one entry per ward). `psZp`: a PS_RO entering the postal sheet of a ZP ward assigned
- * to its PS (official order); it never sees the ZP ward's totals.
+ * Postal ballots of a ward: create (with preview) or edit (with reason) the ward's one postal
+ * entry. `psZp`: a PS_RO entering the postal sheet of a ZP ward assigned to its PS (official
+ * order); it never sees the ZP ward's totals.
  */
 export function PostalPage({ psZp = false }: { psZp?: boolean }) {
   const wardId = idParam(useParams().wardId);

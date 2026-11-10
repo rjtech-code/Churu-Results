@@ -57,7 +57,6 @@ function engineInput(n: number, o: SourceOptions): WardResultInput {
       : [
           {
             boothId: 1,
-            roundNo: 1,
             sheetTotal: ids.reduce((s, id) => s + votesFor(id), NOTA_VOTES),
             votes: [
               ...ids.map((id) => ({ candidateId: id, votes: votesFor(id) })),

@@ -54,9 +54,9 @@ interface Event {
 }
 
 describe('NO_CHANGE: an identical update writes nothing', () => {
-  it('booth entry: same round, total and votes -> 400 NO_CHANGE; row_version, votes, audit unchanged', async () => {
+  it('booth entry: same total and votes -> 400 NO_CHANGE; row_version, votes, audit unchanged', async () => {
     const ro = await clientFor(countingApp(pool), 'ro_ps1_x1');
-    const id = idOf((await ro.post('/entries', psW1Sheet(w, w.b1, 300, 200, 10, 2))).body);
+    const id = idOf((await ro.post('/entries', psW1Sheet(w, w.b1, 300, 200, 10))).body);
     const before = await tableCounts(pool);
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 300, 200, 10);
     // the votes in a different order are still the same sheet
@@ -65,7 +65,6 @@ describe('NO_CHANGE: an identical update writes nothing', () => {
     try {
       res = await ro.put(`/entries/${id}`, {
         rowVersion: 1,
-        roundNo: 2,
         sheetTotal,
         votes: [...votes].reverse(),
         reason: REASON,
@@ -86,10 +85,11 @@ describe('NO_CHANGE: an identical update writes nothing', () => {
     expect(entry.entry.votes).toEqual(votes);
   });
 
-  it('booth entry: changing only the round is a real change (200)', async () => {
+  it('booth entry: an update carrying a round number is refused (rounds no longer exist); nothing written', async () => {
     const ro = await clientFor(countingApp(pool), 'ro_ps1_x1');
     const id = idOf((await ro.post('/entries', psW1Sheet(w, w.b1))).body);
-    const { votes, sheetTotal } = psW1Sheet(w, w.b1);
+    const before = await tableCounts(pool);
+    const { votes, sheetTotal } = psW1Sheet(w, w.b1, 301, 200, 10);
     const res = await ro.put(`/entries/${id}`, {
       rowVersion: 1,
       roundNo: 3,
@@ -97,7 +97,8 @@ describe('NO_CHANGE: an identical update writes nothing', () => {
       votes,
       reason: REASON,
     });
-    expect(res.status).toBe(200);
+    expect([res.status, (res.body as { error: string }).error]).toEqual([400, 'VALIDATION_FAILED']);
+    expect(await tableCounts(pool)).toEqual(before);
   });
 
   it('a stale identical update is still STALE_VERSION (the version check comes first)', async () => {
@@ -106,7 +107,6 @@ describe('NO_CHANGE: an identical update writes nothing', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1);
     const res = await ro.put(`/entries/${id}`, {
       rowVersion: 7,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: REASON,
@@ -157,7 +157,6 @@ describe('booth ballot history: GET /booths/:boothId/history?ballotFor=', () => 
       (
         await ro.put(`/entries/${first}`, {
           rowVersion: 1,
-          roundNo: 1,
           sheetTotal,
           votes,
           reason: 'Corrected candidate A count',

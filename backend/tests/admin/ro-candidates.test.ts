@@ -126,7 +126,6 @@ describe('RO candidate list', () => {
       wardId: w.psW1,
       boothId: w.b1,
       ballotFor: 'PS',
-      roundNo: 1,
       sheetTotal: 2,
       votes: [
         { candidateId: w.c.A, votes: 1 },

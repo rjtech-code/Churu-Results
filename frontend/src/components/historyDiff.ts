@@ -4,7 +4,6 @@ import type { BallotCandidate } from '../api/types';
 /** An audit row's old/new value of a booth or postal entry (fields as the backend writes them). */
 export interface EntryValue {
   ward_id?: number;
-  round_no?: number;
   sheet_total?: number;
   rejected_count?: number | null;
   votes?: { candidateId: number; votes: number }[];
@@ -33,7 +32,7 @@ function asValue(value: unknown): EntryValue | null {
   return v.votes === undefined ? null : v;
 }
 
-/** Items of one side: round, each candidate in ballot order (NOTA last; unknown ids after), total, rejected. */
+/** Items of one side: each candidate in ballot order (NOTA last; unknown ids after), total, rejected. */
 function itemsOf(
   v: EntryValue,
   ballot: readonly BallotCandidate[],
@@ -44,7 +43,6 @@ function itemsOf(
   );
   const votes = v.votes ?? [];
   const items: Omit<DiffItem, 'changed'>[] = [];
-  if (v.round_no !== undefined) items.push({ key: 'round', label: 'राउंड', value: String(v.round_no) });
   for (const c of ordered) {
     const row = votes.find((x) => x.candidateId === c.candidateId);
     if (row !== undefined) {

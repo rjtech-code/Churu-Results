@@ -42,7 +42,6 @@ const boothChange = z
     kind: z.literal('BOOTH'),
     entryId: id,
     rowVersion: id,
-    roundNo: z.number().int().min(1).max(99).optional(),
     sheetTotal: count,
     votes,
   })

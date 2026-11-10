@@ -246,7 +246,6 @@ describe('ward report', () => {
         psName: 'चूरू',
         registeredVoters: 1000,
         entered: true,
-        roundNo: 1,
         sheetTotal: 303,
         votes: [
           { candidateId: 1, votes: 150 },

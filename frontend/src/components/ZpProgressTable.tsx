@@ -1,8 +1,9 @@
 import type { ZpWardPsProgress } from '../api/types';
+import { boothProgress } from './format';
 
 /**
- * A ZP ward's progress by Panchayat Samiti (server-built, display only): one row per PS with its own
- * latest round, then the Postal row. Rounds of different PS are never merged into one number.
+ * A ZP ward's progress by Panchayat Samiti (server-built, display only): one row per PS with its
+ * booths entered / total (the rows add up to the ward), then the Postal row.
  */
 export function ZpProgressTable({ progress }: { progress: ZpWardPsProgress }) {
   const { postal } = progress;
@@ -12,7 +13,6 @@ export function ZpProgressTable({ progress }: { progress: ZpWardPsProgress }) {
         <tr>
           <th>Panchayat Samiti</th>
           <th>Booth दर्ज</th>
-          <th>Latest Round</th>
           <th>अंतिम Entry</th>
         </tr>
       </thead>
@@ -20,10 +20,7 @@ export function ZpProgressTable({ progress }: { progress: ZpWardPsProgress }) {
         {progress.rows.map((r) => (
           <tr key={r.psId}>
             <td>{r.psName}</td>
-            <td className="numcell">
-              {r.boothsDone}/{r.boothsTotal}
-            </td>
-            <td className="numcell">{r.latestRound ?? '-'}</td>
+            <td className="numcell">{boothProgress(r.boothsDone, r.boothsTotal)}</td>
             <td>{r.lastEntryText ?? '—'}</td>
           </tr>
         ))}
@@ -35,7 +32,6 @@ export function ZpProgressTable({ progress }: { progress: ZpWardPsProgress }) {
               : `${postal.assignedPsName} को सौंपा गया`}
           </td>
           <td>{postal.entered === null ? '—' : postal.entered ? '✓ दर्ज' : 'बाकी'}</td>
-          <td className="numcell">-</td>
           <td>{postal.lastEntryText ?? '—'}</td>
         </tr>
       </tbody>

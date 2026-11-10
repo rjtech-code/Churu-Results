@@ -140,7 +140,6 @@ export interface ReportWardDetail {
     psName: string;
     registeredVoters: number | null;
     entered: boolean;
-    roundNo: number | null;
     sheetTotal: number | null;
     votes: { candidateId: number; votes: number }[];
     enteredBy: string | null;
@@ -228,7 +227,6 @@ export interface CsWardRow {
   boothsTotal: number | null;
   boothsPending: number | null;
   boothsPercent: number | null;
-  latestRound: number | null;
   postalDone: boolean | null;
   lastEntryAt: string | null;
   lastEntryText: string | null;
@@ -248,7 +246,6 @@ export interface CsBoothRow {
   boothNo: string;
   boothName: string;
   entered: 'YES' | 'NO' | 'NA';
-  round: number | null;
   enteredBy: string | null;
   enteredAt: string | null;
   enteredAtText: string | null;
@@ -311,7 +308,7 @@ export interface CountingStatusView {
   wards: CsWardRow[];
   /** One ward or one booth only (empty otherwise). */
   booths: CsBoothRow[];
-  /** The scope's ZP wards by Panchayat Samiti (each PS with its own round) + the postal row. */
+  /** The scope's ZP wards by Panchayat Samiti (booths done / total per PS) + the postal row. */
   zpPsProgress: ZpWardPsProgress[];
   /** The summary bands that belong to the scope. */
   kinds: CsKind[];

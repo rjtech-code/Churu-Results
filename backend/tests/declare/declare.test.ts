@@ -243,7 +243,6 @@ describe('declare', () => {
     const { votes, sheetTotal } = psW1Sheet(w, w.b1, 1, 1, 1);
     const put = await ro.put(`/entries/${filled.entries.b1}`, {
       rowVersion: 1,
-      roundNo: 1,
       sheetTotal,
       votes,
       reason: 'Trying to edit after declare',
