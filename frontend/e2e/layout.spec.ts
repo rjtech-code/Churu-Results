@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { RO_STATE, expect, test, world } from './support';
+import { RO_STATE, expect, roApi, test, world } from './support';
 
 // The one-screen forms, on the widest ballot the form must fit: 8 candidates + NOTA.
 test.use({ storageState: RO_STATE });
@@ -72,29 +72,61 @@ test.describe('at 1366x768', () => {
     expect(await bg(other)).toBe('none');
   });
 
-  test('a total above the registered voters: the server error is shown next to "आगे", focused, never green', async ({
+  test('a total that does not match the votes is refused next to "आगे" (also by the server); a total above the registered voters is accepted', async ({
     page,
   }) => {
     await page.goto(entryUrl());
     for (const name of WIDE_NAMES) await page.getByLabel(`${name} के मत`).fill('150');
     await page.getByLabel('नोटा के मत').fill('0');
-    await page.getByLabel('कुल योग (पर्ची के अनुसार)').fill('1200');
-    await expect(page.getByTestId('entry-sumline')).toContainText('✓ बराबर'); // sum = total, so locally fine
-    await page.getByRole('button', { name: 'आगे' }).click();
-
+    const total = page.getByLabel('कुल योग (पर्ची के अनुसार)');
+    const sumline = page.getByTestId('entry-sumline');
     const panel = page.getByRole('complementary', { name: 'योग और आगे' });
+    const next = panel.getByRole('button', { name: 'आगे' });
+
+    // Votes add up to 1200, the slip says 1201: refused, shown next to "आगे", focused, never green.
+    await total.fill('1201');
+    await expect(sumline).toContainText('✗ बराबर नहीं');
+    await next.click();
     const error = panel.getByRole('alert');
-    await expect(error).toContainText('योग (1200) बूथ के पंजीकृत मतदाताओं (1000) से अधिक है');
+    await expect(error).toContainText('आपका जोड़ 1200 है, पर पर्ची का योग 1201 है');
     await expect(error).toBeFocused();
     await expect(error).toBeInViewport({ ratio: 1 });
-    await expect(panel.getByRole('button', { name: 'आगे' })).toBeInViewport({ ratio: 1 });
+    await expect(next).toBeInViewport({ ratio: 1 });
     // next to the button: the error ends right above it
     const errBox = await error.boundingBox();
-    const btnBox = await panel.getByRole('button', { name: 'आगे' }).boundingBox();
+    const btnBox = await next.boundingBox();
     expect(errBox && btnBox && btnBox.y - (errBox.y + errBox.height)).toBeLessThan(40);
-    // the live sum line no longer says "equal" while the error stands
-    await expect(page.getByTestId('entry-sumline')).not.toHaveClass(/sum-ok/);
-    await expect(page.getByTestId('entry-sumline')).toContainText('✗');
-    await expect(page.getByText('पुष्टि करें — बूथ 10')).toHaveCount(0);
+    await expect(sumline).not.toHaveClass(/sum-ok/);
+    await expect(page.getByText('पुष्टि करें — बूथ 10', { exact: true })).toHaveCount(0);
+
+    // The server refuses the same sheet by itself (SUM_MISMATCH), whatever the client does.
+    const w = world().wards.wide;
+    const ids = [w.candidates.A, w.candidates.B, ...w.extraCandidates];
+    const { ctx, token } = await roApi();
+    const res = await ctx.post('/api/counting/entries/preview', {
+      headers: { 'X-CSRF-Token': token },
+      data: {
+        wardId: w.id,
+        boothId: w.booths['10'] ?? 0,
+        ballotFor: 'PS',
+        sheetTotal: 1201,
+        votes: [
+          ...ids.map((candidateId) => ({ candidateId, votes: 150 })),
+          { candidateId: w.candidates.NOTA, votes: 0 },
+        ],
+      },
+    });
+    expect(res.status()).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe('SUM_MISMATCH');
+    await ctx.dispose();
+
+    // 1200 on a booth with 1000 registered voters: accepted (official order: voters are never
+    // checked). The confirm screen opens; nothing is saved here.
+    await total.fill('1200');
+    await expect(sumline).toContainText('✓ बराबर');
+    await next.click();
+    await expect(page.getByText('पुष्टि करें — बूथ 10', { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByTestId('confirm-total')).toHaveText('1200');
   });
 });

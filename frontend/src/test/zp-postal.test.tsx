@@ -107,7 +107,14 @@ beforeEach(() => {
         postal: { entered: false, entryId: null, enteredAt: null },
       });
     if (path === '/api/counting/wards/201/zp-progress') return Promise.resolve({ progress: PROGRESS });
-    if (path === '/api/ward-forms/201') return Promise.resolve({ forms: [] });
+    if (path === '/api/ward-forms/201')
+      // The real WardFormsInfo shape: an undeclared ward offers neither form.
+      return Promise.resolve({
+        forms: {
+          part2: { available: false, reason: 'NOT_DECLARED' },
+          prarup7: { available: false, reason: 'NOT_DECLARED' },
+        },
+      });
     return Promise.reject(new Error(`unexpected ${method} ${path}`));
   });
 });

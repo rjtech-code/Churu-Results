@@ -973,6 +973,18 @@ input.num {
 .side-panel .decision .msg p {
   margin: 0.2rem 0;
 }
+/* Lottery text fields (who held it, details) are free text like a reason: the reason-field size,
+   not the 22px of the number inputs; the whole tie panel then fits at 1366x768. */
+.side-panel .lottery input:not([type='radio']),
+.side-panel .lottery textarea {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  padding: 0.15rem 0.5rem;
+  width: 100%;
+}
+.side-panel .lottery textarea {
+  display: block;
+}
 h1.compact {
   font-size: 1.3rem;
   margin: 0 0 0.4rem;
