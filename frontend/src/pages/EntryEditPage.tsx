@@ -7,6 +7,7 @@ import type { BoothEntryView } from '../api/types';
 import { ConfirmPanel } from '../components/ConfirmPanel';
 import { ErrorBox } from '../components/ErrorBox';
 import { LeaveGuard } from '../components/LeaveGuard';
+import { usePageBallot } from '../components/RoTabs';
 import { ReasonField, emptyReason, reasonProblem, reasonText } from '../components/ReasonField';
 import type { ReasonValue } from '../components/ReasonField';
 import { NO_CHANGE_TEXT, VoteSheet, checkSheet, sameAsSaved, sheetValues } from '../components/VoteSheet';
@@ -39,6 +40,7 @@ export function EntryEditPage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const allowLeave = useRef(false);
+  usePageBallot(data?.ward.kind ?? null);
 
   if (loadError) return <ErrorBox error={loadError} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;

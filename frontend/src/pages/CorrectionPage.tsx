@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LeaveGuard } from '../components/LeaveGuard';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, api } from '../api/api';
 import { idParam, loadBallot, loadBooths, loadWard } from '../api/loaders';
@@ -154,8 +155,11 @@ export function CorrectionPage() {
     }
   };
 
+  const dirty = picked.length > 0 || reason.choice !== '' || reason.details !== '';
+
   return (
     <>
+      <LeaveGuard dirty={dirty} />
       <p className="backlink">
         <Link to={`/wards/${wardId}`}>← {wardShort(ward)}</Link>
       </p>

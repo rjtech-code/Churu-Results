@@ -17,7 +17,7 @@ const cardOf = (page: Page, wardNo: number) =>
     .locator('article.tv-card')
     .filter({ has: page.locator('.tv-card-title', { hasText: new RegExp(`^वार्ड ${wardNo}$`) }) });
 
-test('/screen/1 works with no login and no cookies, never calls /api/auth, shows no dashboard header', async ({
+test('/screen/1 works with no login (only the screen-key cookie), never calls /api/auth, shows no dashboard header', async ({
   page,
   context,
 }) => {
@@ -37,7 +37,12 @@ test('/screen/1 works with no login and no cookies, never calls /api/auth, shows
   await expect(page).toHaveURL(/\/screen\/1$/); // never redirected to /login
   await page.waitForTimeout(1500);
   expect(auth).toEqual([]);
-  expect(await context.cookies()).toEqual([]);
+  // Since the DEO's screen keys: the ONLY cookie is the screen session (HttpOnly, SameSite=Strict,
+  // /api only); never a dashboard login session.
+  const cookies = await context.cookies();
+  expect(cookies.map((c) => [c.name, c.httpOnly, c.sameSite, c.path])).toEqual([
+    ['churu.screen', true, 'Strict', '/api'],
+  ]);
 });
 
 test('Hindi PS names after ps:set-hindi-names; an entry still updates its card within ~5 s', async ({

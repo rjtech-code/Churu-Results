@@ -34,6 +34,8 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   ALREADY_REVOKED: 'यह key पहले ही रद्द हो चुकी है — पेज दोबारा खोलें',
   SCREEN_LOCKED: 'स्क्रीन key चाहिए',
   WRONG_KEY: 'गलत key',
+  // Booth-wise प्रारूप–14
+  NO_ENTRY: 'इस बूथ की कोई मान्य एंट्री नहीं है — पहले एंट्री करें',
   TOO_MANY_ATTEMPTS: 'बहुत ज़्यादा गलत कोशिशें, कुछ मिनट बाद फिर कोशिश करें',
   [NETWORK_ERROR]: 'सर्वर से संपर्क नहीं हो सका — नेटवर्क जाँचें',
   // Counting

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_HINDI, formatTime } from './format';
+import { RoTabs, useStickyTop, useTabsInHeader } from './RoTabs';
 
 const DM_MENU = [
   ['/reports', 'रिपोर्ट'],
@@ -19,6 +20,8 @@ const RO_MENU = [
   ['/candidates', 'उम्मीदवार'],
 ] as const;
 const ZP_RO_MENU = [...RO_MENU, ['/reports/counting-status', 'Counting Status Report']] as const;
+/** PS_RO on a wide screen: the two tabs in the header ARE "मेरे वार्ड" (PS and ZP lists). */
+const RO_MENU_WITH_TABS = RO_MENU.filter(([to]) => to !== '/wards');
 
 /** The menu: at most 5 plain items, always visible (no hidden menus). */
 function Menu({ items }: { items: readonly (readonly [string, string])[] }) {
@@ -35,6 +38,8 @@ function Menu({ items }: { items: readonly (readonly [string, string])[] }) {
 
 export function Header() {
   const { user, logout } = useAuth();
+  const tabsInHeader = useTabsInHeader() && user?.role === 'PS_RO';
+  const stickyRef = useStickyTop<HTMLElement>(tabsInHeader);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => {
@@ -46,10 +51,14 @@ export function Header() {
   }, []);
   if (!user) return null;
   return (
-    <header className="topbar">
+    <header
+      ref={tabsInHeader ? stickyRef : undefined}
+      className={tabsInHeader ? 'topbar topbar-sticky' : 'topbar'}
+    >
       <Link to="/" className="brand">
         चूरू पंचायत चुनाव 2026 — मतगणना
       </Link>
+      {tabsInHeader && <RoTabs placement="header" />}
       {/* In the header row itself: the menu takes no extra height (forms must fit one screen). */}
       <Menu
         items={
@@ -59,7 +68,9 @@ export function Header() {
               ? SUPER_ADMIN_MENU
               : user.role === 'ZP_RO'
                 ? ZP_RO_MENU
-                : RO_MENU
+                : tabsInHeader
+                  ? RO_MENU_WITH_TABS
+                  : RO_MENU
         }
       />
       <div className="who">

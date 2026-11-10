@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LeaveGuard } from '../../components/LeaveGuard';
 import { Link, useParams } from 'react-router-dom';
 import { GENDER_HINDI, NO_CANDIDATE_DETAILS, pickDetails } from '../../api/adminTypes';
 import type { Gender, Issue, RoCandidate, RoWardDetail } from '../../api/adminTypes';
@@ -158,6 +159,7 @@ function WardForm({
 
   return (
     <div className="cw-page">
+      <LeaveGuard dirty={dirty && editable} />
       <p className="backlink">
         <Link to="/candidates">← उम्मीदवार</Link>
       </p>

@@ -12,6 +12,7 @@ import type { ReasonValue } from '../components/ReasonField';
 import { useApiData } from '../components/useApiData';
 import { STALE_TEXT } from './EntryEditPage';
 import type { WardFlash } from './WardDetailPage';
+import { usePageBallot } from '../components/RoTabs';
 
 /** Void a booth entry (kind BOOTH) or a postal entry (kind POSTAL). */
 export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
@@ -28,6 +29,7 @@ export function EntryVoidPage({ kind }: { kind: 'BOOTH' | 'POSTAL' }) {
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  usePageBallot(data?.ctx.ward.kind ?? null);
 
   if (loadError) return <ErrorBox error={loadError} />;
   if (!data) return <p className="loading">लोड हो रहा है…</p>;

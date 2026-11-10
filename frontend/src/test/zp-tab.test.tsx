@@ -1,9 +1,10 @@
 // Part 14.1: the PS_RO's "जिला परिषद" tab and the single-ballot entry form for a ZP ballot.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { Outlet, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PsZpWardBooths } from '../api/types';
+import { RoTabs, RoTabsProvider } from '../components/RoTabs';
 import { BoothEntryPage } from '../pages/BoothEntryPage';
 import { WardListPage } from '../pages/WardListPage';
 import { ZpWardPage } from '../pages/ZpWardPage';
@@ -56,11 +57,23 @@ function serve() {
 }
 
 function renderAt(url: string) {
+  // The tabs live in the page shell (RoTabs), as in the app.
+  const shell = (
+    <RoTabsProvider>
+      <RoTabs placement="bar" />
+      <Outlet />
+    </RoTabsProvider>
+  );
   const router = createMemoryRouter(
     [
-      { path: '/wards', element: <WardListPage /> },
-      { path: '/zp/:wardId', element: <ZpWardPage /> },
-      { path: '/zp/:wardId/booths/:boothId/entry', element: <BoothEntryPage psZp /> },
+      {
+        element: shell,
+        children: [
+          { path: '/wards', element: <WardListPage /> },
+          { path: '/zp/:wardId', element: <ZpWardPage /> },
+          { path: '/zp/:wardId/booths/:boothId/entry', element: <BoothEntryPage psZp /> },
+        ],
+      },
     ],
     { initialEntries: [url] },
   );

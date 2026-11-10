@@ -110,34 +110,14 @@ function PsZpPostalList() {
   );
 }
 
+/** "मेरे वार्ड". The PS_RO picks the list with the tabs in the page shell (RoTabs: ?ballot=ZP). */
 export function WardListPage() {
   const role = useRole();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const zpTab = role === 'PS_RO' && params.get('ballot') === 'ZP';
   return (
     <>
       <h1>मेरे वार्ड</h1>
-      {role === 'PS_RO' && (
-        <div className="tabs" role="tablist">
-          {(['PS', 'ZP'] as const).map((b) => {
-            const active = (b === 'ZP') === zpTab;
-            return (
-              <button
-                key={b}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`btn ${active ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => {
-                  setParams(b === 'ZP' ? { ballot: 'ZP' } : {}, { replace: true });
-                }}
-              >
-                {b === 'PS' ? 'पंचायत समिति' : 'जिला परिषद'}
-              </button>
-            );
-          })}
-        </div>
-      )}
       {zpTab ? <PsZpWardList /> : <PsWardList />}
       {role === 'ZP_RO' && <StFormatPanel kind="ZP" />}
       {role === 'PS_RO' && <StFormatPanel kind="PS" />}

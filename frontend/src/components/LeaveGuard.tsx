@@ -2,11 +2,21 @@ import { useEffect } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { Modal } from './Modal';
 
+const ALWAYS_ASK = { current: false };
+
 /**
- * Warns before leaving a page with unsaved numbers (in-app navigation and closing/reloading the tab).
- * `allowRef.current = true` lets an intentional navigation (after a save) through.
+ * The ONE leave check of every form with typed input (booth entry, edit and its confirm step, postal,
+ * correction, candidate list): any in-app navigation to another page (tabs and links included) asks
+ * first, and closing/reloading the browser tab warns, but only while `dirty`. A form that saved sets
+ * `allowRef.current = true` (or is no longer dirty) so its own navigation after the save goes through.
  */
-export function LeaveGuard({ dirty, allowRef }: { dirty: boolean; allowRef: { current: boolean } }) {
+export function LeaveGuard({
+  dirty,
+  allowRef = ALWAYS_ASK,
+}: {
+  dirty: boolean;
+  allowRef?: { current: boolean };
+}) {
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     return dirty && !allowRef.current && currentLocation.pathname !== nextLocation.pathname;
   });
@@ -23,12 +33,13 @@ export function LeaveGuard({ dirty, allowRef }: { dirty: boolean; allowRef: { cu
   if (blocker.state !== 'blocked') return null;
   return (
     <Modal
-      label="बिना सेव किए छोड़ें?"
+      label="क्या आप सच में जाना चाहते हैं?"
       onCancel={() => {
         blocker.reset(); // Esc = stay on the page
       }}
     >
-      <p>आपने जो संख्याएँ भरी हैं, वे अभी सेव नहीं हुई हैं। क्या आप बिना सेव किए यह पेज छोड़ना चाहते हैं?</p>
+      <h2>क्या आप सच में जाना चाहते हैं?</h2>
+      <p>सेव नहीं की गई जानकारी खो जाएगी।</p>
       <div className="actions">
         <button
           type="button"
@@ -37,7 +48,7 @@ export function LeaveGuard({ dirty, allowRef }: { dirty: boolean; allowRef: { cu
             blocker.reset();
           }}
         >
-          रुकें, पेज पर रहें
+          रुकें
         </button>
         <button
           type="button"
@@ -46,7 +57,7 @@ export function LeaveGuard({ dirty, allowRef }: { dirty: boolean; allowRef: { cu
             blocker.proceed();
           }}
         >
-          बिना सेव किए जाएँ
+          छोड़कर जाएँ
         </button>
       </div>
     </Modal>

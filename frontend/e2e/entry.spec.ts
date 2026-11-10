@@ -62,9 +62,9 @@ test('leaving with typed numbers asks first', async ({ page }) => {
   await page.goto(`/wards/${w.id}/booths/${w.booths['2'] ?? 0}/entry`);
   await page.getByLabel('अमर सिंह के मत').fill('12');
   await page.getByRole('link', { name: '← वार्ड 1' }).click();
-  const dialog = page.getByRole('alertdialog', { name: 'बिना सेव किए छोड़ें?' });
+  const dialog = page.getByRole('alertdialog', { name: 'क्या आप सच में जाना चाहते हैं?' });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'रुकें, पेज पर रहें' }).click();
+  await dialog.getByRole('button', { name: 'रुकें' }).click();
   await expect(page.getByLabel('अमर सिंह के मत')).toHaveValue('12');
 });
 
@@ -85,10 +85,10 @@ test('dialogs sit above everything: with the leave dialog open the confirm butto
     if (r.method() !== 'GET') writes.push(`${r.method()} ${r.url()}`);
   });
   await page.getByRole('link', { name: '← वार्ड 1' }).click();
-  const dialog = page.getByRole('alertdialog', { name: 'बिना सेव किए छोड़ें?' });
+  const dialog = page.getByRole('alertdialog', { name: 'क्या आप सच में जाना चाहते हैं?' });
   await expect(dialog).toBeVisible();
   // the safe button has the focus, and the dialog is on top of the sticky panel
-  await expect(dialog.getByRole('button', { name: 'रुकें, पेज पर रहें' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'रुकें' })).toBeFocused();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(300);
   expect(writes).toEqual([]);
