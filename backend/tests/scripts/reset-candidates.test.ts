@@ -159,6 +159,36 @@ describe('reset-candidates guards (nothing written)', () => {
     expect(await state()).toEqual(before);
     expect(await count(h, 'SELECT COUNT(*) AS n FROM ward_declarations')).toBe(1);
   });
+
+  it('refuses while candidate_name_change has a row (name history is append-only)', async () => {
+    const zp1 = await wardId(h, 'ZP', 1);
+    const [c] = await h.app.query<RowDataPacket[]>(
+      'SELECT id, name_hindi FROM candidate WHERE ward_id = ? AND is_nota = 0',
+      [zp1],
+    );
+    const [u] = await h.app.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE role IN ('PS_RO', 'ZP_RO') LIMIT 1",
+    );
+    const [any] = await h.app.query<RowDataPacket[]>('SELECT id FROM users LIMIT 1');
+    await insert(
+      h.app,
+      `INSERT INTO candidate_name_change (ward_id, candidate_id, ballot_position, old_name_hindi,
+         new_name_hindi, reason, changed_by, changed_by_name, changed_by_role)
+       VALUES (?, ?, 1, ?, 'नया नाम', 'वर्तनी की गलती ठीक की', ?, 'Test RO', 'ZP_RO')`,
+      [zp1, Number(c[0]?.id), String(c[0]?.name_hindi), Number((u[0] ?? any[0])?.id)],
+    );
+    const before = await state();
+    const { result, output } = await run({
+      nodeEnv: 'production',
+      yesDummyData: true,
+      commit: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(output).toContain('candidate_name_change has 1 row(s)');
+    expect(output).toContain('Use the full database reset procedure instead');
+    expect(await state()).toEqual(before);
+    expect(await count(h, 'SELECT COUNT(*) AS n FROM candidate_name_change')).toBe(1);
+  });
 });
 
 describe('reset-candidates', () => {

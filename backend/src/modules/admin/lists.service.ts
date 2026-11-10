@@ -28,6 +28,7 @@ import type { WardRow } from '../../services/master-data/lookups.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { writeSheetToBuffer } from '../../services/master-data/xlsx.js';
 import { requireReauth, resetFailedLogins } from '../auth/auth.service.js';
+import { renamedCandidateIds } from '../candidates/name-change.service.js';
 import { busyAsConflict } from './http.js';
 import type { Actor } from './http.js';
 
@@ -130,6 +131,7 @@ export async function wardCandidates(pool: Pool, wardId: number) {
   if (!ward) throw new ApiError(404, 'NOT_FOUND');
   const [parties] = await pool.execute<RowDataPacket[]>('SELECT id, name_hindi FROM party');
   const partyHindi = new Map(parties.map((p) => [Number(p.id), String(p.name_hindi)]));
+  const renamed = await renamedCandidateIds(pool, wardId);
   return {
     ward: {
       id: ward.id,
@@ -142,6 +144,7 @@ export async function wardCandidates(pool: Pool, wardId: number) {
       id: c.id,
       position: c.position,
       nameHindi: c.nameHindi,
+      nameChanged: renamed.has(c.id),
       party:
         c.partyId === null
           ? null

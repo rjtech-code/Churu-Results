@@ -14,6 +14,7 @@ function rows(d: TestDataDeletes): ImpactRow[] {
     ['postal entries', d.postalEntries],
     ['declared wards (घोषणाएँ और versions)', d.declaredWards],
     ['voided entries', d.voidedEntries],
+    ['candidate name corrections', d.nameChanges],
     ['wards की candidate list lock / ready', d.lockedWards],
   ];
 }

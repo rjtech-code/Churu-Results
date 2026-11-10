@@ -6,6 +6,7 @@ export interface TestDataDeletes {
   postalEntries: number;
   declaredWards: number;
   voidedEntries: number;
+  nameChanges: number;
   lockedWards: number;
 }
 

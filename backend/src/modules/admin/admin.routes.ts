@@ -49,6 +49,12 @@ import {
 import type { Area } from './lists.service.js';
 import { settingsRouter } from './settings.routes.js';
 import {
+  nameChangesCsv,
+  visibleNameChanges,
+  wardNameChanges,
+} from '../candidates/name-change.service.js';
+import { istStampForFile } from '../reports/csv.js';
+import {
   addOneParty,
   checkCandidatesUpload,
   checkPartiesUpload,
@@ -264,6 +270,28 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
   });
   router.get('/wards/:wardId/candidates', async (req, res) => {
     res.json(await wardCandidates(pool, id(req, 'wardId')));
+  });
+  // "नाम सुधार इतिहास": read only for the DM (the corrections are made by the ROs).
+  router.get('/candidate-name-changes', async (req, res) => {
+    noStore(res);
+    res.json({ changes: await visibleNameChanges(pool, actor(req).user) });
+  });
+  router.get('/candidate-name-changes.csv', async (req, res) => {
+    const csv = nameChangesCsv(await visibleNameChanges(pool, actor(req).user));
+    res
+      .status(200)
+      .set({
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="candidate-name-changes-${istStampForFile(new Date())}-IST.csv"`,
+        'Cache-Control': 'no-store',
+      })
+      .send(csv);
+  });
+  router.get('/wards/:wardId/name-changes', async (req, res) => {
+    const wardId = id(req, 'wardId');
+    await wardCandidates(pool, wardId); // 404 for an unknown ward
+    noStore(res);
+    res.json({ changes: await wardNameChanges(pool, wardId) });
   });
   router.post('/candidates/:candidateId/details', async (req, res) => {
     const body = parse(candidateDetailsBody, req.body);

@@ -220,6 +220,29 @@ A locked ward's candidates can't be changed. To unlock (only possible before any
 npm run ballot:unlock -- --ward <ward id> --reason "why" --by "Name, designation" --commit
 ```
 
+**Name-only correction after the lock ("नाम सुधारें", Nov 2026).** One change stays possible in a locked
+ward, also while counting and after it is declared: a candidate's **name** (`candidate.name_hindi`, the
+only name column). Party, symbol, ballot order, gender, details, NOTA and the list itself stay frozen.
+- **Who:** the PS_RO for PS wards of their own PS; the ZP_RO for ZP wards. Everyone else gets 403 (the DM
+  and the Super Admin included; the password is not checked for them).
+- **How:** `POST /api/candidates/wards/:wardId/candidates/:candidateId/name` with
+  `{currentName, newName, reason, password}`. The RO types their own password again (`requireReauth`:
+  a wrong one counts toward the normal 5-attempt login lockout). The reason must be 10-500 characters
+  after trimming. The new name is normalized the way the importer does it (NFC, single spaces) and must
+  not be empty, must be at most 200 characters, must have no control or invisible bidi characters, and
+  must differ from the current name. `currentName` is compared with the stored name (compare-and-set),
+  so two tabs can never overwrite each other silently (409 `NAME_CHANGED_MEANWHILE`).
+- **Record:** the candidate `UPDATE`, one `candidate_name_change` row (append-only: triggers + INSERT/SELECT
+  grant only) and one `audit_log` row `CANDIDATE_NAME_CORRECTED` run in ONE transaction. Votes and
+  declarations point to `candidate.id`, which never changes, so every screen, report and export shows
+  the new name on its next read.
+- **History:** the RO reads their own wards (`/api/candidates/name-changes`, `/api/candidates/wards/:id/name-changes`).
+  The DM reads all of it on "उम्मीदवार सूची → नाम सुधार इतिहास" (`/api/admin/candidate-name-changes`,
+  plus `.csv`). `candidate_id` in the history has no foreign key on purpose: a ward unlocked again
+  (before counting) replaces its candidate rows, and the history must survive that.
+- `reset-candidates` refuses while the history has rows. The Super Admin test-data reset empties it
+  (TRUNCATE, like the other append-only test data). It is in every backup.
+
 ### 8. User accounts (exactly 15)
 ```bash
 npm run users:create -- --role PS_RO --username ro_chu_h3w8 --ps "CHURU PANCHAYAT SAMITI" --full-name "Name" --commit
@@ -462,6 +485,9 @@ refused with 400 `VALIDATION_FAILED`.
 | `ALREADY_ENTERED` | 409 | This booth/ballot (or this ward's postal) already has an entry. Edit or void it. |
 | `STALE_VERSION` | 409 | Someone changed the entry meanwhile: `currentRowVersion`. Reload and redo. |
 | `NO_CHANGE` | 400 | PUT identical to the saved entry; nothing written |
+| `NAME_EMPTY` / `NAME_TOO_LONG` / `NAME_INVALID_CHARS` | 400 | "नाम सुधारें": the new name is empty, over 200 characters, or has control / bidi characters. |
+| `NAME_UNCHANGED` | 409 | "नाम सुधारें": the new name equals the current one (after normalizing). |
+| `NAME_CHANGED_MEANWHILE` | 409 | "नाम सुधारें": the stored name is no longer `currentName`: `currentName` (the stored one). Reload. |
 
 **Registered voters are not checked (official order).** No entry is refused or warned because of the
 booth's registered-voter count (missing or smaller than the sheet total); entry never needs a voter

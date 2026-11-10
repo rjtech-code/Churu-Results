@@ -22,6 +22,13 @@ export function CandidatesHomePage() {
             जाँच पर जाएँ
           </Link>
         </section>
+        <section className="task-card">
+          <h2>नाम सुधार इतिहास</h2>
+          <p>लॉक के बाद RO द्वारा सुधारे गए नाम: पुराना → नया, कारण, किसने, कब। CSV भी।</p>
+          <Link className="btn btn-secondary btn-big" to="/admin/candidates/name-changes">
+            इतिहास देखें
+          </Link>
+        </section>
       </div>
     </>
   );

@@ -30,6 +30,7 @@ export const TEST_DATA_TABLES: readonly string[] = [
   'postal_entry_vote',
   'ward_declarations',
   'voided_entry',
+  'candidate_name_change',
 ];
 
 /**
@@ -102,6 +103,7 @@ export async function testDataImpact(db: Pool | Connection) {
     (SELECT COUNT(*) FROM postal_entry) AS postalEntries,
     (SELECT COUNT(DISTINCT ward_id) FROM ward_declarations) AS declaredWards,
     (SELECT COUNT(*) FROM voided_entry) AS voidedEntries,
+    (SELECT COUNT(*) FROM candidate_name_change) AS nameChanges,
     (SELECT COUNT(*) FROM ward WHERE is_locked = 1 OR candidates_ready_at IS NOT NULL) AS lockedWards`);
   const r: RowDataPacket | undefined = rows[0];
   return {
@@ -110,6 +112,7 @@ export async function testDataImpact(db: Pool | Connection) {
     postalEntries: Number(r?.postalEntries ?? 0),
     declaredWards: Number(r?.declaredWards ?? 0),
     voidedEntries: Number(r?.voidedEntries ?? 0),
+    nameChanges: Number(r?.nameChanges ?? 0),
     lockedWards: Number(r?.lockedWards ?? 0),
   };
 }

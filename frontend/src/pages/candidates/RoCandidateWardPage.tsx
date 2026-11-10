@@ -3,9 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { GENDER_HINDI, NO_CANDIDATE_DETAILS, pickDetails } from '../../api/adminTypes';
 import type { Gender, Issue, RoCandidate, RoWardDetail } from '../../api/adminTypes';
 import { api } from '../../api/api';
+import { useRole } from '../../auth/AuthContext';
 import { IssueList, ListStatusBadge, issuesOf } from '../../components/AdminParts';
 import { CandidateDetailsFields, detailsComplete } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
+import { NameCorrectionDialog } from '../../components/NameCorrectionDialog';
+import { NameChangedMark, NameHistoryDialog } from '../../components/NameHistory';
 import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
@@ -24,6 +27,8 @@ const toRows = (list: readonly RoCandidate[]): Row[] =>
  * One ward's candidate list: one card per candidate (ballot number = position in the list, moved
  * with ↑ / ↓), name, party, gender and the optional details. "सूची सेव करें" saves the whole list
  * (the server checks every rule); then "सूची तैयार है" tells the DM it can be checked.
+ * After the ballot lock the list is read only, except "नाम सुधारें" (the name only, with a reason and
+ * the RO's password; the server checks the role, the ward and the lock again).
  */
 export function RoCandidateWardPage() {
   const { wardId = '' } = useParams();
@@ -65,8 +70,14 @@ function WardForm({
   const [saveError, setSaveError] = useState<unknown>(null);
   const [readying, setReadying] = useState(false);
   const [removing, setRemoving] = useState<{ row: Row; no: number } | null>(null);
+  const [fixing, setFixing] = useState<{ id: number; nameHindi: string; no: number } | null>(null);
+  const [history, setHistory] = useState<{ candidateId?: number; title: string } | null>(null);
+  const role = useRole();
   const { ward, parties } = data;
   const editable = ward.editable;
+  // Only the ward's own RO gets this page from the server; the role check just keeps it explicit.
+  const canFixName = !editable && ward.nameCorrectable && (role === 'PS_RO' || role === 'ZP_RO');
+  const anyRenamed = rows.some((r) => r.nameChanged === true);
 
   const touched = () => {
     setDirty(true);
@@ -181,7 +192,25 @@ function WardForm({
       ) : (
         <p className="msg msg-ok">
           ✓{' '}
-          {ward.status === 'LOCKED' ? 'यह सूची लॉक है। अब इसे बदला नहीं जा सकता।' : 'मतगणना शुरू हो चुकी है।'}
+          {ward.status === 'LOCKED'
+            ? canFixName
+              ? 'यह सूची लॉक है। अब केवल उम्मीदवार का नाम सुधारा जा सकता है ("नाम सुधारें")।'
+              : 'यह सूची लॉक है। अब इसे बदला नहीं जा सकता।'
+            : 'मतगणना शुरू हो चुकी है।'}
+        </p>
+      )}
+      {!editable && <SuccessBox text={done} />}
+      {!editable && (canFixName || anyRenamed) && (
+        <p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setHistory({ title: `${ward.label} — नाम सुधार इतिहास` });
+            }}
+          >
+            नाम सुधार इतिहास देखें
+          </button>
         </p>
       )}
       {ward.returnReason && ward.status === 'PENDING' && (
@@ -193,6 +222,7 @@ function WardForm({
       <ol className="cw-list" data-testid="cand-form">
         {rows.map((r, i) => {
           const no = i + 1;
+          const candidateId = r.id;
           const nameMissing = tried && r.nameHindi.trim() === '';
           return (
             <li key={r.key} className={`cw-card${nameMissing ? ' cw-card-bad' : ''}`}>
@@ -244,6 +274,16 @@ function WardForm({
                       }}
                     />
                     {nameMissing && <p className="cw-err">उम्मीदवार का नाम लिखें</p>}
+                    {r.nameChanged === true && candidateId !== undefined && (
+                      <NameChangedMark
+                        onOpen={() => {
+                          setHistory({
+                            candidateId,
+                            title: `बैलेट नंबर ${String(no)} — नाम सुधार इतिहास`,
+                          });
+                        }}
+                      />
+                    )}
                   </div>
                   <div className="cw-field cw-party">
                     <label htmlFor={`cw-${String(r.key)}-party`}>पार्टी</label>
@@ -294,6 +334,19 @@ function WardForm({
                       }}
                     >
                       हटाएँ
+                    </button>
+                  )}
+                  {canFixName && candidateId !== undefined && (
+                    <button
+                      type="button"
+                      className="cw-fix"
+                      aria-label={`नाम सुधारें — पंक्ति ${String(no)}`}
+                      onClick={() => {
+                        setDone(null);
+                        setFixing({ id: candidateId, nameHindi: r.nameHindi, no });
+                      }}
+                    >
+                      नाम सुधारें
                     </button>
                   )}
                 </div>
@@ -381,6 +434,30 @@ function WardForm({
         </div>
       )}
 
+      {fixing && (
+        <NameCorrectionDialog
+          wardId={ward.id}
+          candidate={{ id: fixing.id, nameHindi: fixing.nameHindi, ballotNo: fixing.no }}
+          onCancel={() => {
+            setFixing(null);
+          }}
+          onSaved={(result) => {
+            setFixing(null);
+            setDone(`नाम बदल दिया गया: ${result.oldName} → ${result.nameHindi}`);
+            reload();
+          }}
+        />
+      )}
+      {history && (
+        <NameHistoryDialog
+          title={history.title}
+          source={`/api/candidates/wards/${String(ward.id)}/name-changes`}
+          {...(history.candidateId === undefined ? {} : { candidateId: history.candidateId })}
+          onClose={() => {
+            setHistory(null);
+          }}
+        />
+      )}
       {removing && (
         <PasswordDialog
           title="उम्मीदवार हटाएँ"

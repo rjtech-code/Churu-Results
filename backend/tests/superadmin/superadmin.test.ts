@@ -310,6 +310,30 @@ describe('test-data reset', () => {
     expect(sql).not.toMatch(/DROP TABLE|CREATE TABLE/);
   });
 
+  it('also empties the candidate name history (test data), shown in the impact and backed up', async () => {
+    const ro = await apiClient(app, 'ro_ps1_x1');
+    const renamed = await ro.post(`/api/candidates/wards/${w.psW1}/candidates/${w.c.A}/name`, {
+      currentName: 'ए',
+      newName: 'ए नया',
+      reason: 'वर्तनी की गलती ठीक की',
+      password: PASSWORD,
+    });
+    expect(renamed.status).toBe(200);
+    const ov = (await sa.get('/api/superadmin/overview')).body as {
+      testData: { deletes: { nameChanges: number } };
+    };
+    expect(ov.testData.deletes.nameChanges).toBe(1);
+    const res = await sa.post('/api/superadmin/test-data/reset', {
+      password: SA_PASSWORD,
+      confirmText: 'RESET',
+    });
+    expect(res.status).toBe(200);
+    expect(await n('SELECT COUNT(*) AS n FROM candidate_name_change')).toBe(0);
+    const body = res.body as { backupFile: string };
+    const sql = gunzipSync(await readFile(join(backupDir, body.backupFile))).toString('utf8');
+    expect(sql).toContain('INSERT INTO `candidate_name_change`');
+  });
+
   it('needs "RESET" and the right password; a refused action makes no backup', async () => {
     await enterB1();
     const res = await sa.post('/api/superadmin/test-data/reset', {

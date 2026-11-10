@@ -5,8 +5,9 @@
 // imported. Everything else is kept and verified unchanged: users, parties, geography, booths and
 // voter counts, settings, the audit log (one CANDIDATES_RESET row is added).
 //
-// Refuses when ward_declarations or voided_entry has any row: those tables are append-only and can
-// never be emptied by a script (use the full database reset procedure instead).
+// Refuses when ward_declarations, voided_entry or candidate_name_change has any row: those tables
+// are append-only and can never be emptied by a script (use the full database reset procedure
+// instead).
 // Dry run by default. With NODE_ENV=production it also needs --yes-this-is-dummy-data.
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -40,6 +41,7 @@ const DELETED_TABLES = [
 const PROTECTED_TABLES = [
   ['ward_declarations', 'SELECT COUNT(*) AS n FROM ward_declarations'],
   ['voided_entry', 'SELECT COUNT(*) AS n FROM voided_entry'],
+  ['candidate_name_change', 'SELECT COUNT(*) AS n FROM candidate_name_change'],
 ] as const;
 
 /**
@@ -262,9 +264,11 @@ export async function runResetCandidates(
 
       const decl = b.protectedRows.ward_declarations ?? 0;
       const voided = b.protectedRows.voided_entry ?? 0;
-      if (decl > 0 || voided > 0) {
+      const renamed = b.protectedRows.candidate_name_change ?? 0;
+      if (decl > 0 || voided > 0 || renamed > 0) {
         report.error(
-          `Refused: ward_declarations has ${decl} row(s) and voided_entry has ${voided} row(s). ` +
+          `Refused: ward_declarations has ${decl} row(s) and voided_entry has ${voided} row(s), ` +
+            `candidate_name_change has ${renamed} row(s). ` +
             'These tables are append-only and are never deleted by a script. ' +
             'Use the full database reset procedure instead.',
         );

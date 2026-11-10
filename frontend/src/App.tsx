@@ -20,6 +20,7 @@ import { BoothsPage } from './pages/admin/BoothsPage';
 import { CandidateAreaPage } from './pages/admin/CandidateAreaPage';
 import { CandidateCheckPage } from './pages/admin/CandidateCheckPage';
 import { CandidateUploadPage } from './pages/admin/CandidateUploadPage';
+import { NameChangesPage } from './pages/admin/NameChangesPage';
 import { CandidatesHomePage } from './pages/admin/CandidatesHomePage';
 import { PartiesPage } from './pages/admin/PartiesPage';
 import { ProfilePage } from './pages/admin/ProfilePage';
@@ -99,6 +100,7 @@ export const router = createBrowserRouter([
           { path: '/admin/candidates/upload', element: <CandidateUploadPage /> },
           { path: '/admin/candidates/check', element: <CandidateCheckPage /> },
           { path: '/admin/candidates/check/:area', element: <CandidateAreaPage /> },
+          { path: '/admin/candidates/name-changes', element: <NameChangesPage /> },
           { path: '/admin/users', element: <UsersPage /> },
           { path: '/admin/users/bulk', element: <RoBulkAddPage /> },
           { path: '/admin/users/:seat', element: <UserSeatPage /> },

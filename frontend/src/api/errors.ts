@@ -77,6 +77,13 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   BOOTH_NAME_INVALID: 'बूथ का नाम हिंदी में लिखें (300 अक्षरों तक)',
   WARD_NOT_ALLOWED: 'यह वार्ड इस बूथ के लिए नहीं चुना जा सकता',
   CATEGORY_TOO_LONG: 'आरक्षण वर्ग 50 अक्षरों से लंबा है',
+  // "नाम सुधारें" (name correction after the ballot lock)
+  NAME_EMPTY: 'नया नाम लिखें',
+  NAME_TOO_LONG: 'नाम 200 अक्षरों से लंबा नहीं हो सकता',
+  NAME_INVALID_CHARS: 'नाम में छिपे या विशेष (control) अक्षर हैं — नाम दोबारा टाइप करें',
+  NAME_UNCHANGED: 'नया नाम पुराने नाम जैसा ही है — कोई बदलाव नहीं',
+  NAME_CHANGED_MEANWHILE: (d) =>
+    `इस बीच नाम बदल चुका है${typeof d.currentName === 'string' ? ` (अब: ${d.currentName})` : ''} — पेज दोबारा खोलकर देखें`,
   // Part 13: a password the DM types for an RO
   PASSWORD_TOO_SHORT: 'पासवर्ड कम से कम 10 अक्षर का हो',
   PASSWORD_TOO_LONG: 'पासवर्ड 128 अक्षरों से लंबा नहीं हो सकता',

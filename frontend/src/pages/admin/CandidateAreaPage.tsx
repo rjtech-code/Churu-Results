@@ -6,6 +6,7 @@ import type {
   CandidateDetails,
   CandidateStatus,
   Issue,
+  NameChange,
   WardCandidate,
   WardCandidatesView,
 } from '../../api/adminTypes';
@@ -14,10 +15,12 @@ import { IssueList, ListStatusBadge, PageIntro, issuesOf } from '../../component
 import { CandidateDetailsFields, detailsSummary } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
 import { Modal } from '../../components/Modal';
+import { NameChangedMark, NameHistoryList } from '../../components/NameHistory';
 import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
 import { LockDialog } from './LockDialog';
 import '../../styles/admin.css';
+import '../../styles/candidates.css';
 
 function WardView({
   ward,
@@ -31,6 +34,14 @@ function WardView({
   const { data, error } = useApiData(
     () => api<WardCandidatesView>('GET', `/api/admin/wards/${ward.id}/candidates`),
     [ward.id],
+  );
+  const [historyOf, setHistoryOf] = useState<WardCandidate | null>(null);
+  const history = useApiData(
+    () =>
+      historyOf === null
+        ? Promise.resolve({ changes: [] as NameChange[] })
+        : api<{ changes: NameChange[] }>('GET', `/api/admin/wards/${ward.id}/name-changes`),
+    [ward.id, historyOf?.id],
   );
   return (
     <Modal label={ward.label} onCancel={onClose}>
@@ -53,7 +64,19 @@ function WardView({
               {data.candidates.map((c) => (
                 <tr key={c.position}>
                   <td className="numcell">{c.position}</td>
-                  <td>{c.nameHindi}</td>
+                  <td>
+                    {c.nameHindi}
+                    {c.nameChanged && (
+                      <>
+                        {' '}
+                        <NameChangedMark
+                          onOpen={() => {
+                            setHistoryOf(c);
+                          }}
+                        />
+                      </>
+                    )}
+                  </td>
                   <td>{c.party ? `${c.party.nameHindi} (${c.party.shortName})` : 'निर्दलीय'}</td>
                   <td>{GENDER_HINDI[c.gender]}</td>
                   <td>
@@ -74,6 +97,28 @@ function WardView({
           </table>
           {data.ward.unopposed && <p className="msg msg-ok">✓ निर्विरोध (एक ही उम्मीदवार)</p>}
           {data.candidates.length === 0 && <p>इस वार्ड में अभी कोई उम्मीदवार नहीं है।</p>}
+          {historyOf && (
+            <section aria-label="नाम सुधार इतिहास" data-testid="dm-name-history">
+              <h3>
+                बैलेट नंबर {historyOf.position} — नाम सुधार इतिहास{' '}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setHistoryOf(null);
+                  }}
+                >
+                  छिपाएँ
+                </button>
+              </h3>
+              <ErrorBox error={history.error} />
+              {history.data && (
+                <NameHistoryList
+                  changes={history.data.changes.filter((h) => h.candidateId === historyOf.id)}
+                />
+              )}
+            </section>
+          )}
         </>
       )}
       <button type="button" className="btn btn-secondary btn-big" onClick={onClose}>

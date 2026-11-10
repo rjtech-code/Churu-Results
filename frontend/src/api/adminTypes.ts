@@ -81,6 +81,8 @@ export interface WardCandidate extends CandidateDetails {
   id: number;
   position: number;
   nameHindi: string;
+  /** The name was corrected after the ballot lock (see the name history). */
+  nameChanged: boolean;
   party: { shortName: string; nameHindi: string } | null;
   gender: Gender;
 }
@@ -281,8 +283,12 @@ export const pickDetails = (d: CandidateDetails): CandidateDetails => ({
 });
 
 export interface RoCandidate extends CandidateDetails {
+  /** Saved candidates only (a row added in the form has none until it is saved). */
+  id?: number;
   ballotPosition: number;
   nameHindi: string;
+  /** Saved candidates only: the name was corrected after the ballot lock. */
+  nameChanged?: boolean;
   partyId: number | null;
   gender: Gender;
 }
@@ -298,6 +304,8 @@ export interface RoWardDetail {
     unopposed: boolean;
     hasEntries: boolean;
     editable: boolean;
+    /** Locked ward: only "नाम सुधारें" is possible (by this RO). */
+    nameCorrectable: boolean;
     returnReason: string | null;
     reservationCategory: string | null;
   };
@@ -312,3 +320,31 @@ export const LIST_STATUS_HINDI: Record<ListStatus, string> = {
 };
 
 export const GENDER_HINDI: Record<Gender, string> = { M: 'पुरुष', F: 'महिला', O: 'अन्य' };
+
+/** One recorded name correction (after the ballot lock); append-only on the server. */
+export interface NameChange {
+  id: number;
+  wardId: number;
+  wardLabel: string;
+  wardKind: 'PS' | 'ZP';
+  wardNo: number;
+  candidateId: number;
+  ballotPosition: number;
+  oldName: string;
+  newName: string;
+  reason: string;
+  changedByName: string;
+  changedByRole: 'PS_RO' | 'ZP_RO';
+  changedAt: string;
+}
+
+export interface NameChangeList {
+  changes: NameChange[];
+}
+
+export interface NameCorrected {
+  candidateId: number;
+  oldName: string;
+  nameHindi: string;
+  changedAt: string;
+}

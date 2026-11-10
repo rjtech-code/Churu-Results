@@ -14,6 +14,8 @@ const EXPECTED_TRIGGERS = [
   'trg_audit_log_no_update',
   'trg_booth_entry_ward_bi',
   'trg_booth_entry_ward_bu',
+  'trg_candidate_name_change_no_delete',
+  'trg_candidate_name_change_no_update',
   'trg_voided_entry_no_delete',
   'trg_voided_entry_no_update',
   'trg_ward_declarations_no_delete',

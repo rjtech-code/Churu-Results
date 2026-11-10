@@ -40,6 +40,7 @@ import { normalizeText } from '../../services/master-data/text.js';
 import { busyAsConflict } from '../admin/http.js';
 import type { Actor } from '../admin/http.js';
 import { listStatus } from '../admin/lists.service.js';
+import { renamedCandidateIds } from './name-change.service.js';
 
 export interface FormCandidate extends FormDetails {
   ballotPosition: number;
@@ -49,7 +50,7 @@ export interface FormCandidate extends FormDetails {
 }
 
 /** 404 for an unknown ward, 403 for a ward the user may not work on. */
-async function authorize(pool: Pool, who: Actor, wardId: number): Promise<WardRow> {
+export async function authorizeOwnWard(pool: Pool, who: Actor, wardId: number): Promise<WardRow> {
   const ward = await loadWard(pool, wardId);
   if (!ward) throw new ApiError(404, 'NOT_FOUND');
   if (!(await canWriteWard(pool, who.user, wardId))) throw new ApiError(403, 'FORBIDDEN');
@@ -91,9 +92,10 @@ export async function listOwnWards(pool: Pool, who: Actor) {
 
 /** One ward's list and the party dropdown. */
 export async function readOwnWard(pool: Pool, who: Actor, wardId: number) {
-  const ward = await authorize(pool, who, wardId);
+  const ward = await authorizeOwnWard(pool, who, wardId);
   const reasons = await returnReasons(pool);
   const hasEntries = await wardHasEntries(pool, wardId);
+  const renamed = await renamedCandidateIds(pool, wardId);
   return {
     ward: {
       id: ward.id,
@@ -105,12 +107,16 @@ export async function readOwnWard(pool: Pool, who: Actor, wardId: number) {
       unopposed: ward.is_unopposed === 1,
       hasEntries,
       editable: ward.is_locked !== 1 && !hasEntries,
+      // After the ballot lock only the name can be corrected ("नाम सुधारें"), by this same RO.
+      nameCorrectable: ward.is_locked === 1,
       returnReason: reasons.get(ward.id) ?? null,
       reservationCategory: ward.reservation_category,
     },
     candidates: (await readWardCandidates(pool, wardId)).map((c) => ({
+      id: c.id,
       ballotPosition: c.position,
       nameHindi: c.nameHindi,
+      nameChanged: renamed.has(c.id),
       partyId: c.partyId,
       gender: c.gender,
       // The ward's own RO (authorize above) may see the private details.
@@ -161,7 +167,7 @@ export async function saveOwnWard(
   wardId: number,
   candidates: readonly FormCandidate[],
 ): Promise<{ candidates: number; unopposed: boolean }> {
-  await authorize(pool, who, wardId);
+  await authorizeOwnWard(pool, who, wardId);
   const out = await busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
       await lockWardRows(conn, [wardId]);
@@ -246,7 +252,7 @@ export async function saveOwnWard(
 
 /** "सूची तैयार है": needs at least one candidate and an unlocked ward (no password re-check). */
 export async function markReady(pool: Pool, who: Actor, wardId: number): Promise<void> {
-  await authorize(pool, who, wardId);
+  await authorizeOwnWard(pool, who, wardId);
   await busyAsConflict(() =>
     withMasterDataWrite(pool, async (conn) => {
       await lockWardRows(conn, [wardId]);

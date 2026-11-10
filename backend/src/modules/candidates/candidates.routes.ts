@@ -1,13 +1,33 @@
 // /api/candidates — the RO's candidate lists (Part 13). PS_RO: PS wards of its own PS; ZP_RO: ZP
 // wards (checked per ward on the server). The DM gets 403 here; the DM uses /api/admin.
+// After the ballot lock only "नाम सुधारें" (name-change.service.ts) can change anything, and only the name.
 import { Router } from 'express';
 import type { Request } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
-import { actor, candidateDetailsFields, idParam, parse } from '../admin/http.js';
-import { listOwnWards, markReady, readOwnWard, saveOwnWard } from './candidates.service.js';
+import {
+  actor,
+  candidateDetailsFields,
+  idParam,
+  noStore,
+  parse,
+  password,
+  reason,
+} from '../admin/http.js';
+import {
+  authorizeOwnWard,
+  listOwnWards,
+  markReady,
+  readOwnWard,
+  saveOwnWard,
+} from './candidates.service.js';
+import {
+  correctCandidateName,
+  visibleNameChanges,
+  wardNameChanges,
+} from './name-change.service.js';
 
 const candidate = z
   .object({
@@ -22,6 +42,15 @@ const candidate = z
 // The list size rule (at most 59) is checked by checkWardList, with a Hindi message.
 const listBody = z.object({ candidates: z.array(candidate).max(100) }).strict();
 const readyBody = z.object({}).strict();
+// Generous text limits here; the exact name rules (Hindi messages) are in services/candidate-name.ts.
+const nameBody = z
+  .object({
+    currentName: z.string().min(1).max(400),
+    newName: z.string().max(1000),
+    reason,
+    password,
+  })
+  .strict();
 
 export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
   const router = Router();
@@ -42,6 +71,22 @@ export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
     parse(readyBody, req.body ?? {});
     await markReady(pool, actor(req), wardId(req));
     res.json({ ok: true });
+  });
+  // "नाम सुधारें" (locked ward only): password re-check + reason + compare-and-set.
+  router.post('/wards/:wardId/candidates/:candidateId/name', async (req, res) => {
+    const id = wardId(req);
+    const candidateId = parse(idParam, req.params.candidateId);
+    const body = parse(nameBody, req.body);
+    noStore(res);
+    res.json(await correctCandidateName(pool, actor(req), id, candidateId, body));
+  });
+  router.get('/wards/:wardId/name-changes', async (req, res) => {
+    const id = wardId(req);
+    await authorizeOwnWard(pool, actor(req), id);
+    res.json({ changes: await wardNameChanges(pool, id) });
+  });
+  router.get('/name-changes', async (req, res) => {
+    res.json({ changes: await visibleNameChanges(pool, actor(req).user) });
   });
   return router;
 }

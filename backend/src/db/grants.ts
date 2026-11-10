@@ -27,6 +27,8 @@ export const APP_TABLE_PRIVILEGES: Readonly<Record<string, readonly Privilege[]>
   audit_log: APPEND_ONLY,
   // Voided entries are archived forever: insert and read only.
   voided_entry: APPEND_ONLY,
+  // Candidate name corrections after the ballot lock: kept forever, insert and read only.
+  candidate_name_change: APPEND_ONLY,
   app_settings: READ_WRITE,
   // Login sessions: the session store inserts, reads, refreshes and deletes expired rows.
   sessions: READ_WRITE,

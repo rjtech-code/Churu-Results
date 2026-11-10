@@ -363,3 +363,85 @@
 .password-dialog .cd-wide {
   grid-column: span 2;
 }
+
+/* "नाम सुधारें" (locked ward: name only) and the "नाम बदला गया" marker */
+.cw-fix {
+  align-self: start;
+  margin-top: 1.45rem;
+  min-height: 42px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--cw-accent, #1f4e8c);
+  background: #fff;
+  border: 1px solid var(--cw-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cw-fix:hover {
+  background: var(--cw-soft);
+}
+.name-mark {
+  margin-top: 0.25rem;
+  padding: 0.05rem 0.5rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #7a4b00;
+  background: #fff6e0;
+  border: 1px solid #e9cf8f;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.name-mark:hover {
+  background: #ffeec2;
+}
+.name-diff {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.4rem 1rem;
+  margin: 0.6rem 0;
+  font-size: 1.1rem;
+}
+.name-diff dt {
+  font-weight: 700;
+}
+.name-diff dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.name-old {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+.name-new {
+  color: #0f5132;
+  font-weight: 700;
+}
+.name-history {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+.name-history li {
+  margin-bottom: 0.8rem;
+}
+.name-history p {
+  margin: 0.15rem 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .cw-fix {
+    grid-column: 2;
+    justify-self: end;
+    margin-top: 0;
+  }
+}
+@media (max-width: 640px) {
+  .cw-fix {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+  .name-diff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

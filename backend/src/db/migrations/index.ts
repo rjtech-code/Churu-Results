@@ -23,6 +23,7 @@ import * as superAdmin from './20261020000001_super_admin.js';
 import * as zpWardPostalAssignment from './20261021000001_zp_ward_postal_assignment.js';
 import * as boothSuffix from './20261022000001_booth_suffix.js';
 import * as removeRoundNo from './20261023000001_remove_round_no.js';
+import * as candidateNameChange from './20261024000001_candidate_name_change.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -51,6 +52,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261021000001_zp_ward_postal_assignment', zpWardPostalAssignment],
   ['20261022000001_booth_suffix', boothSuffix],
   ['20261023000001_remove_round_no', removeRoundNo],
+  ['20261024000001_candidate_name_change', candidateNameChange],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {

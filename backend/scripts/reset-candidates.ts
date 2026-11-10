@@ -5,8 +5,9 @@
 // imported. Everything else is kept and verified unchanged: users, parties, geography, booths and
 // voter counts, settings, the audit log (one CANDIDATES_RESET row is added).
 //
-// Refuses when ward_declarations or voided_entry has any row: those tables are append-only and can
-// never be emptied by a script (use the full database reset procedure instead).
+// Refuses when ward_declarations, voided_entry or candidate_name_change has any row: those tables
+// are append-only and can never be emptied by a script (use the full database reset procedure
+// instead).
 // Dry run by default. With NODE_ENV=production it also needs --yes-this-is-dummy-data.
 // The work itself lives in src/services/setup (shared with the Super Admin panel).
 import { runResetCandidates } from '../src/services/setup/reset-candidates.js';
