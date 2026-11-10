@@ -135,7 +135,7 @@ export interface ReportWardDetail {
   }[];
   booths: {
     boothId: number;
-    boothNo: number;
+    boothNo: string;
     name: string;
     psName: string;
     registeredVoters: number | null;
@@ -245,7 +245,7 @@ export interface CsBoothRow {
   psName: string;
   psNameFull: string;
   wardNo: number;
-  boothNo: number;
+  boothNo: string;
   boothName: string;
   entered: 'YES' | 'NO' | 'NA';
   round: number | null;
@@ -331,5 +331,5 @@ export interface CountingStatusOptions {
 }
 export interface CountingStatusBoothOptions {
   /** psName: the booth's PS (booth numbers restart in every PS; a ZP ward spans several). */
-  booths: { id: number; boothNo: number; name: string; psName: string }[];
+  booths: { id: number; boothNo: string; name: string; psName: string }[];
 }

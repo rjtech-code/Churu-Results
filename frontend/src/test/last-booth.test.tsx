@@ -33,7 +33,7 @@ const ward = (id: number, kind: 'PS' | 'ZP'): WardItem => ({
 const booth = (boothId: number, entered: boolean): BoothItem => ({
   boothId,
   panchayatSamiti: 'चूरू',
-  boothNo: boothId,
+  boothNo: String(boothId),
   nameHindi: `विद्यालय ${String(boothId)}`,
   registeredVotersTotal: 900,
   entered,

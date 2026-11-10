@@ -38,7 +38,7 @@ export interface WardItem {
 export interface BoothItem {
   boothId: number;
   panchayatSamiti: string;
-  boothNo: number;
+  boothNo: string;
   nameHindi: string;
   registeredVotersTotal: number | null;
   entered: boolean;

@@ -29,6 +29,7 @@ import { writeSheet } from './lib/xlsx.js';
 import type { Cell } from './lib/xlsx.js';
 import { runUsersCreate } from './users-create.js';
 import { runZpPostalSetDefault } from './zp-postal-set-default.js';
+import { boothLabelOf } from '../src/services/booth-no.js';
 
 export const DEMO_FILE = resolve(REPO_ROOT, 'docs', 'polling-stations.xlsx');
 export const DEMO_FIXES = resolve(REPO_ROOT, 'docs', 'demo', 'demo-fixes.json');
@@ -112,15 +113,16 @@ export async function runDemoSeed(
 
   // 3. Fake registered-voter counts (deterministic, 600-1200 per booth).
   const [booths] = await ctx.pool.query<RowDataPacket[]>(
-    `SELECT ps.name_english AS ps, b.booth_no, b.id FROM booth b
-       JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id ORDER BY ps.name_english, b.booth_no`,
+    `SELECT ps.name_english AS ps, b.booth_no, b.booth_suffix, b.id FROM booth b
+       JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
+      ORDER BY ps.name_english, b.booth_no, b.booth_suffix`,
   );
   const voterRows: Cell[][] = booths.map((b) => {
     const id = Number(b.id);
     const total = 600 + ((id * 7919) % 601);
     const other = id % 3 === 0 ? 1 : 0;
     const male = Math.floor(total * 0.52);
-    return [String(b.ps), Number(b.booth_no), male, total - male - other, other, total];
+    return [String(b.ps), boothLabelOf(b), male, total - male - other, other, total];
   });
   const votersFile = join(tmp, 'demo-voters.xlsx');
   await writeSheet(votersFile, [

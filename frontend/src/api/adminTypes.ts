@@ -182,7 +182,7 @@ export interface RoBulkSaved {
 
 export interface BoothRow {
   id: number;
-  boothNo: number;
+  boothNo: string;
   nameHindi: string;
   psWard: { id: number; wardNo: number };
   zpWard: { id: number; wardNo: number };

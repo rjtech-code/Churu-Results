@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_TABLE_PRIVILEGES } from '../src/db/grants.js';
 import { createMigrationKnex } from '../src/db/knex-config.js';
 import { runMigrations } from '../src/db/migrate.js';
+import * as boothSuffix from '../src/db/migrations/20261022000001_booth_suffix.js';
 import { migrationSource } from '../src/db/migrations/index.js';
 import { createTestMigrationPool, testEnv, wipeAllData } from './helpers/db.js';
 
@@ -52,6 +53,44 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
+  it('booth_suffix rollback refuses while an "A" booth exists, and keeps plain booths', async () => {
+    const migrator = createTestMigrationPool();
+    try {
+      await wipeAllData(migrator);
+    } finally {
+      await migrator.end();
+    }
+    await db.raw(
+      "INSERT INTO district (id, code, name_english, name_hindi) VALUES (1, 'CHURU', 'Churu', 'चूरू')",
+    );
+    await db.raw(
+      "INSERT INTO panchayat_samiti (id, district_id, name_english, name_hindi) VALUES (1, 1, 'A PS', 'ए')",
+    );
+    await db.raw(
+      "INSERT INTO ward (id, ward_type, district_id, panchayat_samiti_id, ward_no) VALUES (1, 'PS', 1, 1, 1), (2, 'ZP', 1, NULL, 1)",
+    );
+    await db.raw(
+      `INSERT INTO booth (panchayat_samiti_id, booth_no, booth_suffix, name_hindi, ps_ward_id, zp_ward_id)
+       VALUES (1, 12, '', 'बूथ', 1, 2), (1, 12, 'A', 'बूथ', 1, 2)`,
+    );
+    const labels = async () =>
+      (
+        await rows<{ label: string }>(
+          'SELECT CONCAT(booth_no, booth_suffix) AS label FROM booth ORDER BY booth_no, booth_suffix',
+        )
+      ).map((r) => r.label);
+
+    await expect(boothSuffix.down(db)).rejects.toThrow(/Cannot roll back booth_suffix/);
+    expect(await labels()).toEqual(['12', '12A']);
+
+    await db.raw("DELETE FROM booth WHERE booth_suffix = 'A'");
+    await boothSuffix.down(db);
+    expect(await rows('SELECT booth_no FROM booth')).toEqual([{ booth_no: 12 }]);
+    await boothSuffix.up(db);
+    expect(await labels()).toEqual(['12']);
+    // case 1 (next) wipes the data and re-runs every migration.
+  });
+
   it('case 1: run fully down and up again without errors', async () => {
     // "On an empty database": earlier test files may have left data behind.
     const migrator = createTestMigrationPool();

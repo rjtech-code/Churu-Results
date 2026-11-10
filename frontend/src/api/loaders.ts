@@ -65,7 +65,7 @@ export async function loadZpProgress(wardId: number): Promise<ZpWardPsProgress> 
 export interface EntryContext {
   ward: Pick<WardItem, 'id' | 'kind' | 'wardNo'>;
   ballot: BallotCandidate[];
-  booth: { boothNo: number; nameHindi: string } | null;
+  booth: { boothNo: string; nameHindi: string } | null;
   backTo: string;
   backLabel: string;
   /** null when this user cannot open the ward's booth history (a PS_RO on a ZP ballot). */

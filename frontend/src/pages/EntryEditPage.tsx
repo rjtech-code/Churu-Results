@@ -29,7 +29,7 @@ export function EntryEditPage() {
       ctx,
       ward: ctx.ward,
       ballot: ctx.ballot,
-      boothNo: ctx.booth?.boothNo ?? 0,
+      boothNo: ctx.booth?.boothNo ?? '',
       boothName: ctx.booth?.nameHindi ?? '',
     };
   }, [entryId, role]);

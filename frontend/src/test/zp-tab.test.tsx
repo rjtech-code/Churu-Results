@@ -22,7 +22,7 @@ const ZP_WARD: PsZpWardBooths = {
     {
       boothId: 9,
       panchayatSamiti: 'चूरू',
-      boothNo: 3,
+      boothNo: '3',
       nameHindi: 'विद्यालय 3',
       registeredVotersTotal: 900,
       entered: false,
@@ -116,5 +116,43 @@ describe('ZP ward page and entry form for a PS_RO', () => {
       '/api/counting/entries/preview',
       expect.objectContaining({ wardId: 200, boothId: 9, ballotFor: 'ZP' }),
     );
+  });
+});
+
+describe('"A" booths (e.g. 12A)', () => {
+  it('the booth list shows 12 then 12A, and the entry form names booth 12A', async () => {
+    const base = ZP_WARD.booths[0];
+    if (base === undefined) throw new Error('fixture');
+    apiMock.mockImplementation((method: string, path: string) => {
+      if (path === '/api/counting/zp-wards/200/ps-booths')
+        return Promise.resolve({
+          ...ZP_WARD,
+          booths: [
+            { ...base, boothId: 12, boothNo: '12', nameHindi: 'विद्यालय बारह' },
+            { ...base, boothId: 13, boothNo: '12A', nameHindi: 'विद्यालय बारह-ए' },
+          ],
+        });
+      return Promise.reject(new Error(`unexpected ${method} ${path}`));
+    });
+    renderAt('/zp/200');
+    await screen.findByText('विद्यालय बारह-ए');
+    const cells = screen.getAllByRole('cell').map((c) => c.textContent);
+    expect(cells.indexOf('12A')).toBeGreaterThan(cells.indexOf('12'));
+    expect(cells).toContain('12A');
+  });
+
+  it('the entry form header says बूथ संख्या 12A', async () => {
+    const base = ZP_WARD.booths[0];
+    if (base === undefined) throw new Error('fixture');
+    apiMock.mockImplementation((method: string, path: string) => {
+      if (path === '/api/counting/zp-wards/200/ps-booths')
+        return Promise.resolve({
+          ...ZP_WARD,
+          booths: [{ ...base, boothId: 13, boothNo: '12A', nameHindi: 'विद्यालय बारह-ए' }],
+        });
+      return Promise.reject(new Error(`unexpected ${method} ${path}`));
+    });
+    renderAt('/zp/200/booths/13/entry');
+    expect(await screen.findByText(/बूथ संख्या 12A/)).toBeTruthy();
   });
 });

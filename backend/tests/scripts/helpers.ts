@@ -97,7 +97,7 @@ export const BETA = 'BETA PANCHAYAT SAMITI';
 
 export function geoRow(
   ps: string,
-  boothNo: number,
+  boothNo: number | string,
   psWard: number,
   zpWard: number,
   gpWard = 1,

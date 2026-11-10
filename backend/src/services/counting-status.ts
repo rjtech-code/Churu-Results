@@ -6,6 +6,8 @@
 import { COUNTING_DATE } from '../config/election.js';
 import { istIso } from './public-views.js';
 import type { ResultStatus, WardResult } from './result.js';
+import { boothLabel, compareBoothNo, parseBoothNo } from './booth-no.js';
+import type { BoothNo } from './booth-no.js';
 
 /** A ward in counting with no new entry for this long is "Stalled". */
 export const STALLED_AFTER_MINUTES = 30;
@@ -53,7 +55,8 @@ export interface CountingStatusRaw {
   booths: {
     id: number;
     psId: number;
-    boothNo: number;
+    /** Label, e.g. "12A". */
+    boothNo: string;
     name: string;
     psWardId: number;
     zpWardId: number;
@@ -128,7 +131,8 @@ export interface BoothRow {
   psName: string;
   psNameFull: string;
   wardNo: number;
-  boothNo: number;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   boothName: string;
   /** NA = the ward is unopposed (no entry is ever made). */
   entered: EnteredFlag;
@@ -292,18 +296,36 @@ export function percentDown(done: number, total: number): number | null {
 }
 
 /** [1,2,3,5,7,8] -> "1–3, 5, 7–8". */
-export function compactNumbers(numbers: readonly number[]): string {
-  const sorted = [...new Set(numbers)].sort((a, b) => a - b);
-  const parts: string[] = [];
-  for (let i = 0; i < sorted.length;) {
-    let j = i;
-    while (j + 1 < sorted.length && (sorted[j + 1] ?? 0) === (sorted[j] ?? 0) + 1) j++;
-    const a = sorted[i] ?? 0;
-    const b = sorted[j] ?? 0;
-    parts.push(a === b ? String(a) : `${String(a)}–${String(b)}`);
-    i = j + 1;
+/**
+ * Booth numbers as short ranges: [3, 7, 12, 13, 14] -> "3, 7, 12–14". A suffixed booth ("12A") is
+ * always listed on its own and ends a range: [12, "12A", 13, 14] -> "12, 12A, 13–14".
+ */
+export function compactNumbers(numbers: readonly (number | string)[]): string {
+  const parsed = numbers.map((n) => {
+    const p = parseBoothNo(n);
+    if (p === null) throw new Error(`internal: bad booth number ${String(n)}`);
+    return p;
+  });
+  const unique = [...new Map(parsed.map((p) => [boothLabel(p.no, p.suffix), p])).values()];
+  // Runs of plain consecutive numbers; every suffixed booth is a run of its own.
+  const runs: BoothNo[][] = [];
+  for (const b of unique.sort(compareBoothNo)) {
+    const run = runs.at(-1);
+    const last = run?.at(-1);
+    if (run !== undefined && last?.suffix === '' && b.suffix === '' && b.no === last.no + 1)
+      run.push(b);
+    else runs.push([b]);
   }
-  return parts.join(', ');
+  return runs
+    .map((run) => {
+      const first = run[0];
+      const last = run.at(-1);
+      if (first === undefined || last === undefined) return '';
+      return run.length === 1
+        ? boothLabel(first.no, first.suffix)
+        : `${String(first.no)}–${String(last.no)}`;
+    })
+    .join(', ');
 }
 
 /** "PS RO (SUJANGARH) · username", "ZP RO · username". */
@@ -380,7 +402,7 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
       .sort(
         (a, b) =>
           displayPsName(fullPs(a.psId)).localeCompare(displayPsName(fullPs(b.psId)), 'en') ||
-          a.boothNo - b.boothNo,
+          compareBoothNo(a.boothNo, b.boothNo),
       );
     const entries = booths.flatMap((b) => {
       const e = entryOf.get(`${String(b.id)}:${w.kind}`);
@@ -454,7 +476,7 @@ export function buildCountingStatus(raw: CountingStatusRaw): CountingStatusRepor
     }
     const winnerCandidate = winnerId === null ? undefined : candidates.get(winnerId);
 
-    const pendingByPs = new Map<string, number[]>();
+    const pendingByPs = new Map<string, string[]>();
     for (const b of booths) {
       if (entryOf.has(`${String(b.id)}:${w.kind}`)) continue;
       const key = displayPsName(fullPs(b.psId));

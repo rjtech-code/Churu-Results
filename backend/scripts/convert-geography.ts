@@ -5,13 +5,14 @@
 // import:geography reads, without changing the importer:
 //   Geography_CLEAN_import-format.xlsx   District = Churu, PS = the system's English name,
 //                                        WardNumber = the first number of the list (the importer only
-//                                        checks it is a number; it is never stored), numeric booths only.
-//   Geography_A-booths_PENDING.xlsx      the booths whose number is not a whole number (e.g. "15A"):
-//                                        booth_no is a number in the database, so they wait for a decision.
-// Any PS name not in PS_HINDI_TO_ENGLISH, or a row without a number in WardNumber, stops the run.
+//                                        checks it is a number; it is never stored). All booths, "A"
+//                                        booths (e.g. "15A") included: the database has booth_suffix.
+// Any PS name not in PS_HINDI_TO_ENGLISH, a row without a number in WardNumber, or a booth number
+// that is not like 12 / 12A stops the run.
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { COLUMNS, DISTRICT } from '../src/services/setup/geography.js';
+import { boothLabel, parseBoothNo } from '../src/services/booth-no.js';
 import { normalizeText } from '../src/services/master-data/text.js';
 import { readSheet, writeSheet } from '../src/services/master-data/xlsx.js';
 import type { Cell, SheetRow } from '../src/services/master-data/xlsx.js';
@@ -21,7 +22,6 @@ import { resolveUserPath } from './lib/paths.js';
 const USAGE = 'npm run convert:geography -- --file <raw xlsx> --out-dir <folder>';
 
 export const CLEAN_FILE = 'Geography_CLEAN_import-format.xlsx';
-export const PENDING_FILE = 'Geography_A-booths_PENDING.xlsx';
 
 /** PS names as the official file writes them -> the system's English PS names. */
 export const PS_HINDI_TO_ENGLISH: Readonly<Record<string, string>> = {
@@ -44,21 +44,8 @@ const PS_BY_KEY = new Map(
   Object.entries(PS_HINDI_TO_ENGLISH).map(([hindi, english]) => [normalizeText(hindi), english]),
 );
 
-export const PENDING_HEADERS = [
-  'PanchayatSamiti',
-  'PanchayatSamiti (file)',
-  'Grampanchayat',
-  'PollingStationNumber',
-  'Polling Station in Hindi',
-  'Polling Station in English',
-  'PanchayatSamitiConstituenyNumber',
-  'ZillaParishadConstituencyNumber',
-  'Excel row',
-] as const;
-
 export interface ConvertResult {
   clean: Cell[][];
-  pending: Cell[][];
   errors: string[];
 }
 
@@ -69,11 +56,8 @@ export function firstNumber(cell: Cell): number | null {
   return match ? Number(match[0]) : null;
 }
 
-const isWholeBoothNo = (cell: Cell) =>
-  typeof cell === 'number' || (cell !== null && /^\d+$/u.test(cell));
-
 export function convertGeographyRows(rows: readonly SheetRow[]): ConvertResult {
-  const result: ConvertResult = { clean: [], pending: [], errors: [] };
+  const result: ConvertResult = { clean: [], errors: [] };
   for (const row of rows) {
     const c = row.cells;
     const at = `row ${String(row.rowNumber)}`;
@@ -83,19 +67,10 @@ export function convertGeographyRows(rows: readonly SheetRow[]): ConvertResult {
       result.errors.push(`${at}: Panchayat Samiti "${String(rawPs)}" is not in the name mapping.`);
       continue;
     }
-    const boothNo = c[COLUMNS.boothNo] ?? null;
-    if (!isWholeBoothNo(boothNo)) {
-      result.pending.push([
-        ps,
-        rawPs,
-        c[COLUMNS.gp] ?? null,
-        boothNo,
-        c[COLUMNS.nameHindi] ?? null,
-        c[COLUMNS.nameEnglish] ?? null,
-        c[COLUMNS.psWard] ?? null,
-        c[COLUMNS.zpWard] ?? null,
-        row.rowNumber,
-      ]);
+    const rawBoothNo = c[COLUMNS.boothNo] ?? null;
+    const boothNo = parseBoothNo(rawBoothNo);
+    if (boothNo === null) {
+      result.errors.push(`${at}: booth number "${String(rawBoothNo)}" is not like 12 or 12A.`);
       continue;
     }
     const gpWard = firstNumber(c[COLUMNS.gpWard] ?? null);
@@ -108,7 +83,8 @@ export function convertGeographyRows(rows: readonly SheetRow[]): ConvertResult {
       ps,
       c[COLUMNS.gp] ?? null,
       gpWard,
-      Number(boothNo),
+      // A whole number stays a number cell; "15A" stays text.
+      boothNo.suffix === '' ? boothNo.no : boothLabel(boothNo.no, boothNo.suffix),
       c[COLUMNS.nameHindi] ?? null,
       c[COLUMNS.nameEnglish] ?? null,
       c[COLUMNS.psWard] ?? null,
@@ -133,7 +109,7 @@ export async function main(argv: string[]): Promise<{ ok: boolean }> {
     console.error(`ERROR: ${sheet.error}`);
     return { ok: false };
   }
-  const { clean, pending, errors } = convertGeographyRows(sheet.rows);
+  const { clean, errors } = convertGeographyRows(sheet.rows);
   if (errors.length > 0) {
     for (const e of errors) console.error(`ERROR ${e}`);
     console.error('Nothing was written.');
@@ -144,12 +120,8 @@ export async function main(argv: string[]): Promise<{ ok: boolean }> {
   await writeSheet(join(outDir, CLEAN_FILE), [
     { name: 'polling-stations', headers: Object.values(COLUMNS), rows: clean },
   ]);
-  await writeSheet(join(outDir, PENDING_FILE), [
-    { name: 'A-booths', headers: PENDING_HEADERS, rows: pending, autoFilter: true },
-  ]);
   console.log(`Read ${String(sheet.rows.length)} rows from sheet "${sheet.sheetName}".`);
   console.log(`${CLEAN_FILE}: ${String(clean.length)} booths -> ${outDir}`);
-  console.log(`${PENDING_FILE}: ${String(pending.length)} booths (not imported) -> ${outDir}`);
   return { ok: true };
 }
 

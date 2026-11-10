@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { runImportGeography } from '../../scripts/import-geography.js';
+import { boothKey, runImportGeography } from '../../scripts/import-geography.js';
 import {
   ALPHA,
   BETA,
@@ -119,7 +119,7 @@ describe('import:geography', () => {
     const [audit] = await h.app.query<RowDataPacket[]>('SELECT new_value FROM audit_log');
     expect(audit[0]?.new_value).toMatchObject({
       fixes_applied: [
-        { booth_no: 1, field: 'zp_ward_no', from: [1, 2], to: 1, approved_by: 'Test Officer' },
+        { booth_no: '1', field: 'zp_ward_no', from: [1, 2], to: 1, approved_by: 'Test Officer' },
       ],
     });
   });
@@ -237,10 +237,66 @@ describe('import:geography', () => {
       'utf8',
     );
     expect(text).toContain(
-      '[row 2] "PollingStationNumber" must be a whole number greater than 0, got "0"',
+      '[row 2] "PollingStationNumber" must be a booth number such as 12 or 12A, got "0"',
     );
     expect(text).toContain('[row 4] "Polling Station in Hindi" is empty');
     expect(text).toContain('[row 4] District must be Churu, got "JAIPUR"');
+  });
+
+  it('imports "A" booths (1A next to 1 in the same PS) with their suffix, and a fix can name one', async () => {
+    const rows = [
+      ...geoRows(),
+      geoRow(ALPHA, '1A', 1, 1),
+      geoRow(ALPHA, '1A', 1, 2, 2), // second GP-ward row with a different ZP ward: fixed below
+      geoRow(BETA, '12A', 1, 2),
+    ];
+    const file = await writeXlsx(h, GEO_HEADERS, rows);
+    const fixes = await writeJson(h, [{ ...validFix, booth_no: '1A' }]);
+    const result = await runImportGeography({ file, fixes, commit: true }, makeCtx(h).ctx);
+    expect(result.ok).toBe(true);
+    expect(result.counts).toEqual({ panchayatSamitis: 2, psWards: 3, zpWards: 2, booths: 7 });
+    expect(result.boothKeys.has(boothKey(ALPHA, '1A'))).toBe(true);
+    expect(result.boothKeys.has(boothKey(BETA, '12A'))).toBe(true);
+    expect(result.boothKeys.has(boothKey(BETA, '12'))).toBe(false);
+    const [stored] = await h.app.query<RowDataPacket[]>(
+      `SELECT ps.name_english AS ps, b.booth_no, b.booth_suffix, zw.ward_no AS zp_ward FROM booth b
+         JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id JOIN ward zw ON zw.id = b.zp_ward_id
+        ORDER BY ps.name_english, b.booth_no, b.booth_suffix`,
+    );
+    expect(stored.map((r): unknown[] => [r.ps, r.booth_no, r.booth_suffix, r.zp_ward])).toEqual([
+      [ALPHA, 1, '', 1],
+      [ALPHA, 1, 'A', 1],
+      [ALPHA, 2, '', 1],
+      [ALPHA, 3, '', 2],
+      [BETA, 1, '', 1],
+      [BETA, 2, '', 2],
+      [BETA, 12, 'A', 2],
+    ]);
+    const [audit] = await h.app.query<RowDataPacket[]>('SELECT new_value FROM audit_log');
+    expect(audit[0]?.new_value).toMatchObject({
+      fixes_applied: [{ booth_no: '1A', field: 'zp_ward_no', from: [1, 2], to: 1 }],
+    });
+  });
+
+  it('the same "A" booth twice with different wards is a conflict, reported with its label', async () => {
+    const rows = [...geoRows(), geoRow(ALPHA, '1A', 1, 1), geoRow(ALPHA, '1A', 2, 1)];
+    const file = await writeXlsx(h, GEO_HEADERS, rows);
+    const result = await runImportGeography({ file, commit: true }, makeCtx(h).ctx);
+    expect(result.ok).toBe(false);
+    expect(await readFile(result.reportPath, 'utf8')).toContain(
+      `Booth 1A of ${ALPHA} has conflicting PS ward numbers`,
+    );
+    expect(await geoTableCounts()).toEqual({ ps: 0, wards: 0, booths: 0 });
+  });
+
+  it.each(['1a', 'A1', '1 A', '1-A'])('rejects booth number %j with its row', async (bad) => {
+    const rows = [...geoRows(), geoRow(ALPHA, bad, 1, 1)];
+    const file = await writeXlsx(h, GEO_HEADERS, rows);
+    const result = await runImportGeography({ file }, makeCtx(h).ctx);
+    expect(result.ok).toBe(false);
+    expect(await readFile(result.reportPath, 'utf8')).toContain(
+      `"PollingStationNumber" must be a booth number such as 12 or 12A, got "${bad}"`,
+    );
   });
 
   it('stores Hindi PS names from --ps-names and warns for missing ones', async () => {

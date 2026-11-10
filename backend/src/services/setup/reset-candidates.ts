@@ -65,7 +65,7 @@ const KEPT_TABLES = [
   ],
   [
     'booth',
-    `SELECT COUNT(*) AS n, COALESCE(SUM(CRC32(CONCAT_WS('|', id, panchayat_samiti_id, booth_no, name_hindi,
+    `SELECT COUNT(*) AS n, COALESCE(SUM(CRC32(CONCAT_WS('|', id, panchayat_samiti_id, booth_no, booth_suffix, name_hindi,
               IFNULL(name_english, ''), ps_ward_id, zp_ward_id, IFNULL(registered_voters_male, -1),
               IFNULL(registered_voters_female, -1), IFNULL(registered_voters_total, -1)))), 0) AS c
        FROM booth`,

@@ -119,7 +119,7 @@ export function scopeReport(full: CountingStatusReport, scope: ReportScope): Sco
       levelWards = full.wards.filter((w) => wardIds.has(w.wardId));
       summary = { PS: empty, ZP: empty };
       psTable = [];
-      label = `${first.psName} - Booth ${String(first.boothNo)}`;
+      label = `${first.psName} - Booth ${first.boothNo}`;
       break;
     }
   }

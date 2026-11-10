@@ -142,7 +142,7 @@ beforeEach(() => {
   mocks.api.mockImplementation((_m, path) => {
     if (path === '/api/reports/counting-status/options') return Promise.resolve(OPTIONS);
     if (path.startsWith('/api/reports/counting-status/options/wards/'))
-      return Promise.resolve({ booths: [{ id: 501, boothNo: 7, name: 'GOVT SCHOOL' }] });
+      return Promise.resolve({ booths: [{ id: 501, boothNo: '7', name: 'GOVT SCHOOL' }] });
     return Promise.resolve(DISTRICT);
   });
 });

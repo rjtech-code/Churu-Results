@@ -133,7 +133,7 @@ function boothTable(r: ScopedReport): TableSpec {
       b.kind,
       String(wardNo.get(b.wardId) ?? b.wardNo),
       b.psName,
-      String(b.boothNo),
+      b.boothNo,
       b.boothName,
       b.entered === 'NA'
         ? 'n/a'

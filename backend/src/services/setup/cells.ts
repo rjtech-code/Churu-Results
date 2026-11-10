@@ -5,6 +5,8 @@ import { IssueList } from '../master-data/issues.js';
 import { reportIssues } from '../master-data/issues-en.js';
 import type { Report } from './report.js';
 import type { SheetRow } from '../master-data/xlsx.js';
+import { parseBoothNo } from '../booth-no.js';
+import type { BoothNo } from '../booth-no.js';
 
 function withReport<T>(report: Report, check: (issues: IssueList) => T): T {
   const issues = new IssueList();
@@ -39,4 +41,21 @@ export function optionalInt(
   fallback: number,
 ): number | null {
   return withReport(report, (issues) => shared.optionalInt(row, column, issues, min, fallback));
+}
+
+/** Booth number cell: 12 or "12A" (see services/booth-no.ts). */
+export function requireBoothNo(row: SheetRow, column: string, report: Report): BoothNo | null {
+  const value = row.cells[column] ?? null;
+  if (value === null) {
+    report.error(`"${column}" is empty`, row.rowNumber);
+    return null;
+  }
+  const parsed = parseBoothNo(value);
+  if (parsed === null) {
+    report.error(
+      `"${column}" must be a booth number such as 12 or 12A, got "${String(value)}"`,
+      row.rowNumber,
+    );
+  }
+  return parsed;
 }

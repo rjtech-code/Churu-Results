@@ -52,12 +52,14 @@ const EMPTY = {
 };
 type Form = typeof EMPTY;
 const NUMBER_FIELDS: readonly [keyof Form, string][] = [
-  ['boothNo', 'Booth no.'],
   ['votersMale', 'Male voters'],
   ['votersFemale', 'Female voters'],
   ['votersOther', 'Other voters'],
 ];
 const whole = (t: string) => /^\d{1,7}$/.test(t.trim());
+/** "12" or "12A" (the server checks the same rule); typed "12a" is sent as "12A". */
+const boothNoText = (t: string) => t.trim().toUpperCase();
+const validBoothNo = (t: string) => /^[1-9]\d{0,4}[A-Z]?$/.test(boothNoText(t));
 
 /** Add one booth: PS → PS ward → ZP ward (wards with counting data cannot be picked). */
 export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () => void }) {
@@ -74,8 +76,8 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
   const missing =
     form.psWardNo === '' || form.zpWardNo === ''
       ? 'PS ward और ZP ward चुनें'
-      : !whole(form.boothNo) || Number(form.boothNo) < 1
-        ? 'Booth no. लिखें'
+      : !validBoothNo(form.boothNo)
+        ? 'Booth no. लिखें (जैसे 12 या 12A)'
         : form.nameHindi.trim() === ''
           ? 'Booth का Hindi name लिखें'
           : !NUMBER_FIELDS.every(([k]) => whole(form[k]))
@@ -153,6 +155,17 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
             }}
           />
         </div>
+        <div className="field">
+          <label htmlFor="sa-add-boothNo">Booth no. (जैसे 12 या 12A)</label>
+          <input
+            id="sa-add-boothNo"
+            className="sa-input"
+            value={form.boothNo}
+            onChange={(e) => {
+              set('boothNo')(e.target.value);
+            }}
+          />
+        </div>
         {NUMBER_FIELDS.map(([key, label]) => (
           <div className="field" key={key}>
             <label htmlFor={`sa-add-${key}`}>{label}</label>
@@ -180,8 +193,8 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
           title="Booth जोड़ें"
           summary={
             <p>
-              Booth <strong>{form.boothNo}</strong> — {form.nameHindi} · PS ward {form.psWardNo} · ZP ward{' '}
-              {form.zpWardNo} · कुल voters {fmt(total)}। पहले backup बनेगा।
+              Booth <strong>{boothNoText(form.boothNo)}</strong> — {form.nameHindi} · PS ward {form.psWardNo}{' '}
+              · ZP ward {form.zpWardNo} · कुल voters {fmt(total)}। पहले backup बनेगा।
             </p>
           }
           askPassword={false}
@@ -189,7 +202,7 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
           run={async () => {
             const r = await api<{ backupFile: string }>('POST', '/api/superadmin/booths/add', {
               psId,
-              boothNo: Number(form.boothNo),
+              boothNo: boothNoText(form.boothNo),
               nameHindi: form.nameHindi,
               nameEnglish: form.nameEnglish.trim() === '' ? null : form.nameEnglish,
               psWardNo: Number(form.psWardNo),
@@ -198,7 +211,7 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
               votersFemale: Number(form.votersFemale),
               votersOther: Number(form.votersOther),
             });
-            const no = form.boothNo;
+            const no = boothNoText(form.boothNo);
             setForm(EMPTY);
             return { title: `Booth ${no} जुड़ गया`, lines: [], backupFile: r.backupFile };
           }}
@@ -227,7 +240,7 @@ export function BoothDeleteCard({ ov, onChanged }: { ov: Overview; onChanged: ()
   );
   const q = query.trim().toLowerCase();
   const matches = (booths.data?.booths ?? [])
-    .filter((b) => q === '' || String(b.boothNo) === q || b.nameHindi.toLowerCase().includes(q))
+    .filter((b) => q === '' || b.boothNo.toLowerCase() === q || b.nameHindi.toLowerCase().includes(q))
     .slice(0, 8);
 
   if (ov.panchayatSamitis.length === 0) return null;
@@ -288,7 +301,7 @@ export function BoothDeleteCard({ ov, onChanged }: { ov: Overview; onChanged: ()
         {booths.data && matches.length === 0 && <li className="muted">कोई booth नहीं मिला</li>}
       </ul>
       <ActionButton
-        label={picked ? `Booth ${String(picked.boothNo)} हटाएँ` : 'Booth हटाएँ'}
+        label={picked ? `Booth ${picked.boothNo} हटाएँ` : 'Booth हटाएँ'}
         kind="danger"
         reason={
           ov.booths.reason ??
@@ -304,7 +317,7 @@ export function BoothDeleteCard({ ov, onChanged }: { ov: Overview; onChanged: ()
       />
       {open && picked && (
         <ConfirmDialog
-          title={`Booth ${String(picked.boothNo)} हटाएँ`}
+          title={`Booth ${picked.boothNo} हटाएँ`}
           danger
           summary={
             <p>
@@ -313,16 +326,16 @@ export function BoothDeleteCard({ ov, onChanged }: { ov: Overview; onChanged: ()
               जाएगा। पहले backup बनेगा।
             </p>
           }
-          word={String(picked.boothNo)}
+          word={picked.boothNo}
           askPassword={ov.confirmedUntil === null}
           confirmLabel="Booth हटाएँ"
           run={async (password) => {
             const r = await api<{ backupFile: string }>(
               'POST',
               `/api/superadmin/booths/${String(picked.id)}/delete`,
-              { confirmText: String(picked.boothNo), ...(password ? { password } : {}) },
+              { confirmText: picked.boothNo, ...(password ? { password } : {}) },
             );
-            return { title: `Booth ${String(picked.boothNo)} हट गया`, lines: [], backupFile: r.backupFile };
+            return { title: `Booth ${picked.boothNo} हट गया`, lines: [], backupFile: r.backupFile };
           }}
           onClose={(changed) => {
             setOpen(false);

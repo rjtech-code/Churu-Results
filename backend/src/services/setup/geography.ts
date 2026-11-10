@@ -6,12 +6,14 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { writeAudit } from './audit.js';
-import { requireInt, requireText } from './cells.js';
+import { requireBoothNo, requireInt, requireText } from './cells.js';
 import { countOf, inContextTransaction } from './db.js';
 import { sha256File } from './file-hash.js';
 import { Report } from './report.js';
 import { finishReport, reportFailure } from './run.js';
 import type { ScriptContext, ScriptResult } from './run.js';
+import { boothLabel, compareBoothNo, parseBoothNo } from '../booth-no.js';
+import type { BoothNo } from '../booth-no.js';
 import { matchKey, normalizeText } from '../master-data/text.js';
 import { readSheet } from '../master-data/xlsx.js';
 
@@ -31,7 +33,7 @@ export const EXPECTED_COUNTS = {
   panchayatSamitis: 13,
   psWards: 231,
   zpWards: 39,
-  booths: 1359,
+  booths: 1371, // 1359 numeric + 12 "A" booths (e.g. 15A) in the Nov 2026 file
 } as const;
 
 export const DISTRICT = { code: 'CHURU', nameEnglish: 'Churu', nameHindi: 'चूरू' } as const;
@@ -54,12 +56,12 @@ export interface GeographyResult extends ScriptResult {
   counts: GeographyCounts | null;
   /** Number of booths with conflicting values (after fixes). */
   conflicts: number;
-  /** Every booth in the file as boothKey(ps name, booth no), for checking a voter file against it. */
+  /** Every booth in the file as boothKey(ps name, booth label), for checking a voter file against it. */
   boothKeys: ReadonlySet<string>;
 }
 
-/** Same booth = same PS (matched like the importers do) and booth number. */
-export function boothKey(psName: string, boothNo: number): string {
+/** Same booth = same PS (matched like the importers do) and booth label ("12A"). */
+export function boothKey(psName: string, boothNo: string): string {
   return `${matchKey(psName)}|${boothNo}`;
 }
 
@@ -86,7 +88,8 @@ interface Fix {
   index: number;
   psKey: string;
   psName: string;
-  boothNo: number;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   field: FixField;
   value: number | string;
   reason: string;
@@ -98,14 +101,18 @@ interface ParsedRow {
   rowNumber: number;
   psKey: string;
   psName: string;
-  boothNo: number;
+  booth: BoothNo;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   values: Record<FixField, number | string>;
 }
 
 interface Booth {
   psKey: string;
   psName: string;
-  boothNo: number;
+  booth: BoothNo;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   rows: ParsedRow[];
   resolved: Record<FixField, number | string> | null; // null = conflict
 }
@@ -152,10 +159,11 @@ export function parseFixes(raw: unknown, report: Report): Fix[] {
     if (missing.length > 0) {
       report.error(`${where}: missing or empty ${missing.join(', ')} (every fix needs them).`);
     }
-    const boothNo = entry.booth_no;
-    if (typeof boothNo !== 'number' || !Number.isSafeInteger(boothNo) || boothNo < 1) {
-      report.error(`${where}: "booth_no" must be a whole number greater than 0.`);
+    const parsedBooth = parseBoothNo(entry.booth_no);
+    if (parsedBooth === null) {
+      report.error(`${where}: "booth_no" must be a booth number such as 12 or "12A".`);
     }
+    const boothNo = parsedBooth === null ? null : boothLabel(parsedBooth.no, parsedBooth.suffix);
     const field = entry.field;
     if (typeof field !== 'string' || !FIX_FIELDS.includes(field as FixField)) {
       report.error(`${where}: "field" must be one of ${FIX_FIELDS.join(', ')}.`);
@@ -186,7 +194,7 @@ export function parseFixes(raw: unknown, report: Report): Fix[] {
       approvedBy === null ||
       approvedOn === null ||
       !isValidDate(approvedOn) ||
-      typeof boothNo !== 'number' ||
+      boothNo === null ||
       value === null ||
       extra.length > 0
     ) {
@@ -311,7 +319,7 @@ export async function runImportGeography(
     const psName = requireText(row, COLUMNS.ps, report);
     requireText(row, COLUMNS.gp, report);
     requireInt(row, COLUMNS.gpWard, report, 1);
-    const boothNo = requireInt(row, COLUMNS.boothNo, report, 1);
+    const booth = requireBoothNo(row, COLUMNS.boothNo, report);
     const nameHindi = requireText(row, COLUMNS.nameHindi, report);
     const nameEnglish = requireText(row, COLUMNS.nameEnglish, report);
     const psWard = requireInt(row, COLUMNS.psWard, report, 1);
@@ -322,7 +330,7 @@ export async function runImportGeography(
     if (
       report.errors.length !== errorsBefore ||
       psName === null ||
-      boothNo === null ||
+      booth === null ||
       nameHindi === null ||
       nameEnglish === null ||
       psWard === null ||
@@ -334,7 +342,8 @@ export async function runImportGeography(
       rowNumber: row.rowNumber,
       psKey: matchKey(psName),
       psName,
-      boothNo,
+      booth,
+      boothNo: boothLabel(booth.no, booth.suffix),
       values: {
         ps_ward_no: psWard,
         zp_ward_no: zpWard,
@@ -356,6 +365,7 @@ export async function runImportGeography(
       booths.set(key, {
         psKey: row.psKey,
         psName: row.psName,
+        booth: row.booth,
         boothNo: row.boothNo,
         rows: [row],
         resolved: null,
@@ -645,7 +655,7 @@ async function writeGeography(
   const psWardIds = new Map<string, number>();
   const zpWardIds = new Map<number, number>();
   const sorted = [...booths.values()].sort(
-    (a, b) => a.psName.localeCompare(b.psName) || a.boothNo - b.boothNo,
+    (a, b) => a.psName.localeCompare(b.psName) || compareBoothNo(a.booth, b.booth),
   );
   for (const booth of sorted) {
     if (!booth.resolved) throw new Error('internal: unresolved booth reached the write phase');
@@ -675,11 +685,12 @@ async function writeGeography(
       );
     }
     await conn.execute(
-      `INSERT INTO booth (panchayat_samiti_id, booth_no, name_hindi, name_english, ps_ward_id, zp_ward_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO booth (panchayat_samiti_id, booth_no, booth_suffix, name_hindi, name_english, ps_ward_id, zp_ward_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         psId,
-        booth.boothNo,
+        booth.booth.no,
+        booth.booth.suffix,
         String(booth.resolved.name_hindi),
         String(booth.resolved.name_english),
         psWardIds.get(psWardKey) ?? null,

@@ -52,7 +52,7 @@ describe('DM booth and ward updates', () => {
     expect((res.body as { booths: unknown[] }).booths).toEqual([
       {
         id: w.b7,
-        boothNo: 7,
+        boothNo: '7',
         nameHindi: 'बूथ सात',
         psWard: { id: w.psW5, wardNo: 5 },
         zpWard: { id: w.zW2, wardNo: 2 },

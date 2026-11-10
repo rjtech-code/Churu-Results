@@ -19,6 +19,7 @@ import {
 import { SAMPLE_NAMES, sampleFile } from '../../services/setup/samples.js';
 import type { SampleName } from '../../services/setup/samples.js';
 import { actor, busyAsConflict, idParam, noStore, parse, password } from '../admin/http.js';
+import { parseBoothNo } from '../../services/booth-no.js';
 import {
   MAX_JSON_UPLOAD_CHARS,
   backupNow,
@@ -70,7 +71,12 @@ const voters = z.number().int().min(0).max(1_000_000);
 const boothAddBody = z
   .object({
     psId: z.number().int().positive(),
-    boothNo: z.number().int().min(1).max(65_535),
+    // Label such as "12" or "12A" (services/booth-no.ts).
+    boothNo: z
+      .string()
+      .trim()
+      .max(7)
+      .refine((v) => parseBoothNo(v) !== null),
     nameHindi: z.string().max(600),
     nameEnglish: z.string().max(600).nullable(),
     psWardNo: z.number().int().min(1).max(65_535),

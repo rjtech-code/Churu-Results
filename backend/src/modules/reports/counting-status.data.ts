@@ -12,6 +12,7 @@ import type {
 import { readWardInputs, withReadOnlySnapshot } from '../../services/result-loader.js';
 import { ResultInputError, computeWardResult } from '../../services/result.js';
 import type { WardResult } from '../../services/result.js';
+import { boothLabelOf, compareBoothNo } from '../../services/booth-no.js';
 
 const toDate = (v: unknown): Date => (v instanceof Date ? v : new Date(String(v)));
 const toDateOrNull = (v: unknown): Date | null =>
@@ -32,7 +33,7 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
          FROM ward w ORDER BY w.id`,
     );
     const [booths] = await conn.execute<RowDataPacket[]>(
-      `SELECT id, panchayat_samiti_id, booth_no, name_english, name_hindi, ps_ward_id, zp_ward_id
+      `SELECT id, panchayat_samiti_id, booth_no, booth_suffix, name_english, name_hindi, ps_ward_id, zp_ward_id
          FROM booth ORDER BY id`,
     );
     const [entries] = await conn.execute<RowDataPacket[]>(
@@ -102,7 +103,7 @@ export async function readCountingStatusRaw(pool: Pool): Promise<CountingStatusR
       return {
         id: Number(b.id),
         psId: Number(b.panchayat_samiti_id),
-        boothNo: Number(b.booth_no),
+        boothNo: boothLabelOf(b),
         // English name; the stored (Hindi) name only when no English name exists.
         name: english === '' ? str(b.name_hindi) : english,
         psWardId: Number(b.ps_ward_id),
@@ -189,7 +190,8 @@ export async function readScopeOptions(pool: Pool, mode: 'ALL' | 'ZP_ONLY'): Pro
 
 export interface BoothOption {
   id: number;
-  boothNo: number;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   name: string;
   /** The booth's PS (display name): booth numbers restart in every PS, a ZP ward spans several. */
   psName: string;
@@ -211,10 +213,10 @@ export async function readWardBooths(
   if (ward.length === 0) return null;
   const [booths] = await pool.execute<RowDataPacket[]>(
     kind === 'PS'
-      ? `SELECT b.id, b.booth_no, b.name_english, b.name_hindi, ps.name_english AS ps_name
+      ? `SELECT b.id, b.booth_no, b.booth_suffix, b.name_english, b.name_hindi, ps.name_english AS ps_name
            FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
           WHERE b.ps_ward_id = ?`
-      : `SELECT b.id, b.booth_no, b.name_english, b.name_hindi, ps.name_english AS ps_name
+      : `SELECT b.id, b.booth_no, b.booth_suffix, b.name_english, b.name_hindi, ps.name_english AS ps_name
            FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
           WHERE b.zp_ward_id = ?`,
     [wardId],
@@ -224,10 +226,10 @@ export async function readWardBooths(
       const english = str(b.name_english).trim();
       return {
         id: Number(b.id),
-        boothNo: Number(b.booth_no),
+        boothNo: boothLabelOf(b),
         name: english === '' ? str(b.name_hindi) : english,
         psName: displayPsName(str(b.ps_name)),
       };
     })
-    .sort((a, b) => a.psName.localeCompare(b.psName, 'en') || a.boothNo - b.boothNo);
+    .sort((a, b) => a.psName.localeCompare(b.psName, 'en') || compareBoothNo(a.boothNo, b.boothNo));
 }

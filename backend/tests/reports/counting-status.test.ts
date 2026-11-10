@@ -265,13 +265,15 @@ function csvObjects(text: string): Record<string, string>[] {
 function pdfTexts(pdf: Buffer): string[] {
   const raw = pdf.toString('latin1');
   const out: string[] = [];
-  for (const m of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
-    let content: string;
-    try {
-      content = inflateSync(Buffer.from(m[1] ?? '', 'latin1')).toString('latin1');
-    } catch {
-      continue; // not a flate stream
-    }
+  // Each stream is cut by its /Length, not by searching for "endstream": compressed bytes can
+  // contain that word (or end in \r), which cut a page short and made a test fail now and then.
+  for (const m of raw.matchAll(/<<((?:(?!<<|>>)[\s\S])*)>>\s*stream\r?\n/g)) {
+    const length = /\/Length (\d+)/.exec(m[1] ?? '');
+    if (length === null || !(m[1] ?? '').includes('/FlateDecode')) continue; // not a flate stream
+    const start = m.index + m[0].length;
+    const data = Buffer.from(raw.slice(start, start + Number(length[1])), 'latin1');
+    // A bad stream must fail the test, never silently drop a page.
+    const content = inflateSync(data).toString('latin1');
     // Only Latin runs: the Devanagari font's glyph ids are not text.
     for (const op of content.matchAll(/\/(F\d+) [\d.]+ Tf\s*\[([^\]]*)\] TJ/g)) {
       const hex = [...(op[2] ?? '').matchAll(/<([0-9a-f]*)>/g)].map((h) => h[1] ?? '').join('');
@@ -368,9 +370,9 @@ describe('definitions, on the hand-built district', () => {
     expect(zp1.pendingBooths).toBe('RAJGARH: 1');
     const booths = (await wardView(ids.zp1)).booths;
     expect(booths.map((b) => [b.psName, b.boothNo, b.entered])).toEqual([
-      ['CHURU', 1, 'YES'],
-      ['CHURU', 2, 'YES'],
-      ['RAJGARH', 1, 'NO'],
+      ['CHURU', '1', 'YES'],
+      ['CHURU', '2', 'YES'],
+      ['RAJGARH', '1', 'NO'],
     ]);
     // The same physical booth b1 is entered for both ballots; b6 only for PS.
     expect(booths[0]).toMatchObject({
@@ -487,7 +489,7 @@ describe('(a) the page, the CSVs and the PDF show the same numbers', () => {
       expect(boothsCsv[i]).toMatchObject({
         ward_type: b.kind,
         booth_ps_name: b.psNameFull,
-        booth_no: String(b.boothNo),
+        booth_no: b.boothNo,
         booth_name: b.boothName,
         entered: { YES: 'yes', NO: 'no', NA: 'n/a' }[b.entered],
         round: b.round === null ? '' : String(b.round),
@@ -806,7 +808,7 @@ describe('scopes: the DM picks what to see', () => {
       boothRows.map((b) => [
         b.kind,
         b.psNameFull,
-        String(b.boothNo),
+        b.boothNo,
         { YES: 'yes', NO: 'no', NA: 'n/a' }[b.entered],
         b.totalVotes === null ? '' : String(b.totalVotes),
       ]),
@@ -882,9 +884,9 @@ describe('scopes: the DM picks what to see', () => {
     expect(s.json.wards).toEqual([wardOf(district, ids.zp1)]);
     expect(s.json.summary.ZP).toMatchObject({ wardsTotal: 1, boothsDone: 2, boothsTotal: 3 });
     expect(s.json.booths.map((b) => [b.psName, b.boothNo, b.entered])).toEqual([
-      ['CHURU', 1, 'YES'],
-      ['CHURU', 2, 'YES'],
-      ['RAJGARH', 1, 'NO'],
+      ['CHURU', '1', 'YES'],
+      ['CHURU', '2', 'YES'],
+      ['RAJGARH', '1', 'NO'],
     ]);
     sameEverywhere(s, s.json.booths);
     for (const b of s.json.booths) {
@@ -892,13 +894,13 @@ describe('scopes: the DM picks what to see', () => {
         b.kind,
         String(b.wardNo),
         b.psName,
-        String(b.boothNo),
+        b.boothNo,
         b.boothName,
         entryText[b.entered],
         n(b.round),
         b.enteredBy ?? '–',
       ]);
-      expect(at, `booth ${b.psName} ${String(b.boothNo)}`).toBeGreaterThanOrEqual(0);
+      expect(at, `booth ${b.psName} ${b.boothNo}`).toBeGreaterThanOrEqual(0);
       expect(s.pdf.slice(at, at + 14)).toContain(n(b.totalVotes));
     }
   });
@@ -953,9 +955,9 @@ describe('scopes: the DM picks what to see', () => {
     expect(o.wards).toHaveLength(district.wards.length);
     expect(o.wards.filter((w) => w.kind === 'ZP').map((w) => w.wardNo)).toEqual([1, 2]);
     const booths = (await dm.get(`${CS}/options/wards/${String(ids.w1)}/booths`)).body as {
-      booths: { id: number; boothNo: number; name: string }[];
+      booths: { id: number; boothNo: string; name: string }[];
     };
-    expect(booths.booths.map((b) => b.boothNo)).toEqual([1, 2, 3]);
+    expect(booths.booths.map((b) => b.boothNo)).toEqual(['1', '2', '3']);
     expect(booths.booths[0]?.name).toBe('GOVT SCHOOL 1 (PART A)');
   });
 
@@ -1086,7 +1088,7 @@ describe('pure helpers', () => {
       booths: [1, 2].map((id) => ({
         id,
         psId: 1,
-        boothNo: id,
+        boothNo: String(id),
         name: `B${String(id)}`,
         psWardId: 10,
         zpWardId: 20,

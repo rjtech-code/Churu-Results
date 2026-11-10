@@ -26,8 +26,9 @@ Counting day: 20 November 2026. This is election data for the government.
 - Packaging: Docker + docker-compose
 
 ## Domain facts
-- 13 Panchayat Samitis, 231 PS wards, 39 ZP wards, 1,359 booths (plus 12 "A" booths such as 15A in the Nov 2026 file, not imported yet: booth_no is a number).
-- Booth identity = (Panchayat Samiti + booth number). Booth numbers restart in every PS.
+- 13 Panchayat Samitis, 231 PS wards, 39 ZP wards, 1,371 booths: 1,359 numeric + 12 "A" booths such as 15A (Nov 2026 file `new data/Geography_FULL_1371.xlsx`).
+- Booth identity = (Panchayat Samiti + booth_no + booth_suffix). Booth numbers restart in every PS. `booth_suffix` is VARCHAR(2) NOT NULL DEFAULT '' (capital letters only, '' = plain booth; never NULL, so the UNIQUE key works). Always sort by `booth_no, booth_suffix` (12, 12A, 13).
+- Booth numbers go through `backend/src/services/booth-no.ts` only: `parseBoothNo` (12 / "12A" in; anything else is refused), `boothLabel` / `boothLabelOf` (DB row -> "12A"; throws if booth_suffix was not selected), `compareBoothNo` (sort). The API `boothNo` is always the string label ("12", "12A"), never a number; every query that shows a booth number must select `booth_suffix`.
 - Each booth belongs to exactly one PS ward and one ZP ward. 8 ZP wards span more than one PS (25, 27, 28, 30, 32, 36, 37, 39 in the Nov 2026 geography file).
 - Each booth has two ballots: PS and ZP (`ballot_for` = 'PS' | 'ZP').
 - Round numbers are labels only, never used in any calculation. A ZP ward has no single round: each PS counts in its own rounds; never merge rounds across PS into one number.

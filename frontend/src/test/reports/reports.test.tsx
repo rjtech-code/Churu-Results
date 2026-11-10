@@ -241,7 +241,7 @@ describe('ward report', () => {
     booths: [
       {
         boothId: 11,
-        boothNo: 4,
+        boothNo: '4',
         name: 'बूथ 4',
         psName: 'चूरू',
         registeredVoters: 1000,

@@ -10,6 +10,7 @@ import { forPsRo, loadZpPsProgress } from '../../services/zp-ps-progress.js';
 import type { ResultStatus } from '../../services/result.js';
 import type { AuthUser } from '../../types/auth.js';
 import { readBallot, readWard } from './counting.db.js';
+import { boothLabelOf } from '../../services/booth-no.js';
 
 export interface WardListItem {
   id: number;
@@ -109,19 +110,19 @@ async function mayReadPostal(pool: Pool, user: AuthUser, wardId: number) {
 
 export async function listBooths(pool: Pool, user: AuthUser, wardId: number) {
   const ward = await authorizeWardRead(pool, user, wardId);
-  const columns = `SELECT b.id, ps.name_hindi AS ps_name, b.booth_no, b.name_hindi, b.registered_voters_total,
+  const columns = `SELECT b.id, ps.name_hindi AS ps_name, b.booth_no, b.booth_suffix, b.name_hindi, b.registered_voters_total,
                           e.id AS entry_id, e.round_no, e.entered_at
                      FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id`;
   const [rows] =
     ward.wardType === 'PS'
       ? await pool.execute<RowDataPacket[]>(
           `${columns} LEFT JOIN booth_entry e ON e.booth_id = b.id AND e.ballot_for = 'PS'
-            WHERE b.ps_ward_id = ? ORDER BY ps.name_hindi, b.booth_no`,
+            WHERE b.ps_ward_id = ? ORDER BY ps.name_hindi, b.booth_no, b.booth_suffix`,
           [wardId],
         )
       : await pool.execute<RowDataPacket[]>(
           `${columns} LEFT JOIN booth_entry e ON e.booth_id = b.id AND e.ballot_for = 'ZP'
-            WHERE b.zp_ward_id = ? ORDER BY ps.name_hindi, b.booth_no`,
+            WHERE b.zp_ward_id = ? ORDER BY ps.name_hindi, b.booth_no, b.booth_suffix`,
           [wardId],
         );
   const [postal] = await pool.execute<RowDataPacket[]>(
@@ -133,7 +134,7 @@ export async function listBooths(pool: Pool, user: AuthUser, wardId: number) {
     booths: rows.map((r) => ({
       boothId: Number(r.id),
       panchayatSamiti: String(r.ps_name),
-      boothNo: Number(r.booth_no),
+      boothNo: boothLabelOf(r),
       nameHindi: String(r.name_hindi),
       registeredVotersTotal:
         r.registered_voters_total === null ? null : Number(r.registered_voters_total),
@@ -444,11 +445,11 @@ export async function psZpWardBooths(pool: Pool, user: AuthUser, wardId: number)
   const ward = wardRows[0];
   if (!ward) throw new ApiError(404, 'NOT_FOUND');
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT b.id, ps.name_hindi AS ps_name, b.booth_no, b.name_hindi, b.registered_voters_total,
+    `SELECT b.id, ps.name_hindi AS ps_name, b.booth_no, b.booth_suffix, b.name_hindi, b.registered_voters_total,
             e.id AS entry_id, e.round_no, e.entered_at
        FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
        LEFT JOIN booth_entry e ON e.booth_id = b.id AND e.ballot_for = 'ZP'
-      WHERE b.zp_ward_id = ? AND b.panchayat_samiti_id = ? ORDER BY b.booth_no`,
+      WHERE b.zp_ward_id = ? AND b.panchayat_samiti_id = ? ORDER BY b.booth_no, b.booth_suffix`,
     [wardId, psId],
   );
   if (rows.length === 0) throw new ApiError(403, 'FORBIDDEN');
@@ -459,7 +460,7 @@ export async function psZpWardBooths(pool: Pool, user: AuthUser, wardId: number)
     booths: rows.map((r) => ({
       boothId: Number(r.id),
       panchayatSamiti: String(r.ps_name),
-      boothNo: Number(r.booth_no),
+      boothNo: boothLabelOf(r),
       nameHindi: String(r.name_hindi),
       registeredVotersTotal:
         r.registered_voters_total === null ? null : Number(r.registered_voters_total),

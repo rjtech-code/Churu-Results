@@ -8,6 +8,7 @@ import { Report } from './lib/report.js';
 import { finishReport, reportFailure } from './lib/run.js';
 import type { ScriptContext, ScriptResult } from './lib/run.js';
 import { writeSheet } from './lib/xlsx.js';
+import { boothLabelOf } from '../src/services/booth-no.js';
 
 export const VOTER_TEMPLATE_HEADERS = [
   'panchayat_samiti',
@@ -33,12 +34,12 @@ export async function runExportVoterTemplate(
   let booths = 0;
   try {
     const [rows] = await ctx.pool.query<RowDataPacket[]>(
-      `SELECT ps.name_english AS ps_name, b.booth_no, b.name_hindi, pw.ward_no AS ps_ward_no, zw.ward_no AS zp_ward_no
+      `SELECT ps.name_english AS ps_name, b.booth_no, b.booth_suffix, b.name_hindi, pw.ward_no AS ps_ward_no, zw.ward_no AS zp_ward_no
          FROM booth b
          JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
          JOIN ward pw ON pw.id = b.ps_ward_id
          JOIN ward zw ON zw.id = b.zp_ward_id
-        ORDER BY ps.name_english, b.booth_no`,
+        ORDER BY ps.name_english, b.booth_no, b.booth_suffix`,
     );
     booths = rows.length;
     if (booths === 0) {
@@ -50,7 +51,8 @@ export async function runExportVoterTemplate(
           headers: VOTER_TEMPLATE_HEADERS,
           rows: rows.map((r) => [
             String(r.ps_name),
-            Number(r.booth_no),
+            // "12A" as text; a plain booth stays a number cell.
+            r.booth_suffix === '' ? Number(r.booth_no) : boothLabelOf(r),
             String(r.name_hindi),
             Number(r.ps_ward_no),
             Number(r.zp_ward_no),

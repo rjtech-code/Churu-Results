@@ -14,6 +14,7 @@ import { hasDevanagari, normalizeText } from '../../services/master-data/text.js
 import { requireReauth, resetFailedLogins } from '../auth/auth.service.js';
 import { busyAsConflict } from './http.js';
 import type { Actor } from './http.js';
+import { boothLabelOf } from '../../services/booth-no.js';
 
 const MAX_BOOTH_NAME = 300; // booth.name_hindi VARCHAR(300)
 const MAX_VOTERS = 4_294_967_295; // INT UNSIGNED
@@ -21,7 +22,8 @@ const MAX_VOTERS = 4_294_967_295; // INT UNSIGNED
 interface BoothState {
   id: number;
   psId: number;
-  boothNo: number;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   nameHindi: string;
   psWardId: number;
   zpWardId: number;
@@ -31,7 +33,7 @@ interface BoothState {
   hasEntry: boolean;
 }
 
-const BOOTH_SELECT = `SELECT b.id, b.panchayat_samiti_id, b.booth_no, b.name_hindi, b.ps_ward_id, b.zp_ward_id,
+const BOOTH_SELECT = `SELECT b.id, b.panchayat_samiti_id, b.booth_no, b.booth_suffix, b.name_hindi, b.ps_ward_id, b.zp_ward_id,
        b.registered_voters_male, b.registered_voters_female, b.registered_voters_total,
        EXISTS (SELECT 1 FROM booth_entry e WHERE e.booth_id = b.id) AS has_entry
   FROM booth b`;
@@ -42,7 +44,7 @@ function toBooth(r: RowDataPacket): BoothState {
   return {
     id: Number(r.id),
     psId: Number(r.panchayat_samiti_id),
-    boothNo: Number(r.booth_no),
+    boothNo: boothLabelOf(r),
     nameHindi: String(r.name_hindi),
     psWardId: Number(r.ps_ward_id),
     zpWardId: Number(r.zp_ward_id),
@@ -79,12 +81,12 @@ export async function searchBooths(pool: Pool, psId: number, psWardNo: number | 
   const [rows] =
     psWardNo === null
       ? await pool.execute<RowDataPacket[]>(
-          `${BOOTH_SELECT} WHERE b.panchayat_samiti_id = ? ORDER BY b.booth_no`,
+          `${BOOTH_SELECT} WHERE b.panchayat_samiti_id = ? ORDER BY b.booth_no, b.booth_suffix`,
           [psId],
         )
       : await pool.execute<RowDataPacket[]>(
           `${BOOTH_SELECT} JOIN ward w ON w.id = b.ps_ward_id
-            WHERE b.panchayat_samiti_id = ? AND w.ward_no = ? ORDER BY b.booth_no`,
+            WHERE b.panchayat_samiti_id = ? AND w.ward_no = ? ORDER BY b.booth_no, b.booth_suffix`,
           [psId, psWardNo],
         );
   const booths = rows.map(toBooth);

@@ -8,6 +8,7 @@ import { istIso } from '../../services/public-views.js';
 import { readWardInputs, withReadOnlySnapshot } from '../../services/result-loader.js';
 import { ResultInputError, computeWardResult } from '../../services/result.js';
 import type { WardResult } from '../../services/result.js';
+import { boothLabelOf } from '../../services/booth-no.js';
 
 /** Text of a DB value (strings and numbers only; anything else is ''). */
 const text = (v: unknown): string =>
@@ -55,9 +56,9 @@ export async function wardDetail(pool: Pool, wardId: number) {
       [wardId],
     );
     const [booths] = await conn.execute<RowDataPacket[]>(
-      `SELECT b.id, b.booth_no, b.name_hindi, b.registered_voters_total, ps.name_hindi AS ps_name
+      `SELECT b.id, b.booth_no, b.booth_suffix, b.name_hindi, b.registered_voters_total, ps.name_hindi AS ps_name
          FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
-        WHERE ${kind === 'PS' ? 'b.ps_ward_id' : 'b.zp_ward_id'} = ? ORDER BY ps.id, b.booth_no`,
+        WHERE ${kind === 'PS' ? 'b.ps_ward_id' : 'b.zp_ward_id'} = ? ORDER BY ps.id, b.booth_no, b.booth_suffix`,
       [wardId],
     );
     const [entries] = await conn.execute<RowDataPacket[]>(
@@ -197,7 +198,7 @@ export async function wardDetail(pool: Pool, wardId: number) {
       const e = entryByBooth.get(Number(b.id));
       return {
         boothId: Number(b.id),
-        boothNo: Number(b.booth_no),
+        boothNo: boothLabelOf(b),
         name: String(b.name_hindi),
         psName: String(b.ps_name),
         registeredVoters:

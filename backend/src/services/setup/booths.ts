@@ -11,12 +11,15 @@ import { hasDevanagari, normalizeText } from '../master-data/text.js';
 import { writeAudit } from './audit.js';
 import type { AuditActor } from './audit.js';
 import { assertCountingUnlocked } from './counting-lock.js';
+import { boothLabel, boothLabelOf, parseBoothNo } from '../booth-no.js';
+import type { BoothNo } from '../booth-no.js';
 
 const MAX_BOOTH_NAME = 300; // booth.name_hindi / name_english VARCHAR(300)
 
 export interface NewBooth {
   psId: number;
-  boothNo: number;
+  /** Label, e.g. "12A" (checked by the route). */
+  boothNo: string;
   nameHindi: string;
   nameEnglish: string | null;
   psWardNo: number;
@@ -72,8 +75,15 @@ function cleanName(raw: string | null, needHindi: boolean): string | null {
   return name;
 }
 
+function boothNoOf(booth: NewBooth): BoothNo {
+  const parsed = parseBoothNo(booth.boothNo);
+  if (parsed === null) throw new ApiError(400, 'VALIDATION_FAILED');
+  return parsed;
+}
+
 /** Every refusal of an add, before anything is written (also re-run inside the transaction). */
 export async function checkBoothAdd(db: Pool | Connection, booth: NewBooth) {
+  const no = boothNoOf(booth);
   const nameHindi = cleanName(booth.nameHindi, true) ?? '';
   const nameEnglish = cleanName(booth.nameEnglish, false);
   await assertCountingUnlocked(db);
@@ -85,26 +95,27 @@ export async function checkBoothAdd(db: Pool | Connection, booth: NewBooth) {
   const zpWardId = await wardId(db, 'ZP', null, booth.zpWardNo);
   await assertWardsUntouched(db, [psWardId, zpWardId]);
   const [same] = await db.execute<RowDataPacket[]>(
-    'SELECT id FROM booth WHERE panchayat_samiti_id = ? AND booth_no = ?',
-    [booth.psId, booth.boothNo],
+    'SELECT id FROM booth WHERE panchayat_samiti_id = ? AND booth_no = ? AND booth_suffix = ?',
+    [booth.psId, no.no, no.suffix],
   );
   if (same[0] !== undefined) throw new ApiError(409, 'BOOTH_EXISTS');
-  return { nameHindi, nameEnglish, psWardId, zpWardId };
+  return { no, nameHindi, nameEnglish, psWardId, zpWardId };
 }
 
 export async function addBooth(pool: Pool, actor: AuditActor, booth: NewBooth): Promise<number> {
   const total = booth.votersMale + booth.votersFemale + booth.votersOther;
   const ids = await withMasterDataWrite(pool, async (conn) => {
-    const { nameHindi, nameEnglish, psWardId, zpWardId } = await checkBoothAdd(conn, booth);
+    const { no, nameHindi, nameEnglish, psWardId, zpWardId } = await checkBoothAdd(conn, booth);
     await lockWardRows(conn, [psWardId, zpWardId]);
     await assertWardsUntouched(conn, [psWardId, zpWardId]);
     const [inserted] = await conn.execute<ResultSetHeader>(
-      `INSERT INTO booth (panchayat_samiti_id, booth_no, name_hindi, name_english, ps_ward_id, zp_ward_id,
-                          registered_voters_male, registered_voters_female, registered_voters_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO booth (panchayat_samiti_id, booth_no, booth_suffix, name_hindi, name_english, ps_ward_id,
+                          zp_ward_id, registered_voters_male, registered_voters_female, registered_voters_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         booth.psId,
-        booth.boothNo,
+        no.no,
+        no.suffix,
         nameHindi,
         nameEnglish,
         psWardId,
@@ -122,7 +133,7 @@ export async function addBooth(pool: Pool, actor: AuditActor, booth: NewBooth): 
         entityId: inserted.insertId,
         newValue: {
           panchayat_samiti_id: booth.psId,
-          booth_no: booth.boothNo,
+          booth_no: boothLabel(no.no, no.suffix),
           name_hindi: nameHindi,
           name_english: nameEnglish,
           ps_ward_no: booth.psWardNo,
@@ -150,7 +161,7 @@ export async function checkBoothDelete(
 ) {
   await assertCountingUnlocked(db);
   const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT b.id, b.panchayat_samiti_id, b.booth_no, b.name_hindi, b.name_english, b.ps_ward_id,
+    `SELECT b.id, b.panchayat_samiti_id, b.booth_no, b.booth_suffix, b.name_hindi, b.name_english, b.ps_ward_id,
             b.zp_ward_id, b.registered_voters_male, b.registered_voters_female,
             b.registered_voters_total, pw.ward_no AS ps_ward_no, zw.ward_no AS zp_ward_no
        FROM booth b JOIN ward pw ON pw.id = b.ps_ward_id JOIN ward zw ON zw.id = b.zp_ward_id
@@ -159,12 +170,12 @@ export async function checkBoothDelete(
   );
   const b = rows[0];
   if (b === undefined) throw new ApiError(404, 'NOT_FOUND');
-  if (confirmBoothNo.trim() !== String(b.booth_no)) throw new ApiError(400, 'CONFIRM_MISMATCH');
+  if (confirmBoothNo.trim() !== boothLabelOf(b)) throw new ApiError(400, 'CONFIRM_MISMATCH');
   await assertWardsUntouched(db, [Number(b.ps_ward_id), Number(b.zp_ward_id)]);
   return b;
 }
 
-/** `confirmBoothNo` must be the booth's number, typed by the Super Admin. */
+/** `confirmBoothNo` must be the booth's label ("12A"), typed by the Super Admin. */
 export async function deleteBooth(
   pool: Pool,
   actor: AuditActor,
@@ -186,7 +197,7 @@ export async function deleteBooth(
         entityId: boothId,
         oldValue: {
           panchayat_samiti_id: Number(b.panchayat_samiti_id),
-          booth_no: Number(b.booth_no),
+          booth_no: boothLabelOf(b),
           name_hindi: String(b.name_hindi),
           name_english: b.name_english === null ? null : String(b.name_english),
           ps_ward_no: Number(b.ps_ward_no),
@@ -207,7 +218,7 @@ export async function deleteBooth(
 /** Booths of one PS for the panel list, with whether they can still be deleted. */
 export async function listBooths(pool: Pool, psId: number) {
   const [rows] = await pool.execute<RowDataPacket[]>(
-    `SELECT b.id, b.booth_no, b.name_hindi, pw.ward_no AS ps_ward_no, zw.ward_no AS zp_ward_no,
+    `SELECT b.id, b.booth_no, b.booth_suffix, b.name_hindi, pw.ward_no AS ps_ward_no, zw.ward_no AS zp_ward_no,
             b.registered_voters_total,
             (SELECT COUNT(*) FROM ward w WHERE w.id IN (b.ps_ward_id, b.zp_ward_id) AND (
                 EXISTS (SELECT 1 FROM booth_entry e WHERE e.ward_id = w.id)
@@ -215,12 +226,12 @@ export async function listBooths(pool: Pool, psId: number) {
              OR EXISTS (SELECT 1 FROM voided_entry v WHERE v.ward_id = w.id)
              OR EXISTS (SELECT 1 FROM ward_declarations d WHERE d.ward_id = w.id))) AS touched
        FROM booth b JOIN ward pw ON pw.id = b.ps_ward_id JOIN ward zw ON zw.id = b.zp_ward_id
-      WHERE b.panchayat_samiti_id = ? ORDER BY b.booth_no`,
+      WHERE b.panchayat_samiti_id = ? ORDER BY b.booth_no, b.booth_suffix`,
     [psId],
   );
   return rows.map((r) => ({
     id: Number(r.id),
-    boothNo: Number(r.booth_no),
+    boothNo: boothLabelOf(r),
     nameHindi: String(r.name_hindi),
     psWardNo: Number(r.ps_ward_no),
     zpWardNo: Number(r.zp_ward_no),

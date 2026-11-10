@@ -48,7 +48,7 @@ export interface Overview {
 
 export interface PanelBooth {
   id: number;
-  boothNo: number;
+  boothNo: string;
   nameHindi: string;
   psWardNo: number;
   zpWardNo: number;

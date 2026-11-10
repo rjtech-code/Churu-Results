@@ -72,7 +72,7 @@ const GEOGRAPHY_EXAMPLES: Readonly<Record<GeoColumn, Cell>>[] = [
 type VoterColumn = (typeof VOTER_COLUMNS)[number] | (typeof VOTER_OPTIONAL_COLUMNS)[number];
 const VOTER_NOTES: Readonly<Record<VoterColumn, string>> = {
   panchayat_samiti: 'पंचायत समिति का पूरा अंग्रेज़ी नाम',
-  booth_no: 'Booth no.',
+  booth_no: 'Booth no. (जैसे 12 या 12A)',
   voters_male: 'Male voters',
   voters_female: 'Female voters',
   voters_total: 'Total = male + female + other',

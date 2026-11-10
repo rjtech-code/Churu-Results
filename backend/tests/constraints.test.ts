@@ -1,4 +1,4 @@
-import type { Pool } from 'mysql2/promise';
+import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestAppPool, createTestMigrationPool, insert, resetData } from './helpers/db.js';
 import {
@@ -212,6 +212,53 @@ describe('geography', () => {
 
   it('case 7: the same booth_no in a different PS is allowed', async () => {
     await expect(addBooth(app, f.ps2, 1, f.psWard2, f.zpWard1)).resolves.toBeGreaterThan(0);
+  });
+
+  // "A" booths (booth_suffix): 12 and 12A are different booths; a second 12A is not.
+  const addSuffixed = (no: number, suffix: string) =>
+    app.execute(
+      'INSERT INTO booth (panchayat_samiti_id, booth_no, booth_suffix, name_hindi, ps_ward_id, zp_ward_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [f.ps1, no, suffix, 'बूथ', f.psWard1, f.zpWard1],
+    );
+
+  it('booth 1A may sit next to booth 1 in the same PS; a second 1A is rejected', async () => {
+    await expect(addSuffixed(1, 'A')).resolves.toBeDefined();
+    await expect(addSuffixed(1, 'A')).rejects.toMatchObject({ code: 'ER_DUP_ENTRY' });
+    // A plain booth is suffix '' (never NULL), so a second plain booth 1 is still a duplicate.
+    await expect(addSuffixed(1, '')).rejects.toMatchObject({ code: 'ER_DUP_ENTRY' });
+  });
+
+  it.each(['a', '1', 'A ', 'ABC'])('booth suffix %j is rejected by the database', async (sfx) => {
+    await expect(addSuffixed(5, sfx)).rejects.toMatchObject({
+      code: expect.stringMatching(/^ER_(CHECK_CONSTRAINT_VIOLATED|DATA_TOO_LONG)$/) as unknown,
+    });
+  });
+
+  it('booth_suffix cannot be NULL', async () => {
+    await expect(
+      app.execute(
+        'INSERT INTO booth (panchayat_samiti_id, booth_no, booth_suffix, name_hindi, ps_ward_id, zp_ward_id) VALUES (?, ?, NULL, ?, ?, ?)',
+        [f.ps1, 6, 'बूथ', f.psWard1, f.zpWard1],
+      ),
+    ).rejects.toMatchObject({ code: 'ER_BAD_NULL_ERROR' });
+  });
+
+  it('ORDER BY booth_no, booth_suffix gives 1, 1A, 2, 12, 12A, 13', async () => {
+    for (const [no, sfx] of [
+      [13, ''],
+      [12, 'A'],
+      [2, ''],
+      [12, ''],
+      [1, 'A'],
+    ] as const) {
+      await addSuffixed(no, sfx);
+    }
+    const [rows] = await app.query<RowDataPacket[]>(
+      `SELECT CONCAT(booth_no, booth_suffix) AS label FROM booth
+        WHERE panchayat_samiti_id = ? ORDER BY booth_no, booth_suffix`,
+      [f.ps1],
+    );
+    expect(rows.map((r) => String(r.label))).toEqual(['1', '1A', '2', '12', '12A', '13']);
   });
 
   it('a booth whose PS ward belongs to another PS is rejected', async () => {

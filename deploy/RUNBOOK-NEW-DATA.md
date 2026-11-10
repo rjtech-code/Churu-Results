@@ -12,8 +12,7 @@ Laptop par, repo ke gitignored folder `new data/` me (ye folder kabhi commit nah
 
 | File | Kaise bani |
 |---|---|
-| `Geography_CLEAN_import-format.xlsx` | `npm --prefix backend run convert:geography -- --file "new data/<raw>.xlsx" --out-dir "new data"` |
-| `Geography_A-booths_PENDING.xlsx` | Wahi command. Ye 12 "A" booths (15A…) hain jo **import nahi hote**, kyunki `booth_no` number hai. Inke liye faisla abhi baaki hai. |
+| `Geography_FULL_1371.xlsx` | 1359 numeric booths + 12 "A" booths (15A…). Ab `npm --prefix backend run convert:geography -- --file "new data/<raw>.xlsx" --out-dir "new data"` bhi saare 1371 booths `Geography_CLEAN_import-format.xlsx` me deta hai (A booths bhi). A booths ke liye migration `20261022000001_booth_suffix` (step 4) zaroori hai. |
 | `Candidates_CLEAN_import-format.xlsx` | Data team ki saaf ki hui candidate file |
 | `Parties_CPI-M.xlsx` | Party CPI(M) ki ek row |
 
@@ -43,7 +42,7 @@ Ye step laptop par, repo folder me chalayein. Files git se nahi jaati.
 
 ```bash
 ssh root@<vps> 'mkdir -p /opt/churu-results/new-data && chmod 700 /opt/churu-results/new-data'
-scp "new data/Geography_CLEAN_import-format.xlsx" \
+scp "new data/Geography_FULL_1371.xlsx" \
     "new data/Candidates_CLEAN_import-format.xlsx" \
     "new data/Parties_CPI-M.xlsx" \
     root@<vps>:/opt/churu-results/new-data/
@@ -114,17 +113,17 @@ SQL "SELECT (SELECT COUNT(*) FROM candidate) cand,(SELECT COUNT(*) FROM booth_en
 PS rows naam se match hoti hain, isliye RO logins jude rehte hain. ZP postal assignments bhi mit jaate hain; unhe step 10 me dobara set karna hai.
 
 ```bash
-$DC cp new-data/Geography_CLEAN_import-format.xlsx app:/tmp/geo.xlsx
+$DC cp new-data/Geography_FULL_1371.xlsx app:/tmp/geo.xlsx
 $DC exec app npm run import:geography -- --file /tmp/geo.xlsx --ps-names ../docs/ps-names.json --replace            # dry run
 $DC exec app npm run import:geography -- --file /tmp/geo.xlsx --ps-names ../docs/ps-names.json --replace --commit
 ```
-Dry run me `RESULT: DRY RUN OK` aur counts 13 / 231 / 39 / 1359 hone chahiye. Tabhi `--commit` chalayein.
+Dry run me `RESULT: DRY RUN OK` aur counts 13 / 231 / 39 / 1371 hone chahiye. Tabhi `--commit` chalayein.
 
 **Verify:**
 ```bash
 SQL "SELECT ward_type, COUNT(*) FROM ward GROUP BY ward_type; SELECT COUNT(*) booths FROM booth; SELECT COUNT(*) ps FROM panchayat_samiti"
 ```
-PS 231, ZP 39, booths 1359 aur ps 13 aane chahiye.
+PS 231, ZP 39, booths 1371 aur ps 13 aane chahiye. A booths: `SELECT COUNT(*) FROM booth WHERE booth_suffix <> ''` = 12.
 
 ## 7. PS ke Hindi naam
 

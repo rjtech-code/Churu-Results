@@ -102,7 +102,7 @@ async function declarePsW1() {
 function boothBody(over: Record<string, unknown> = {}) {
   return {
     psId: w.ps1,
-    boothNo: 50,
+    boothNo: '50',
     nameHindi: 'नया बूथ पचास',
     nameEnglish: 'New Booth 50',
     psWardNo: 5,
@@ -369,6 +369,45 @@ describe('booths', () => {
     });
     expect(ok.status).toBe(200);
     expect(await auditCount('BOOTH_DELETED')).toBe(1);
+  });
+});
+
+describe('"A" booths', () => {
+  it('adds booth 7A next to booth 7, lists 7 then 7A, and deletes 7A only when "7A" is typed', async () => {
+    const add = await sa.post('/api/superadmin/booths/add', boothBody({ boothNo: '7A' }));
+    expect(add.status).toBe(201);
+    const id = (add.body as { boothId: number }).boothId;
+    expect((await sa.post('/api/superadmin/booths/add', boothBody({ boothNo: '7A' }))).status).toBe(
+      409,
+    );
+    const list = (await sa.get(`/api/superadmin/booths?psId=${String(w.ps1)}`)).body as {
+      booths: { id: number; boothNo: string }[];
+    };
+    const labels = list.booths.map((b) => b.boothNo);
+    expect(labels.indexOf('7A')).toBe(labels.indexOf('7') + 1);
+    const [audit] = await pool.query<RowDataPacket[]>(
+      "SELECT new_value FROM audit_log WHERE action = 'BOOTH_ADDED'",
+    );
+    expect(audit[0]?.new_value).toMatchObject({ booth_no: '7A' });
+
+    for (const typed of ['7', '7a']) {
+      const wrong = await sa.post(`/api/superadmin/booths/${String(id)}/delete`, {
+        password: SA_PASSWORD,
+        confirmText: typed,
+      });
+      expect(wrong.status).toBe(400);
+    }
+    const ok = await sa.post(`/api/superadmin/booths/${String(id)}/delete`, {
+      password: SA_PASSWORD,
+      confirmText: '7A',
+    });
+    expect(ok.status).toBe(200);
+    expect(await n('SELECT COUNT(*) AS n FROM booth WHERE id = ?', [w.b7])).toBe(1);
+  });
+
+  it.each(['7a', 'A7', '0', '7 A', ''])('refuses booth number %j', async (bad) => {
+    const res = await sa.post('/api/superadmin/booths/add', boothBody({ boothNo: bad }));
+    expect(res.status).toBe(400);
   });
 });
 

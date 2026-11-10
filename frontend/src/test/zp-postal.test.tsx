@@ -70,7 +70,7 @@ const ZP_WARD_ITEM = {
 const BOOTH = {
   boothId: 9,
   panchayatSamiti: 'रतनगढ़',
-  boothNo: 3,
+  boothNo: '3',
   nameHindi: 'विद्यालय 3',
   registeredVotersTotal: null,
   entered: true,

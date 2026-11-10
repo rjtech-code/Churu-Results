@@ -7,10 +7,11 @@
 import { basename } from 'node:path';
 import type { RowDataPacket } from 'mysql2/promise';
 import { writeAudit } from './audit.js';
-import { optionalInt, requireInt, requireText } from './cells.js';
+import { optionalInt, requireBoothNo, requireInt, requireText } from './cells.js';
 import { inContextTransaction } from './db.js';
 import { boothKey } from './geography.js';
 import { sha256File } from './file-hash.js';
+import { boothLabel, boothLabelOf } from '../booth-no.js';
 import { loadPanchayatSamitis } from '../master-data/lookups.js';
 import { Report } from './report.js';
 import { finishReport, reportFailure } from './run.js';
@@ -62,7 +63,8 @@ export interface VotersResult extends ScriptResult {
 interface FileBooth {
   rowNumbers: number[];
   psName: string;
-  boothNo: number;
+  /** Label, e.g. "12A". */
+  boothNo: string;
   male: number | null;
   female: number | null;
   total: number;
@@ -81,12 +83,13 @@ function parseTemplateRows(rows: readonly SheetRow[], report: Report): FileBooth
   for (const row of rows) {
     const before = report.errors.length;
     const psName = requireText(row, 'panchayat_samiti', report);
-    const boothNo = requireInt(row, 'booth_no', report, 1);
+    const booth = requireBoothNo(row, 'booth_no', report);
     const male = requireInt(row, 'voters_male', report, 0);
     const female = requireInt(row, 'voters_female', report, 0);
     const other = optionalInt(row, 'voters_other', report, 0, 0);
     const total = requireInt(row, 'voters_total', report, 0);
-    if (psName === null || boothNo === null) continue;
+    if (psName === null || booth === null) continue;
+    const boothNo = boothLabel(booth.no, booth.suffix);
     if (male !== null && female !== null && other !== null && total !== null) {
       if (male + female + other !== total) {
         report.error(
@@ -115,9 +118,10 @@ function parseStationRows(rows: readonly SheetRow[], report: Report): FileBooth[
   const byKey = new Map<string, FileBooth>();
   for (const row of rows) {
     const psName = requireText(row, 'PanchayatSamiti', report);
-    const boothNo = requireInt(row, 'PollingStationNumber', report, 1);
+    const parsed = requireBoothNo(row, 'PollingStationNumber', report);
     const electors = requireInt(row, 'Total_Elector', report, 0);
-    if (psName === null || boothNo === null) continue;
+    if (psName === null || parsed === null) continue;
+    const boothNo = boothLabel(parsed.no, parsed.suffix);
     const key = `${matchKey(psName)}|${boothNo}`;
     const booth = byKey.get(key) ?? {
       rowNumbers: [],
@@ -250,17 +254,17 @@ export async function runImportVoters(
     const result = await inContextTransaction(ctx, async (conn) => {
       const psByName = await loadPanchayatSamitis(conn);
       const [boothRows] = await conn.query<RowDataPacket[]>(
-        `SELECT b.id, b.panchayat_samiti_id, b.booth_no, ps.name_english AS ps_name,
+        `SELECT b.id, b.panchayat_samiti_id, b.booth_no, b.booth_suffix, ps.name_english AS ps_name,
                 EXISTS (SELECT 1 FROM booth_entry e WHERE e.booth_id = b.id) AS has_entry
            FROM booth b JOIN panchayat_samiti ps ON ps.id = b.panchayat_samiti_id
-          ORDER BY ps.name_english, b.booth_no`,
+          ORDER BY ps.name_english, b.booth_no, b.booth_suffix`,
       );
       if (boothRows.length === 0) {
         report.error('There are no booths in the database. Run import:geography first.');
         return { commit: false, value: undefined };
       }
       const boothByKey = new Map(
-        boothRows.map((b) => [`${Number(b.panchayat_samiti_id)}|${Number(b.booth_no)}`, b]),
+        boothRows.map((b) => [`${Number(b.panchayat_samiti_id)}|${boothLabelOf(b)}`, b]),
       );
 
       const seen = new Map<number, number[]>();
@@ -297,7 +301,7 @@ export async function runImportVoters(
       const missing = boothRows.filter((b) => !seen.has(Number(b.id)));
       for (const b of missing) {
         report.error(
-          `Missing booth: booth ${Number(b.booth_no)} of ${String(b.ps_name)} is not in the file`,
+          `Missing booth: booth ${boothLabelOf(b)} of ${String(b.ps_name)} is not in the file`,
         );
       }
       report.line(
