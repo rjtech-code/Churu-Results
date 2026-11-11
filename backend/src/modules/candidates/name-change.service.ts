@@ -261,6 +261,7 @@ export async function visibleNameChanges(pool: Pool, user: AuthUser): Promise<Na
       );
       break;
     case 'SUPER_ADMIN':
+    case 'OBSERVER': // never name-correction reasons (and the global guard refuses the route first)
       throw new ApiError(403, 'FORBIDDEN');
   }
   return rows.map(toEntry);

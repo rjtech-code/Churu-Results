@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import type { Express, Router } from 'express';
 import type { Pool } from 'mysql2/promise';
 import type { AppConfig } from './config/app-config.js';
-import { dmWriteGuard, superAdminGuard } from './middleware/auth.js';
+import { dmWriteGuard, observerGuard, superAdminGuard } from './middleware/auth.js';
 import { csrfCheck } from './middleware/csrf.js';
 import { currentUser } from './middleware/current-user.js';
 import { errorHandler, notFound } from './middleware/errors.js';
@@ -27,6 +27,7 @@ import {
   SUPERADMIN_UPLOAD_PATHS,
   superAdminRouter,
 } from './modules/superadmin/superadmin.routes.js';
+import { observerRouter } from './modules/observer/observer.routes.js';
 import { SseHub } from './modules/public/sse.js';
 import { ScreenAccess } from './modules/screen-access/screen-access.js';
 import { screenAuthRouter } from './modules/screen-access/screen-auth.routes.js';
@@ -142,6 +143,9 @@ export function createApp({
   app.use(dmWriteGuard);
   // 11. The Super Admin may use only /api/auth and /api/superadmin.
   app.use(superAdminGuard);
+  // 11'. An OBSERVER may use only /api/auth and GET /api/observer (deny-by-default: a route added
+  //      in a future part is refused for observers unless this guard explicitly allows it).
+  app.use(observerGuard);
 
   // 11. Routes. The login route has its own login rate limiter before validation.
   app.use('/api/auth', authRouter(pool, config));
@@ -154,6 +158,7 @@ export function createApp({
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
   app.use('/api/superadmin', superAdminRouter(pool, config));
+  app.use('/api/observer', observerRouter(pool));
   app.use(
     '/api/profile',
     profileRouter(

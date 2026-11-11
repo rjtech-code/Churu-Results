@@ -4,5 +4,6 @@ import type { Role } from '../api/types';
 export function homePath(role: Role): string {
   if (role === 'DM') return '/reports';
   if (role === 'SUPER_ADMIN') return '/superadmin';
+  if (role === 'OBSERVER') return '/observer';
   return '/wards';
 }

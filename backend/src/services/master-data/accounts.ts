@@ -9,11 +9,12 @@ import { countOf } from './db-count.js';
 import { encryptPassword } from './password-vault.js';
 import { generatePassword, hashPassword } from './passwords.js';
 
-export type Role = 'PS_RO' | 'ZP_RO' | 'DM' | 'SUPER_ADMIN';
-export const ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM', 'SUPER_ADMIN'];
+export type Role = 'PS_RO' | 'ZP_RO' | 'DM' | 'SUPER_ADMIN' | 'OBSERVER';
+export const ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM', 'SUPER_ADMIN', 'OBSERVER'];
 
 /**
  * 15 election logins (13 PS_RO, one per PS; 1 ZP_RO; 1 DM) plus the one SUPER_ADMIN setup login.
+ * OBSERVER: read-only dashboard logins for senior officers outside the district, one per officer.
  * Disabled accounts count.
  */
 export const ROLE_LIMITS: Readonly<Record<Role, number>> = {
@@ -21,11 +22,12 @@ export const ROLE_LIMITS: Readonly<Record<Role, number>> = {
   ZP_RO: 1,
   DM: 1,
   SUPER_ADMIN: 1,
+  OBSERVER: 25,
 };
 
 /** Accounts that never get an encrypted password copy (bcrypt hash only). */
 export function hasNoPasswordCopy(role: Role): boolean {
-  return role === 'DM' || role === 'SUPER_ADMIN';
+  return role === 'DM' || role === 'SUPER_ADMIN' || role === 'OBSERVER';
 }
 
 export const USERNAME_PATTERN = /^[a-z0-9_]{4,30}$/;
@@ -108,11 +110,13 @@ export async function insertAccount(
     role: Role;
     psId: number | null;
     phone?: string | null;
+    /** A password the operator typed (observer accounts); omitted = a fresh random one. */
+    chosenPassword?: string;
   },
   vaultKey: Buffer,
 ): Promise<{ id: number; password: string }> {
-  const password = generatePassword();
-  // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM or the Super Admin.
+  const password = account.chosenPassword ?? generatePassword();
+  // The encrypted copy exists for PS_RO / ZP_RO only, never for the DM, Super Admin or observers.
   const copy = hasNoPasswordCopy(account.role) ? null : encryptPassword(password, vaultKey);
   const [inserted] = await conn.execute<ResultSetHeader>(
     `INSERT INTO users (username, full_name, phone, password_hash, password_enc, role, panchayat_samiti_id)

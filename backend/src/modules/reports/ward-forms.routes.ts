@@ -156,6 +156,7 @@ export function boothFormAllowed(
     case 'ZP_RO':
       return ballotFor === 'ZP';
     case 'SUPER_ADMIN':
+    case 'OBSERVER':
       return false;
   }
 }

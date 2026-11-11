@@ -117,7 +117,7 @@ export interface E2eWorld {
   password: string;
   admin: E2eAdmin;
   /** One active PS_RO per PS is allowed: ro = Churu (most specs), roOther = Rajgarh. */
-  users: { ro: string; roOther: string; zp: string; dm: string; superAdmin: string };
+  users: { ro: string; roOther: string; zp: string; dm: string; superAdmin: string; observer: string };
   wards: Record<string, E2eWard>;
   otherPsWard: number;
   screens: E2eScreens;
@@ -256,6 +256,7 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
     zp: 'e2e_zp_ro',
     dm: 'e2e_dm',
     superAdmin: 'e2e_super_admin',
+    observer: 'e2e_observer',
   };
   for (const [username, role, psId] of [
     [users.ro, 'PS_RO', ps1],
@@ -263,6 +264,7 @@ async function seed(app: Pool, migrator: Pool): Promise<E2eWorld> {
     [users.zp, 'ZP_RO', null],
     [users.dm, 'DM', null],
     [users.superAdmin, 'SUPER_ADMIN', null],
+    [users.observer, 'OBSERVER', null],
   ] as const) {
     await createUser(app, { username, role, psId, password: E2E_PASSWORD });
   }

@@ -30,7 +30,7 @@ export interface E2eWorld {
     ro: string;
     wards: { id: number; wardNo: number; boothId: number }[];
   };
-  users: { ro: string; roOther: string; zp: string; dm: string; superAdmin: string };
+  users: { ro: string; roOther: string; zp: string; dm: string; superAdmin: string; observer: string };
   wards: Record<'entry' | 'edit' | 'postal' | 'ready' | 'tie' | 'nota' | 'correction' | 'wide', E2eWard>;
   otherPsWard: number;
   /** Part 14: Churu PS ward 9; its booths 21-22 vote for ZP ward 4 (locked, own candidates). */

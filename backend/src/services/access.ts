@@ -33,6 +33,7 @@ export function ballotWriteAllowed(user: AccessUser, boothPsId: number): boolean
     case 'ZP_RO': // official order: the ZP RO enters no booth sheet (PS ROs enter both ballots)
     case 'DM':
     case 'SUPER_ADMIN':
+    case 'OBSERVER':
       return false;
   }
 }
@@ -53,6 +54,7 @@ export function wardWriteAllowed(user: AccessUser, ward: WardScope): boolean {
       return ward.wardType === 'ZP';
     case 'DM':
     case 'SUPER_ADMIN':
+    case 'OBSERVER':
       return false;
   }
 }
@@ -62,6 +64,7 @@ export function wardReadAllowed(user: AccessUser, ward: WardScope): boolean {
     case 'DM':
       return true;
     case 'SUPER_ADMIN':
+    case 'OBSERVER': // observers read ONLY through /api/observer, never the RO/DM ward routes
       return false;
     case 'PS_RO':
     case 'ZP_RO':

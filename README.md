@@ -253,6 +253,14 @@ npm run users:list
 - **Usernames get a random suffix**, e.g. `ro_rjg_k7m2`, `zp_ro_p4x9`, `dm_q8t3` (4 random letters/digits
   chosen when the account is created). **Never derive usernames from the PS name alone.**
 - **Limits:** 13 PS_RO (one per PS), 1 ZP_RO and 1 DM. Disabled accounts still count.
+- **Observers** (read-only dashboard, one account per officer, limit 25) are created the same way,
+  except that the password is **typed at a hidden prompt** instead of being generated:
+  ```bash
+  npm run users:create -- --role OBSERVER --username obs_state_k4p7 --full-name "Name" --commit
+  ```
+  The prompt asks twice, echoes nothing, and the password never appears in the report, the terminal
+  scrollback or the shell history. Same strength rules as a DM-chosen password (at least 10
+  characters, a letter and a digit, not a common password, not containing the username).
 - **Usernames:** 4-30 characters, lowercase letters, digits and `_`.
 - **Passwords:** the password is printed **once** on the terminal and saved nowhere. Hand it over in person.
 
@@ -330,6 +338,10 @@ All API calls are same-origin JSON. There is **no CORS**: the API sends no CORS 
   their own PS, and the postal ballots of the ZP wards assigned to their PS (official order).
 - **ZP_RO:** no booth or postal entry at all. Reads ZP wards, declares and corrects them; ZP reports
   (Part 2 / Format 7, ST format) and the Counting Status Report limited to ZP wards.
+- **OBSERVER:** read-only executive dashboard for senior officers outside the district. A global
+  guard (`observerGuard`) allows only `/api/auth` and **GET** `/api/observer/*`; every other route,
+  including ones added in future parts, returns 403, and so does any non-GET on `/api/observer`.
+  See [Observer dashboard](#observer-dashboard-read-only).
 - Later parts use `requireAuth`, `requireRole(...)` (`src/middleware/auth.ts`) and `canWriteBallot`,
   `canWritePostal`, `canWriteWard` and `canReadWard` (`src/services/access.ts`).
 
@@ -1322,6 +1334,69 @@ declares or corrects.
     above, with no passwords.
 11. **DM still can't count:** as the DM, `POST /api/counting/entries` (curl, with the CSRF token) answers
     403.
+
+## Observer dashboard (read-only)
+
+An **OBSERVER** account is for senior officers outside the district (state / Election Commission
+level) who need to watch the count without touching it. It is the public face of the system: a
+premium executive dashboard at `/observer`, and nothing else in the portal is reachable.
+
+**Security.** `observerGuard` (`src/middleware/auth.ts`) runs before every router and is
+*deny-by-default*: an observer session may use `/api/auth` and **GET** `/api/observer/*`, and
+anything else — write routes, RO pages, DM reports and admin tools, the Super Admin panel, candidate
+edit, name correction, screen keys, user lists, the audit log, and any route added in a future part
+— answers `403 FORBIDDEN`. A non-GET on `/api/observer` is refused too. `tests/observer/access.test.ts`
+enumerates the routers mounted in `src/app.ts`, so a new router fails that test unless it is
+classified. In the browser, every RO/DM/admin URL redirects back to `/observer`.
+
+**Correctness.** Observer figures are never computed a second way. `ObserverCache`
+(`src/modules/observer/observer.cache.ts`) builds the DM report summary (`readReportData` +
+`buildReport`) and the DM Counting Status Report (`readCountingStatus`) once, and every endpoint is
+a projection of those objects (`observer.views.ts`). `tests/observer/parity.test.ts` compares the
+observer output against `/api/reports/summary` and `/api/reports/counting-status` for the same
+database, in the zero state and mid-counting, including a ZP ward spanning two Panchayat Samitis,
+an "A" booth and a voided entry.
+
+**What leads are visible before a declaration** — exactly what the DM reports show today, nothing
+more: the party position counts a *leading* party for a ward that is counting and not tied (the
+DM's `partySeats`, shown as "+n" beside the seats won), and a ward's own page shows live candidate
+votes once counting has started. The Counting Status data (the ward lists, the PDF and the CSVs)
+names a winner **only after the ward is declared**.
+
+**Privacy.** Responses carry result-level data only: ward, Panchayat Samiti, candidate name, party,
+votes, status, progress, winner, margin. Never officer names or usernames, candidate mobile numbers,
+dates of birth, addresses or other personal fields, never correction or lottery reasons, user
+accounts, audit rows or screen keys. The downloads are the existing Counting Status PDF and CSVs
+with the "Entered By" column blanked. A test scans every observer response for those field names.
+
+**Performance.** The overview is one cached, aggregated endpoint (10 s TTL; concurrent first
+requests share a single build) costing **32 queries** per rebuild — 14 for the DM report read
+(6 + 8 engine inputs) and 18 for the Counting Status read (9 + the election date + 8 engine inputs)
+— and that number is **fixed**: `tests/observer/queries.test.ts` builds a 2-ward district and a
+40-ward one and asserts the same count, so there is no query per ward, booth or candidate. Every
+other page and every poll inside the TTL costs **zero** queries. The page polls every 25 s and
+pauses while the browser tab is hidden.
+
+| Endpoint (GET only) | What it returns |
+|---|---|
+| `/api/observer/overview` | Status, counting date, KPIs (PS/ZP split), party position, latest declarations, structure counts |
+| `/api/observer/ps` | The 13 Panchayat Samitis with booth progress and wards declared |
+| `/api/observer/ps/:psId` | One Panchayat Samiti and its wards |
+| `/api/observer/zp` | The 39 Zila Parishad wards, with progress by Panchayat Samiti |
+| `/api/observer/wards/:wardId` | One ward: candidates in ballot order, votes, NOTA, booths, declarations |
+| `/api/observer/winners` | Declared winners (women winners flagged) |
+| `/api/observer/women` | The DM women-winners section |
+| `/api/observer/search?q=` | Wards by number, Panchayat Samiti or candidate name |
+| `/api/observer/reports/counting-status.pdf` | The Counting Status Report (audited) |
+| `/api/observer/reports/counting-status/wards.csv` | Ward-wise status (audited) |
+| `/api/observer/reports/counting-status/booths.csv` | Booth-wise status (audited) |
+| `/api/observer/reports/counting-status/zp-by-ps.csv` | ZP wards by Panchayat Samiti (audited) |
+
+**The dashboard** (`frontend/src/pages/observer/`, styles in `src/styles/observer.css`) is English
+by default with a "हिंदी" toggle remembered in the browser; candidate and place names are shown as
+stored. It is designed for 1440 px and 1024 px, usable at 390 px, prints the overview cleanly on A4,
+and honours `prefers-reduced-motion`. Before counting day it leads with a countdown and the
+structure of the election, so it looks complete when every number is still zero.
 
 ## Database users
 

@@ -84,6 +84,29 @@ export const dmWriteGuard: RequestHandler = (req, res, next) => {
   next();
 };
 
+/** The only /api paths an OBSERVER may use: login/logout/me/csrf, and the read-only dashboard. */
+const OBSERVER_AUTH_PATHS = /^\/api\/auth(?:\/|$)/;
+const OBSERVER_READ_PATHS = /^\/api\/observer(?:\/|$)/;
+
+/** True when an OBSERVER may make this request (exported for tests). */
+export function observerAllowed(method: string, path: string): boolean {
+  if (OBSERVER_AUTH_PATHS.test(path)) return true;
+  return (method === 'GET' || method === 'HEAD') && OBSERVER_READ_PATHS.test(path);
+}
+
+/**
+ * Global guard: an OBSERVER is deny-by-default. Only /api/auth (login, logout, me, csrf) and
+ * GET /api/observer pass; every other route — present or added in a future part — is 403 before
+ * any router runs. Mounted before all routes, like dmWriteGuard / superAdminGuard.
+ */
+export const observerGuard: RequestHandler = (req, res, next) => {
+  if (req.user?.role === 'OBSERVER' && !observerAllowed(req.method, req.path)) {
+    res.status(403).json({ error: 'FORBIDDEN' });
+    return;
+  }
+  next();
+};
+
 /** The only /api paths a Super Admin may use (any method): login/logout/me and the setup panel. */
 const SUPER_ADMIN_PATHS = /^\/api\/(?:auth|superadmin)(?:\/|$)/;
 

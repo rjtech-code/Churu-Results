@@ -32,6 +32,14 @@ import { WardCategoryPage } from './pages/admin/WardCategoryPage';
 import { RoCandidateWardPage } from './pages/candidates/RoCandidateWardPage';
 import { RoCandidateWardsPage } from './pages/candidates/RoCandidateWardsPage';
 import { ZpWardPage } from './pages/ZpWardPage';
+import { RequireObserver } from './pages/observer/ObserverLayout';
+import { OverviewPage } from './pages/observer/OverviewPage';
+import { PsDetailPage, PsListPage } from './pages/observer/PsPages';
+import { ZpPage } from './pages/observer/ZpPage';
+import { WardPage as ObserverWardPage } from './pages/observer/WardPage';
+import { WinnersPage } from './pages/observer/WinnersPage';
+import { ReportsPage as ObserverReportsPage } from './pages/observer/ReportsPage';
+import { SearchPage as ObserverSearchPage } from './pages/observer/SearchPage';
 import { GuidePage } from './pages/superadmin/GuidePage';
 import { SuperAdminPage } from './pages/superadmin/SuperAdminPage';
 import { WardDetailPage } from './pages/WardDetailPage';
@@ -118,6 +126,21 @@ export const router = createBrowserRouter([
         // Counting Status Report: the DM, and the ZP RO (the server limits it to ZP wards).
         element: <RequireRole roles={['DM', 'ZP_RO']} denied="not-allowed" />,
         children: [{ path: '/reports/counting-status', element: <CountingStatusPage /> }],
+      },
+      {
+        // The OBSERVER executive dashboard (read-only, own shell). Other roles are sent home;
+        // an observer opening any other URL is sent back to /observer (homePath).
+        element: <RequireObserver />,
+        children: [
+          { path: '/observer', element: <OverviewPage /> },
+          { path: '/observer/ps', element: <PsListPage /> },
+          { path: '/observer/ps/:psId', element: <PsDetailPage /> },
+          { path: '/observer/zp', element: <ZpPage /> },
+          { path: '/observer/wards/:wardId', element: <ObserverWardPage /> },
+          { path: '/observer/winners', element: <WinnersPage /> },
+          { path: '/observer/reports', element: <ObserverReportsPage /> },
+          { path: '/observer/search', element: <ObserverSearchPage /> },
+        ],
       },
       {
         // The Super Admin setup panel: nothing else is open to this role.

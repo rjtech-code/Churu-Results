@@ -1,9 +1,13 @@
-// npm run users:create -- --role <PS_RO|ZP_RO|DM|SUPER_ADMIN> --username <u> [--ps <name>] --full-name "<name>" [--commit]
+// npm run users:create -- --role <PS_RO|ZP_RO|DM|SUPER_ADMIN|OBSERVER> --username <u> [--ps <name>] --full-name "<name>" [--commit]
+// OBSERVER: the password is typed at a hidden prompt (never a CLI argument, never echoed or logged).
 import {
   accountIssueTextEn,
+  checkChosenPassword,
   checkNewAccount,
   insertAccount,
 } from '../src/services/master-data/accounts.js';
+import type { ChosenPasswordProblem } from '../src/services/master-data/accounts.js';
+import { promptHidden } from './lib/hidden-prompt.js';
 import { writeAudit } from './lib/audit.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
 import { inTransaction } from './lib/db.js';
@@ -21,7 +25,19 @@ export interface CreateUserOptions {
   ps?: string | undefined;
   fullName?: string | undefined;
   commit?: boolean | undefined;
+  /** Hidden prompt for the OBSERVER password (tests inject their own; default: the terminal). */
+  promptPassword?: (label: string) => Promise<string>;
 }
+
+/** The same rules the DM's "set password" page shows, in the script's English. */
+const PASSWORD_PROBLEM_TEXT: Readonly<Record<ChosenPasswordProblem, string>> = {
+  PASSWORD_TOO_SHORT: 'The password must be at least 10 characters.',
+  PASSWORD_TOO_LONG: 'The password must be at most 128 characters.',
+  PASSWORD_NEEDS_LETTER_AND_DIGIT: 'The password needs at least one letter and one digit.',
+  PASSWORD_HAS_USERNAME: 'The password must not contain the username.',
+  PASSWORD_TOO_COMMON: 'That password is too common or too easy to guess.',
+  PASSWORD_MISMATCH: 'The two entries did not match.',
+};
 
 export async function runUsersCreate(
   options: CreateUserOptions,
@@ -50,6 +66,22 @@ export async function runUsersCreate(
     report.error(`A ${role} must not have --ps (it is not tied to one Panchayat Samiti).`);
   }
 
+  // OBSERVER: the password is typed (hidden), checked with the same strength rules the DM's
+  // "set password" page uses, and never printed, logged or stored outside the bcrypt hash.
+  let chosenPassword: string | undefined;
+  if (report.isOk() && role === 'OBSERVER' && options.commit === true) {
+    const prompt = options.promptPassword ?? promptHidden;
+    try {
+      const typed = await prompt(`Password for "${username}" (hidden): `);
+      const confirmTyped = await prompt('Type the password again: ');
+      const problems = checkChosenPassword(typed, confirmTyped, username);
+      for (const problem of problems) report.error(PASSWORD_PROBLEM_TEXT[problem]);
+      if (problems.length === 0) chosenPassword = typed;
+    } catch (err) {
+      reportFailure(report, err);
+    }
+  }
+
   if (report.isOk()) {
     try {
       const result = await inTransaction<string | null>(ctx.pool, async (conn) => {
@@ -72,7 +104,9 @@ export async function runUsersCreate(
 
         const inserted = await insertAccount(
           conn,
-          { username, fullName, role, psId },
+          chosenPassword === undefined
+            ? { username, fullName, role, psId }
+            : { username, fullName, role, psId, chosenPassword },
           ctx.roPasswordKey,
         );
         await writeAudit(conn, {
@@ -91,7 +125,11 @@ export async function runUsersCreate(
   }
 
   const outcome = await finishReport(ctx, report, startedAt, committed);
-  if (committed && password !== null) ctx.out(passwordBanner(username, password));
+  // An observer typed their own password: it is never shown back.
+  if (committed && password !== null && chosenPassword === undefined)
+    ctx.out(passwordBanner(username, password));
+  if (committed && chosenPassword !== undefined)
+    ctx.out('The password is the one typed at the prompt. It is not saved or shown anywhere.');
   return outcome;
 }
 
@@ -105,7 +143,7 @@ export async function main(argv: string[], ctx: ScriptContext): Promise<{ ok: bo
       'full-name': { type: 'string' },
       commit: { type: 'boolean' },
     },
-    'npm run users:create -- --role <PS_RO|ZP_RO|DM> --username <u> [--ps <name>] --full-name "<name>" [--commit]',
+    'npm run users:create -- --role <PS_RO|ZP_RO|DM|SUPER_ADMIN|OBSERVER> --username <u> [--ps <name>] --full-name "<name>" [--commit]',
   );
   return runUsersCreate({ ...values, fullName: values['full-name'] }, ctx);
 }
