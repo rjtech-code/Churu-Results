@@ -1,0 +1,25 @@
+/* The one set of design tokens for the "soft luxury" surfaces: deep navy, warm ivory, muted gold.
+   Defined once here and imported by every stylesheet that uses them (observer.css, footer.css),
+   so the observer dashboard and the site-wide footer can never drift apart. */
+
+:root {
+  --obs-navy: #122744;
+  --obs-navy-deep: #0c1c33;
+  --obs-navy-soft: #27405f;
+  --obs-ivory: #faf7f1;
+  --obs-ivory-2: #f3eee4;
+  --obs-paper: #fffdf9;
+  --obs-gold: #b8923e;
+  --obs-gold-soft: #d8c296;
+  --obs-ink: #1c2733;
+  --obs-ink-soft: #5a6676;
+  --obs-line: #e4dcc9;
+  --obs-green: #2e6b4f;
+  --obs-green-soft: #e4efe8;
+  --obs-amber: #8a6d1f;
+  --obs-amber-soft: #f6eed6;
+  --obs-red: #8c3a3a;
+  --obs-red-soft: #f3e3e0;
+  --obs-serif: Georgia, 'Noto Serif', 'Noto Serif Devanagari', 'Times New Roman', serif;
+  --obs-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+}

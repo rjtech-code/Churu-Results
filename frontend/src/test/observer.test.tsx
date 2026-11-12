@@ -13,7 +13,7 @@ import type {
 } from '../api/observerTypes';
 import { LangContext, translate } from '../pages/observer/i18n';
 import type { DictKey, Lang } from '../pages/observer/i18n';
-import { AboutPanel } from '../pages/observer/ObserverLayout';
+import { AboutPanel } from '../components/SiteFooter';
 import { OverviewPage } from '../pages/observer/OverviewPage';
 import { PsListPage } from '../pages/observer/PsPages';
 import { WardPage } from '../pages/observer/WardPage';
@@ -369,7 +369,7 @@ describe('about panel credit', () => {
     ['en', EN, ['Shri Abhishek Surana, IAS', 'Code Churu']],
     ['hi', HI, ['श्री अभिषेक सुराणा, आई.ए.एस.', 'कोड चूरू']],
   ] as [Lang, string, string[]][])('reads correctly in %s', (lang, text, bold) => {
-    const { container } = wrap(<AboutPanel onClose={vi.fn()} />, lang);
+    const { container } = wrap(<AboutPanel onClose={vi.fn()} lang={lang} />, lang);
     const credit = container.querySelector('.obs-about-credit');
     expect(credit?.textContent).toBe(text);
     expect([...(credit?.querySelectorAll('strong') ?? [])].map((b) => b.textContent)).toEqual(bold);

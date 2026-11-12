@@ -1,51 +1,21 @@
-// The observer shell: its own refined layout (never the operator header), the language toggle,
-// search, and the "About this system" panel. OBSERVER only; every other role is sent to its own
-// start page, and an observer reaching any other URL is sent back here (RequireRole + homePath).
+// The observer shell: its own refined layout (never the operator header), the language toggle
+// and the search box. OBSERVER only; every other role is sent to its own start page, and an
+// observer reaching any other URL is sent back here (RequireRole + homePath). The footer and its
+// "About this system" panel are the portal-wide SiteFooter, in the observer's chosen language.
 import { useMemo, useState } from 'react';
-import type { ReactNode, SyntheticEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { homePath } from '../../auth/home';
+import { SiteFooter } from '../../components/SiteFooter';
 import '../../styles/observer.css';
-import { LangContext, storeLang, storedLang, translate, useLang } from './i18n';
+import { LangContext, storeLang, storedLang, translate } from './i18n';
 import type { DictKey, Lang } from './i18n';
-
-/** A dictionary line whose **…** parts are shown bold. Plain text otherwise; no other markup. */
-function withBold(text: string): ReactNode[] {
-  return text.split('**').map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
-}
-
-export function AboutPanel({ onClose }: { onClose: () => void }) {
-  // The live language from the context, so the panel follows the toggle even where the browser
-  // refuses storage (a private window), which storedLang() cannot see.
-  const { t } = useLang();
-  return (
-    <div className="obs-about-backdrop" role="presentation" onClick={onClose}>
-      <div
-        className="obs-about"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('about')}
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
-      >
-        <h2>{t('about')}</h2>
-        <p>{t('aboutText')}</p>
-        <p className="obs-about-credit">{withBold(t('aboutCredit'))}</p>
-        <button type="button" className="obs-btn" onClick={onClose} autoFocus>
-          {t('close')}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function Shell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [lang, setLangState] = useState<Lang>(storedLang);
-  const [about, setAbout] = useState(false);
   const [query, setQuery] = useState('');
   const langState = useMemo(
     () => ({
@@ -134,28 +104,7 @@ function Shell() {
         <main className="obs-main">
           <Outlet />
         </main>
-        <footer className="obs-footer no-print">
-          <span>
-            Churu District · Panchayat General Elections 2026 ·{' '}
-            <span className="obs-footer-gold">Code Churu</span>
-          </span>
-          <button
-            type="button"
-            className="obs-about-link"
-            onClick={() => {
-              setAbout(true);
-            }}
-          >
-            {t('about')}
-          </button>
-        </footer>
-        {about && (
-          <AboutPanel
-            onClose={() => {
-              setAbout(false);
-            }}
-          />
-        )}
+        <SiteFooter lang={lang} />
       </div>
     </LangContext.Provider>
   );

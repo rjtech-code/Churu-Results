@@ -23,6 +23,8 @@ export function storeLang(lang: Lang): void {
 
 const DICT = {
   title: ['Churu District', 'चूरू ज़िला'],
+  // The footer line, on every page of the portal (SiteFooter).
+  footerElection: ['Panchayat General Elections 2026', 'पंचायत आम चुनाव 2026'],
   subtitle: ['Panchayat General Elections 2026 · Counting Dashboard', 'पंचायत आम चुनाव 2026 · मतगणना डैशबोर्ड'],
   overview: ['Overview', 'एक नज़र'],
   panchayatSamitis: ['Panchayat Samitis', 'पंचायत समितियाँ'],
