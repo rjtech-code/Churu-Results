@@ -55,7 +55,10 @@ const DICT = {
   leading: ['Leading', 'आगे'],
   seats: ['seats', 'सीटें'],
   latestDeclarations: ['Latest declarations', 'ताज़ा घोषणाएँ'],
-  noDeclarationsYet: ['Results will appear here as wards are declared.', 'वार्ड घोषित होते ही परिणाम यहाँ दिखेंगे।'],
+  noDeclarationsYet: [
+    'Results will appear here as wards are declared.',
+    'वार्ड घोषित होते ही परिणाम यहाँ दिखेंगे।',
+  ],
   structure: ['Election at a glance', 'चुनाव एक नज़र में'],
   structureBooths: ['Polling booths', 'मतदान बूथ'],
   structureCandidates: ['Candidates', 'उम्मीदवार'],
@@ -100,7 +103,10 @@ const DICT = {
   declaredAt: ['Declared at', 'घोषणा समय'],
   viaLottery: ['By lottery', 'लॉटरी से'],
   search: ['Search', 'खोजें'],
-  searchHint: ['Ward number, Panchayat Samiti or candidate name…', 'वार्ड नंबर, पंचायत समिति या उम्मीदवार का नाम…'],
+  searchHint: [
+    'Ward number, Panchayat Samiti or candidate name…',
+    'वार्ड नंबर, पंचायत समिति या उम्मीदवार का नाम…',
+  ],
   searchResults: ['Search results', 'खोज परिणाम'],
   noResults: ['Nothing matched this search.', 'इस खोज से कुछ नहीं मिला।'],
   matched: ['Matching candidates', 'मिलते-जुलते उम्मीदवार'],
@@ -109,7 +115,10 @@ const DICT = {
   womenOnly: ['Women only', 'केवल महिला विजेता'],
   filterParty: ['Party', 'पार्टी'],
   filterPs: ['Panchayat Samiti', 'पंचायत समिति'],
-  noWinnersYet: ['No winners yet. Declared results will be listed here.', 'अभी कोई विजेता नहीं। घोषित परिणाम यहाँ दिखेंगे।'],
+  noWinnersYet: [
+    'No winners yet. Declared results will be listed here.',
+    'अभी कोई विजेता नहीं। घोषित परिणाम यहाँ दिखेंगे।',
+  ],
   downloads: ['Downloads', 'डाउनलोड'],
   downloadNote: ['Every download is recorded in the audit log.', 'प्रत्येक डाउनलोड ऑडिट लॉग में दर्ज होता है।'],
   countingStatusPdf: ['Counting Status Report (PDF)', 'मतगणना स्थिति रिपोर्ट (PDF)'],
@@ -159,6 +168,18 @@ const DICT = {
   zpSheets: ['ZP sheets', 'ज़ि.प. पर्चियाँ'],
   openWard: ['Open ward', 'वार्ड खोलें'],
   print: ['Print', 'प्रिंट'],
+  // The three public display screens (TVs in the counting hall). They open in a new tab and need
+  // a screen key, which the District Election Officer issues — see the note under the cards.
+  displayScreens: ['Display screens', 'प्रदर्शन स्क्रीन'],
+  screen: ['Screen', 'स्क्रीन'],
+  screen1What: ['Panchayat Samiti wards — first group', 'पंचायत समिति वार्ड — पहला समूह'],
+  screen2What: ['Panchayat Samiti wards — second group', 'पंचायत समिति वार्ड — दूसरा समूह'],
+  screen3What: ['Zila Parishad wards and party position', 'ज़िला परिषद वार्ड और दलीय स्थिति'],
+  opensNewTab: ['Opens in a new tab', 'नई टैब में खुलती है'],
+  screenKeyNote: [
+    'These screens need the screen key from the District Election Officer.',
+    'इन स्क्रीन के लिए जिला निर्वाचन अधिकारी से मिला screen key ज़रूरी है।',
+  ],
 } as const;
 
 export type DictKey = keyof typeof DICT;
@@ -190,15 +211,16 @@ export function formatNumber(n: number): string {
 export function formatIst(iso: string, lang: Lang): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${date.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'Asia/Kolkata',
-  })
+  return `${date
+    .toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
     .replace(/ /g, ' ')
     .replace(/\b(am|pm)\b/i, (m) => m.toUpperCase())} IST`;
 }

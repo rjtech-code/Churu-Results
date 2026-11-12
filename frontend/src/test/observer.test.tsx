@@ -34,7 +34,12 @@ beforeEach(() => {
   vi.stubGlobal(
     'matchMedia',
     (query: string) =>
-      ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as MediaQueryList,
+      ({
+        matches: true,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as MediaQueryList,
   );
 });
 
@@ -208,7 +213,15 @@ describe('lists and ward detail', () => {
         postalTotal: 39,
       },
       wards: [
-        wardRow({ wardId: 11, kind: 'ZP', wardNo: 1, psName: null, status: 'IN_PROGRESS', boothsDone: 2, boothsTotal: 40 }),
+        wardRow({
+          wardId: 11,
+          kind: 'ZP',
+          wardNo: 1,
+          psName: null,
+          status: 'IN_PROGRESS',
+          boothsDone: 2,
+          boothsTotal: 40,
+        }),
         wardRow({
           wardId: 12,
           kind: 'ZP',
@@ -314,6 +327,33 @@ describe('lists and ward detail', () => {
     expect(screen.getAllByText('Winner').length).toBeGreaterThan(0);
     expect(screen.getByText('15A')).toBeDefined();
     expect(container.querySelectorAll('button, input, form').length).toBe(0);
+  });
+});
+
+describe('display screen cards', () => {
+  it('links to the three public screens, opening each in a new tab', async () => {
+    mocks.api.mockResolvedValue(midOverview);
+    wrap(<OverviewPage />);
+    expect(await screen.findByText('Display screens')).toBeDefined();
+    const links = ['Screen 1', 'Screen 2', 'Screen 3'].map((name) =>
+      screen.getByRole('link', { name: new RegExp(name) }),
+    );
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/screen/1', '/screen/2', '/screen/3']);
+    for (const a of links) {
+      expect(a.getAttribute('target')).toBe('_blank');
+      // Never hand the opened screen a usable window.opener.
+      expect(a.getAttribute('rel')).toContain('noopener');
+      expect(a.textContent).toContain('Opens in a new tab'); // announced to screen readers
+    }
+    // Observers have no screen session of their own, so the key is spelled out.
+    expect(screen.getByText(/need the screen key from the District Election Officer/)).toBeDefined();
+  });
+
+  it('is present in the zero state too, in Hindi', async () => {
+    mocks.api.mockResolvedValue(zeroOverview);
+    wrap(<OverviewPage />, 'hi');
+    expect(await screen.findByText('प्रदर्शन स्क्रीन')).toBeDefined();
+    expect(screen.getAllByRole('link', { name: /स्क्रीन [123]/ }).length).toBe(3);
   });
 });
 

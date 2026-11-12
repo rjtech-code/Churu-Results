@@ -5,6 +5,7 @@ import type { KindKpis, ObserverOverview } from '../../api/observerTypes';
 import { formatIst, formatNumber, useLang } from './i18n';
 import type { DictKey } from './i18n';
 import { Num, Panel, PhasePill, ProgressBar, SeatBars, Skeleton, StaleNote } from './parts';
+import { ScreenLinks } from './ScreenLinks';
 import { useObserverPoll } from './useObserverPoll';
 
 /** Counting starts 08:00 IST on counting day. */
@@ -298,6 +299,9 @@ export function OverviewPage() {
           </div>
         </>
       )}
+
+      {/* The TVs in the counting hall. Last on the page: useful, never the loudest thing. */}
+      <ScreenLinks />
     </div>
   );
 }

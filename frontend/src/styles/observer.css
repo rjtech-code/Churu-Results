@@ -546,6 +546,110 @@
   line-height: 1.5;
 }
 
+/* ------------------------------------------------- display screens (the TVs) */
+
+.obs-screens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+/* A quiet card, deliberately lighter than the KPI cards: the numbers stay the heroes.
+   Glyph on the left, text beside it — the same shape as the Panchayat Samiti cards. */
+.obs-screen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--obs-line);
+  border-radius: 12px;
+  background: var(--obs-ivory);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.obs-screen:hover {
+  border-color: var(--obs-gold-soft);
+  box-shadow: 0 8px 20px -16px rgb(18 39 68 / 40%);
+  transform: translateY(-1px);
+}
+
+.obs-screen:active {
+  transform: translateY(0);
+  box-shadow: inset 0 1px 3px rgb(18 39 68 / 10%);
+}
+
+.obs-screen:focus-visible {
+  outline: 2px solid var(--obs-gold);
+  outline-offset: 2px;
+}
+
+.obs-screen-glyph {
+  flex: none;
+  color: var(--obs-navy-soft);
+  transition: color 0.2s ease;
+}
+
+.obs-screen-glyph-rows {
+  stroke: var(--obs-gold-soft);
+  transition: stroke 0.2s ease;
+}
+
+.obs-screen:hover .obs-screen-glyph {
+  color: var(--obs-navy);
+}
+
+.obs-screen:hover .obs-screen-glyph-rows {
+  stroke: var(--obs-gold);
+}
+
+.obs-screen-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The new-tab mark sits with the title, not at the far edge of a wide card. */
+.obs-screen-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.obs-screen-title {
+  font-family: var(--obs-serif);
+  font-size: 16.5px;
+  color: var(--obs-navy);
+}
+
+.obs-screen-ext {
+  flex: none;
+  color: var(--obs-ink-soft);
+  transition: color 0.2s ease;
+}
+
+.obs-screen:hover .obs-screen-ext,
+.obs-screen:focus-visible .obs-screen-ext {
+  color: var(--obs-gold);
+}
+
+.obs-screen-what {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--obs-ink-soft);
+}
+
+.obs-screens-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--obs-ink-soft);
+}
+
 /* ---------------------------------------------------------------- party seats */
 
 .obs-seats {
@@ -1449,8 +1553,14 @@
   .obs-seat-leading,
   .obs-votebar-fill,
   .obs-ring-fill,
-  .obs-card {
+  .obs-card,
+  .obs-screen,
+  .obs-screen-ext {
     transition: none;
+  }
+
+  .obs-screen:hover {
+    transform: none;
   }
 }
 
