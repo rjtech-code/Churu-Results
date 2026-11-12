@@ -122,7 +122,11 @@ const DICT = {
     'This portal is the official counting dashboard of Churu district for the Panchayat General Elections 2026 (Zila Parishad and Panchayat Samiti members). Every figure is typed from the approved result sheet (parchi), matched against the sheet total before it is accepted, protected by an append-only audit log and locked candidate lists, and declared only by the Returning Officers.',
     'यह पोर्टल पंचायत आम चुनाव 2026 (ज़िला परिषद एवं पंचायत समिति सदस्य) के लिए चूरू ज़िले का अधिकृत मतगणना डैशबोर्ड है। प्रत्येक आँकड़ा अनुमोदित परिणाम पर्ची से दर्ज होता है, स्वीकृति से पहले पर्ची के योग से मिलाया जाता है, केवल-जुड़ने वाले ऑडिट लॉग और लॉक की गई उम्मीदवार सूचियों से सुरक्षित है, और घोषणा केवल रिटर्निंग अधिकारी करते हैं।',
   ],
-  aboutCredit: ['Concept, design and development', 'परिकल्पना, डिज़ाइन एवं विकास'],
+  // The credit line. **…** marks the only two bold parts: the officer's name and Code Churu.
+  aboutCredit: [
+    'An initiative of **Shri Abhishek Surana, IAS**, District Collector & District Election Officer, Churu. Built by the students of **Code Churu**, another of his initiatives.',
+    'यह **श्री अभिषेक सुराणा, आई.ए.एस.**, जिला कलक्टर एवं जिला निर्वाचन अधिकारी, चूरू की पहल है। इसे उन्हीं की एक अन्य पहल **कोड चूरू** के विद्यार्थियों ने बनाया है।',
+  ],
   close: ['Close', 'बंद करें'],
   backToList: ['Back', 'वापस'],
   declaredOf: ['declared', 'घोषित'],

@@ -13,6 +13,7 @@ import type {
 } from '../api/observerTypes';
 import { LangContext, translate } from '../pages/observer/i18n';
 import type { DictKey, Lang } from '../pages/observer/i18n';
+import { AboutPanel } from '../pages/observer/ObserverLayout';
 import { OverviewPage } from '../pages/observer/OverviewPage';
 import { PsListPage } from '../pages/observer/PsPages';
 import { WardPage } from '../pages/observer/WardPage';
@@ -313,6 +314,27 @@ describe('lists and ward detail', () => {
     expect(screen.getAllByText('Winner').length).toBeGreaterThan(0);
     expect(screen.getByText('15A')).toBeDefined();
     expect(container.querySelectorAll('button, input, form').length).toBe(0);
+  });
+});
+
+describe('about panel credit', () => {
+  // The credit names a serving officer: it must read exactly as approved, in both languages,
+  // with only the officer's name and Code Churu in bold.
+  const EN =
+    'An initiative of Shri Abhishek Surana, IAS, District Collector & District Election Officer, Churu. Built by the students of Code Churu, another of his initiatives.';
+  const HI =
+    'यह श्री अभिषेक सुराणा, आई.ए.एस., जिला कलक्टर एवं जिला निर्वाचन अधिकारी, चूरू की पहल है। इसे उन्हीं की एक अन्य पहल कोड चूरू के विद्यार्थियों ने बनाया है।';
+
+  it.each([
+    ['en', EN, ['Shri Abhishek Surana, IAS', 'Code Churu']],
+    ['hi', HI, ['श्री अभिषेक सुराणा, आई.ए.एस.', 'कोड चूरू']],
+  ] as [Lang, string, string[]][])('reads correctly in %s', (lang, text, bold) => {
+    const { container } = wrap(<AboutPanel onClose={vi.fn()} />, lang);
+    const credit = container.querySelector('.obs-about-credit');
+    expect(credit?.textContent).toBe(text);
+    expect([...(credit?.querySelectorAll('strong') ?? [])].map((b) => b.textContent)).toEqual(bold);
+    expect(credit?.textContent).not.toContain('Lakshmi');
+    expect(credit?.textContent).not.toContain('**');
   });
 });
 
