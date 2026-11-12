@@ -8,7 +8,7 @@ import { useRole } from '../../auth/AuthContext';
 import { IssueList, ListStatusBadge, issuesOf } from '../../components/AdminParts';
 import { CandidateDetailsFields, detailsComplete } from '../../components/CandidateDetailsFields';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
-import { NameCorrectionDialog } from '../../components/NameCorrectionDialog';
+import { CandidateCorrectionDialog } from '../../components/NameCorrectionDialog';
 import { NameChangedMark, NameHistoryDialog } from '../../components/NameHistory';
 import { PasswordDialog } from '../../components/PasswordDialog';
 import { useApiData } from '../../components/useApiData';
@@ -28,8 +28,9 @@ const toRows = (list: readonly RoCandidate[]): Row[] =>
  * One ward's candidate list: one card per candidate (ballot number = position in the list, moved
  * with ↑ / ↓), name, party, gender and the optional details. "सूची सेव करें" saves the whole list
  * (the server checks every rule); then "सूची तैयार है" tells the DM it can be checked.
- * After the ballot lock the list is read only, except "नाम सुधारें" (the name only, with a reason and
- * the RO's password; the server checks the role, the ward and the lock again).
+ * After the ballot lock the list is read only, except "विवरण सुधारें" (every candidate detail, with a
+ * reason and the RO's password; the server checks the role, the ward and the lock again, and refuses
+ * the ballot order, adding / removing a candidate and NOTA).
  */
 export function RoCandidateWardPage() {
   const { wardId = '' } = useParams();
@@ -71,7 +72,7 @@ function WardForm({
   const [saveError, setSaveError] = useState<unknown>(null);
   const [readying, setReadying] = useState(false);
   const [removing, setRemoving] = useState<{ row: Row; no: number } | null>(null);
-  const [fixing, setFixing] = useState<{ id: number; nameHindi: string; no: number } | null>(null);
+  const [fixing, setFixing] = useState<{ row: Row; id: number; no: number } | null>(null);
   const [history, setHistory] = useState<{ candidateId?: number; title: string } | null>(null);
   const role = useRole();
   const { ward, parties } = data;
@@ -196,7 +197,7 @@ function WardForm({
           ✓{' '}
           {ward.status === 'LOCKED'
             ? canFixName
-              ? 'यह सूची लॉक है। अब केवल उम्मीदवार का नाम सुधारा जा सकता है ("नाम सुधारें")।'
+              ? 'यह सूची लॉक है। अब केवल उम्मीदवार का विवरण सुधारा जा सकता है ("विवरण सुधारें") — मतपत्र क्रम और सूची नहीं।'
               : 'यह सूची लॉक है। अब इसे बदला नहीं जा सकता।'
             : 'मतगणना शुरू हो चुकी है।'}
         </p>
@@ -208,10 +209,10 @@ function WardForm({
             type="button"
             className="btn btn-secondary"
             onClick={() => {
-              setHistory({ title: `${ward.label} — नाम सुधार इतिहास` });
+              setHistory({ title: `${ward.label} — विवरण सुधार इतिहास` });
             }}
           >
-            नाम सुधार इतिहास देखें
+            विवरण सुधार इतिहास देखें
           </button>
         </p>
       )}
@@ -281,7 +282,7 @@ function WardForm({
                         onOpen={() => {
                           setHistory({
                             candidateId,
-                            title: `बैलेट नंबर ${String(no)} — नाम सुधार इतिहास`,
+                            title: `बैलेट नंबर ${String(no)} — विवरण सुधार इतिहास`,
                           });
                         }}
                       />
@@ -342,13 +343,13 @@ function WardForm({
                     <button
                       type="button"
                       className="cw-fix"
-                      aria-label={`नाम सुधारें — पंक्ति ${String(no)}`}
+                      aria-label={`विवरण सुधारें — पंक्ति ${String(no)}`}
                       onClick={() => {
                         setDone(null);
-                        setFixing({ id: candidateId, nameHindi: r.nameHindi, no });
+                        setFixing({ row: r, id: candidateId, no });
                       }}
                     >
-                      नाम सुधारें
+                      विवरण सुधारें
                     </button>
                   )}
                 </div>
@@ -437,15 +438,21 @@ function WardForm({
       )}
 
       {fixing && (
-        <NameCorrectionDialog
+        <CandidateCorrectionDialog
           wardId={ward.id}
-          candidate={{ id: fixing.id, nameHindi: fixing.nameHindi, ballotNo: fixing.no }}
+          candidate={{ ...fixing.row, ballotPosition: fixing.no, id: fixing.id, ballotNo: fixing.no }}
+          parties={parties}
+          countingStarted={ward.hasEntries}
           onCancel={() => {
             setFixing(null);
           }}
           onSaved={(result) => {
             setFixing(null);
-            setDone(`नाम बदल दिया गया: ${result.oldName} → ${result.nameHindi}`);
+            setDone(
+              `विवरण सुधार दिया गया: ${result.changes
+                .map((c) => `${c.label} — ${c.oldValue ?? '—'} → ${c.newValue ?? '—'}`)
+                .join(', ')}`,
+            );
             reload();
           }}
         />

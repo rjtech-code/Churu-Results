@@ -10,8 +10,8 @@ import '../../styles/admin.css';
 import '../../styles/candidates.css';
 
 /**
- * DM "नाम सुधार इतिहास": every candidate name corrected after the ballot lock (by the PS / ZP ROs),
- * newest first, with a CSV download. Read only: the DM never changes a name.
+ * DM "विवरण सुधार इतिहास": every candidate detail corrected after the ballot lock (by the PS / ZP
+ * ROs), newest first, with the field name and a CSV download. Read only: the DM never corrects.
  */
 export function NameChangesPage() {
   const { data, error } = useApiData(
@@ -38,8 +38,8 @@ export function NameChangesPage() {
         <Link to="/admin/candidates">← उम्मीदवार सूची</Link>
       </p>
       <PageIntro
-        title="नाम सुधार इतिहास"
-        hint="सूची लॉक होने के बाद RO द्वारा सुधारे गए उम्मीदवारों के नाम: पुराना नाम, नया नाम, कारण, किसने और कब।"
+        title="विवरण सुधार इतिहास"
+        hint="सूची लॉक होने के बाद RO द्वारा सुधारा गया उम्मीदवार विवरण: क्या बदला, पुराना मान, नया मान, कारण, किसने और कब।"
       />
       <p>
         <button

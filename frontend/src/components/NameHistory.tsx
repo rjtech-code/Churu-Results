@@ -7,16 +7,16 @@ import { useApiData } from './useApiData';
 
 const ROLE_TEXT: Record<NameChange['changedByRole'], string> = { PS_RO: 'PS RO', ZP_RO: 'ZP RO' };
 
-/** The small "नाम बदला गया" marker next to a corrected name; opens the history. */
+/** The small "विवरण बदला गया" marker next to a corrected candidate; opens the history. */
 export function NameChangedMark({ onOpen }: { onOpen: () => void }) {
   return (
-    <button type="button" className="name-mark" title="इस नाम का सुधार इतिहास देखें" onClick={onOpen}>
-      ⓘ नाम बदला गया
+    <button type="button" className="name-mark" title="इस उम्मीदवार का सुधार इतिहास देखें" onClick={onOpen}>
+      ⓘ विवरण बदला गया
     </button>
   );
 }
 
-/** Old -> new, reason, who and when. Newest first (as the server sends it). */
+/** Which field, old -> new, reason, who and when. Newest first (as the server sends it). */
 export function NameHistoryList({
   changes,
   showWard = false,
@@ -24,7 +24,7 @@ export function NameHistoryList({
   changes: readonly NameChange[];
   showWard?: boolean;
 }) {
-  if (changes.length === 0) return <p className="muted">अभी तक किसी नाम में सुधार नहीं हुआ है।</p>;
+  if (changes.length === 0) return <p className="muted">अभी तक किसी विवरण में सुधार नहीं हुआ है।</p>;
   return (
     <ol className="name-history" data-testid="name-history">
       {changes.map((c) => (
@@ -32,8 +32,9 @@ export function NameHistoryList({
           <p className="name-history-names">
             {showWard && <span className="cw-chip">{c.wardLabel}</span>}
             <span className="muted">बैलेट नंबर {c.ballotPosition}:</span>{' '}
-            <span className="name-old">{c.oldName}</span> <span aria-label="से">→</span>{' '}
-            <strong className="name-new">{c.newName}</strong>
+            <span className="cw-chip name-field">{c.fieldLabel}</span>{' '}
+            <span className="name-old">{c.oldValue ?? '—'}</span> <span aria-label="से">→</span>{' '}
+            <strong className="name-new">{c.newValue ?? '—'}</strong>
           </p>
           <p className="name-history-reason">कारण: {c.reason}</p>
           <p className="muted">
@@ -46,7 +47,7 @@ export function NameHistoryList({
 }
 
 /**
- * One ward's name history in a dialog (optionally one candidate only). `source` is the endpoint the
+ * One ward's correction history in a dialog (optionally one candidate only). `source` is the endpoint the
  * role may read: /api/candidates/... for the ward's RO, /api/admin/... for the DM.
  */
 export function NameHistoryDialog({

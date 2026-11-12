@@ -304,7 +304,7 @@ export interface RoWardDetail {
     unopposed: boolean;
     hasEntries: boolean;
     editable: boolean;
-    /** Locked ward: only "नाम सुधारें" is possible (by this RO). */
+    /** Locked ward: only "विवरण सुधारें" is possible (by this RO). */
     nameCorrectable: boolean;
     returnReason: string | null;
     reservationCategory: string | null;
@@ -321,7 +321,22 @@ export const LIST_STATUS_HINDI: Record<ListStatus, string> = {
 
 export const GENDER_HINDI: Record<Gender, string> = { M: 'पुरुष', F: 'महिला', O: 'अन्य' };
 
-/** One recorded name correction (after the ballot lock); append-only on the server. */
+/** Which candidate detail a correction changed (the server's field list). */
+export const CORRECTABLE_FIELDS = [
+  'NAME',
+  'PARTY',
+  'GENDER',
+  'CANDIDATE_CATEGORY',
+  'DOB',
+  'AGE_STATED',
+  'EDUCATION',
+  'MOBILE',
+  'ADDRESS',
+  'OCCUPATION',
+] as const;
+export type CorrectableField = (typeof CORRECTABLE_FIELDS)[number];
+
+/** One recorded correction (after the ballot lock); append-only on the server. */
 export interface NameChange {
   id: number;
   wardId: number;
@@ -330,6 +345,12 @@ export interface NameChange {
   wardNo: number;
   candidateId: number;
   ballotPosition: number;
+  /** Which detail changed ('NAME' for rows written before the Nov 2026 migration). */
+  field: CorrectableField;
+  fieldLabel: string;
+  oldValue: string | null;
+  newValue: string | null;
+  /** Name rows only (kept for the older readers). */
   oldName: string;
   newName: string;
   reason: string;
@@ -346,6 +367,8 @@ export interface NameCorrected {
   candidateId: number;
   oldName: string;
   nameHindi: string;
+  /** One entry per corrected field, as the server recorded it. */
+  changes: { field: CorrectableField; label: string; oldValue: string | null; newValue: string | null }[];
   changedAt: string;
 }
 

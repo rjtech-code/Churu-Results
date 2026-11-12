@@ -1,6 +1,8 @@
-// "नाम सुधारें": after the ballot lock the ward's own RO may correct a candidate's NAME only (reason +
-// own password + a "पुराना → नया" confirmation). The button is never shown before the lock, nor to
-// any other role; the DM sees the "नाम बदला गया" marker and the history.
+// "विवरण सुधारें": after the ballot lock the ward's own RO may correct every candidate DETAIL (name,
+// party, gender, category, dob/age, education, mobile, address, occupation) with a reason, its own
+// password and a confirmation that lists only what changed. The ballot order, adding / removing a
+// candidate and NOTA are not offered at all. The button is never shown before the lock, nor to any
+// other role; the DM sees the "विवरण बदला गया" marker and the history with the field name.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
@@ -8,7 +10,12 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NameChange, RoWardDetail } from '../api/adminTypes';
 import { ApiError } from '../api/api';
 import { messageFor } from '../api/errors';
-import { nameFormProblem, normalizeName } from '../components/NameCorrectionDialog';
+import {
+  changedFields,
+  nameFormProblem,
+  normalizeName,
+  valueText,
+} from '../components/NameCorrectionDialog';
 import { NameChangesPage } from '../pages/admin/NameChangesPage';
 import { RoCandidateWardPage } from '../pages/candidates/RoCandidateWardPage';
 
@@ -66,7 +73,10 @@ function ward(locked: boolean, renamed = false): RoWardDetail {
         ...DETAILS,
       },
     ],
-    parties: [],
+    parties: [
+      { id: 1, shortName: 'BJP', nameHindi: 'भारतीय जनता पार्टी' },
+      { id: 2, shortName: 'INC', nameHindi: 'भारतीय राष्ट्रीय कांग्रेस' },
+    ],
   };
 }
 
@@ -78,6 +88,10 @@ const CHANGE: NameChange = {
   wardNo: 3,
   candidateId: 51,
   ballotPosition: 1,
+  field: 'NAME',
+  fieldLabel: 'नाम',
+  oldValue: 'रमेश कुमर',
+  newValue: 'रमेश कुमार',
   oldName: 'रमेश कुमर',
   newName: 'रमेश कुमार',
   reason: 'नामांकन पत्र के अनुसार वर्तनी ठीक की',
@@ -139,34 +153,48 @@ describe('form rules (same as the server)', () => {
       'NAME_UNCHANGED',
       'NAME_CHANGED_MEANWHILE',
       'BALLOT_NOT_LOCKED',
+      'FIELD_FROZEN',
+      'GENDER_INVALID',
+      'CANDIDATE_CATEGORY_INVALID',
+      'DOB_INVALID',
+      'AGE_INVALID',
+      'EDUCATION_INVALID',
+      'MOBILE_INVALID',
+      'ADDRESS_TOO_LONG',
+      'OCCUPATION_TOO_LONG',
+      'PARTY_UNKNOWN',
+      'PARTY_TAKEN',
+      'PARTY_CONFIRM_REQUIRED',
+      'NO_CHANGE',
     ]) {
       expect(messageFor(new ApiError(409, code, {}))).not.toContain('कुछ गड़बड़');
     }
     expect(messageFor(new ApiError(409, 'NAME_CHANGED_MEANWHILE', { currentName: 'नया' }))).toContain('नया');
+    expect(messageFor(new ApiError(400, 'FIELD_FROZEN', { field: 'मतपत्र क्रम' }))).toContain('मतपत्र क्रम');
   });
 });
 
 describe('visibility', () => {
-  it('before the lock: no "नाम सुधारें" button (the normal list edit stays)', async () => {
+  it('before the lock: no "विवरण सुधारें" button (the normal list edit stays)', async () => {
     apiMock.mockResolvedValueOnce(ward(false));
     renderRoPage();
     expect(await screen.findByRole('button', { name: '+ उम्मीदवार जोड़ें' })).toBeTruthy();
     expect(disabled(screen.getByLabelText('पंक्ति 1 नाम'))).toBe(false);
-    expect(screen.queryByRole('button', { name: /नाम सुधारें/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /विवरण सुधारें/ })).toBeNull();
   });
 
   it('after the lock: one button per candidate, every other field disabled', async () => {
     apiMock.mockResolvedValueOnce(ward(true));
     renderRoPage();
-    expect(await screen.findByRole('button', { name: 'नाम सुधारें — पंक्ति 1' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'नाम सुधारें — पंक्ति 2' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'विवरण सुधारें — पंक्ति 1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'विवरण सुधारें — पंक्ति 2' })).toBeTruthy();
     expect(disabled(screen.getByLabelText('पंक्ति 1 नाम'))).toBe(true);
     expect(disabled(screen.getByLabelText('पंक्ति 1 पार्टी'))).toBe(true);
     expect(screen.queryByRole('button', { name: /हटाएँ/ })).toBeNull();
     expect(screen.queryByRole('button', { name: '+ उम्मीदवार जोड़ें' })).toBeNull();
   });
 
-  it('a role that may not correct names never sees the button', async () => {
+  it('a role that may not correct details never sees the button', async () => {
     for (const role of ['DM', 'SUPER_ADMIN']) {
       auth.role = role;
       apiMock.mockResolvedValueOnce(ward(true));
@@ -178,21 +206,22 @@ describe('visibility', () => {
         />,
       );
       expect(await screen.findByText(/यह सूची लॉक है/)).toBeTruthy();
-      expect(screen.queryByRole('button', { name: /नाम सुधारें/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /विवरण सुधारें/ })).toBeNull();
       unmount();
     }
   });
 
-  it('a corrected name shows the "नाम बदला गया" marker, which opens the history', async () => {
+  it('a corrected candidate shows the "विवरण बदला गया" marker, which opens the history', async () => {
     apiMock.mockResolvedValueOnce(ward(true, true));
     renderRoPage();
-    const mark = await screen.findByRole('button', { name: /नाम बदला गया/ });
+    const mark = await screen.findByRole('button', { name: /विवरण बदला गया/ });
     apiMock.mockResolvedValueOnce({ changes: [CHANGE] });
     await userEvent.click(mark);
     const list = await screen.findByTestId('name-history');
     expect(within(list).getByText('रमेश कुमर')).toBeTruthy();
     expect(within(list).getByText('रमेश कुमार')).toBeTruthy();
     expect(within(list).getByText(/वर्तनी ठीक की/)).toBeTruthy();
+    expect(within(list).getByText('नाम')).toBeTruthy(); // which field changed
     expect(apiMock).toHaveBeenLastCalledWith('GET', '/api/candidates/wards/7/name-changes');
   });
 });
@@ -201,27 +230,37 @@ describe('the dialog', () => {
   async function openDialog() {
     apiMock.mockResolvedValueOnce(ward(true));
     renderRoPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'नाम सुधारें — पंक्ति 1' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'विवरण सुधारें — पंक्ति 1' }));
     return screen.getByRole('alertdialog');
   }
   async function fill(d: HTMLElement, name: string, reason: string, password: string) {
-    if (name !== '') await userEvent.type(within(d).getByLabelText('नया नाम (हिंदी)'), name);
+    if (name !== '') {
+      const field = within(d).getByLabelText('नाम (हिंदी)');
+      await userEvent.clear(field);
+      await userEvent.type(field, name);
+    }
     if (reason !== '') await userEvent.type(within(d).getByLabelText(/कारण \(अनिवार्य/), reason);
     if (password !== '') await userEvent.type(within(d).getByLabelText(/RO Password/), password);
   }
 
-  it('shows the current name read only; refuses an incomplete form without calling the server', async () => {
+  it('pre-fills every editable detail, offers no frozen one, and refuses an incomplete form', async () => {
     const d = await openDialog();
-    const current = within(d).getByLabelText('अभी का नाम');
-    expect(value(current)).toBe('रमेश कुमर');
-    expect(current.hasAttribute('readonly')).toBe(true);
+    expect(value(within(d).getByLabelText('नाम (हिंदी)'))).toBe('रमेश कुमर');
+    expect(value(within(d).getByLabelText('पार्टी'))).toBe(''); // निर्दलीय
+    expect(value(within(d).getByLabelText('लिंग'))).toBe('M');
+    expect(within(d).getByLabelText('उम्मीदवार मोबाइल')).toBeTruthy();
+    expect(within(d).getByLabelText('उम्मीदवार Category')).toBeTruthy();
+    // frozen: no ballot order, no add / remove, no NOTA anywhere in the dialog
+    expect(within(d).queryByLabelText(/मतपत्र क्रम|बैलेट क्रम/)).toBeNull();
+    expect(within(d).queryByRole('button', { name: /जोड़ें|हटाएँ|नोटा/ })).toBeNull();
+    expect(d.textContent).toContain('मतपत्र क्रम नहीं बदलेगा');
     await fill(d, 'रमेश कुमार', 'छोटा', 'pass');
     await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
     expect(within(d).getByRole('alert').textContent).toContain('कम से कम 10');
     expect(apiMock).toHaveBeenCalledTimes(1); // only the page load
   });
 
-  it('confirm step "पुराना → नया", then saves exactly name + reason + password and shows the result', async () => {
+  it('confirm step "पुराना → नया", then saves only the name + reason + password', async () => {
     const d = await openDialog();
     await fill(d, '  रमेश   कुमार ', 'नामांकन पत्र के अनुसार वर्तनी ठीक की', 'Secret-RO-1');
     await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
@@ -233,21 +272,23 @@ describe('the dialog', () => {
       candidateId: 51,
       oldName: 'रमेश कुमर',
       nameHindi: 'रमेश कुमार',
+      changes: [{ field: 'NAME', label: 'नाम', oldValue: 'रमेश कुमर', newValue: 'रमेश कुमार' }],
       changedAt: '2026-11-20T05:30:00.000Z',
     });
     const after = ward(true, true);
     const first = after.candidates[0];
     if (first) first.nameHindi = 'रमेश कुमार';
     apiMock.mockResolvedValueOnce(after);
-    await userEvent.click(within(confirm).getByRole('button', { name: 'नाम बदलें' }));
+    await userEvent.click(within(confirm).getByRole('button', { name: 'विवरण बदलें' }));
 
-    expect(apiMock).toHaveBeenCalledWith('POST', '/api/candidates/wards/7/candidates/51/name', {
+    // only the field that changed is sent (every other detail is left out = unchanged)
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/candidates/wards/7/candidates/51/details', {
       currentName: 'रमेश कुमर',
       newName: 'रमेश कुमार',
       reason: 'नामांकन पत्र के अनुसार वर्तनी ठीक की',
       password: 'Secret-RO-1',
     });
-    expect(await screen.findByText(/नाम बदल दिया गया: रमेश कुमर → रमेश कुमार/)).toBeTruthy();
+    expect(await screen.findByText(/विवरण सुधार दिया गया: नाम — रमेश कुमर → रमेश कुमार/)).toBeTruthy();
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(value(await screen.findByLabelText('पंक्ति 1 नाम'))).toBe('रमेश कुमार');
   });
@@ -257,7 +298,7 @@ describe('the dialog', () => {
     await fill(d, 'रमेश कुमार', 'नामांकन पत्र के अनुसार वर्तनी', 'pw');
     await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'वापस' }));
-    expect(value(screen.getByLabelText('नया नाम (हिंदी)'))).toBe('रमेश कुमार');
+    expect(value(within(d).getByLabelText('नाम (हिंदी)'))).toBe('रमेश कुमार');
   });
 
   it('a wrong password: clear message, back to the form, password emptied', async () => {
@@ -265,10 +306,10 @@ describe('the dialog', () => {
     await fill(d, 'रमेश कुमार', 'नामांकन पत्र के अनुसार वर्तनी', 'wrong');
     await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
     apiMock.mockRejectedValueOnce(new ApiError(401, 'REAUTH_FAILED', {}));
-    await userEvent.click(await screen.findByRole('button', { name: 'नाम बदलें' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'विवरण बदलें' }));
     expect(await screen.findByText(/Incorrect password/)).toBeTruthy();
-    expect(value(screen.getByLabelText(/RO Password/))).toBe('');
-    expect(value(screen.getByLabelText('नया नाम (हिंदी)'))).toBe('रमेश कुमार');
+    expect(value(within(d).getByLabelText(/RO Password/))).toBe('');
+    expect(value(within(d).getByLabelText('नाम (हिंदी)'))).toBe('रमेश कुमार');
   });
 
   it('"रुकें" closes without saving', async () => {
@@ -279,8 +320,127 @@ describe('the dialog', () => {
   });
 });
 
+describe('every editable field, and the frozen ones', () => {
+  const FORM = {
+    nameHindi: 'रमेश कुमर',
+    partyId: null as number | null,
+    gender: 'M' as const,
+    dob: null,
+    ageStated: null,
+    education: null,
+    mobile: null,
+    candidateCategory: null,
+    address: null,
+    occupation: null,
+  };
+  const PARTIES = [{ id: 1, shortName: 'BJP', nameHindi: 'भारतीय जनता पार्टी' }];
+
+  it('changedFields finds each field on its own and nothing when the value is the same', () => {
+    expect(changedFields(FORM, FORM)).toEqual([]);
+    expect(changedFields(FORM, { ...FORM, nameHindi: ' रमेश  कुमर ' })).toEqual([]); // normalized
+    expect(changedFields(FORM, { ...FORM, nameHindi: 'रमेश कुमार' })).toEqual(['NAME']);
+    expect(changedFields(FORM, { ...FORM, partyId: 1 })).toEqual(['PARTY']);
+    expect(changedFields(FORM, { ...FORM, gender: 'F' })).toEqual(['GENDER']);
+    expect(changedFields(FORM, { ...FORM, candidateCategory: 'OBC' })).toEqual(['CANDIDATE_CATEGORY']);
+    expect(changedFields(FORM, { ...FORM, dob: '1980-05-15' })).toEqual(['DOB']);
+    expect(changedFields(FORM, { ...FORM, ageStated: 45 })).toEqual(['AGE_STATED']);
+    expect(changedFields(FORM, { ...FORM, education: 'GRADUATE' })).toEqual(['EDUCATION']);
+    expect(changedFields(FORM, { ...FORM, mobile: '9876543210' })).toEqual(['MOBILE']);
+    expect(changedFields(FORM, { ...FORM, address: 'वार्ड 4, चूरू' })).toEqual(['ADDRESS']);
+    expect(changedFields(FORM, { ...FORM, occupation: 'कृषि' })).toEqual(['OCCUPATION']);
+    expect(changedFields(FORM, { ...FORM, gender: 'F', mobile: '9876543210' })).toEqual([
+      'GENDER',
+      'MOBILE',
+    ]);
+  });
+
+  it('valueText names the party and the empty values', () => {
+    expect(valueText('PARTY', FORM, PARTIES)).toBe('निर्दलीय');
+    expect(valueText('PARTY', { ...FORM, partyId: 1 }, PARTIES)).toBe('BJP');
+    expect(valueText('GENDER', { ...FORM, gender: 'F' }, PARTIES)).toBe('महिला');
+    expect(valueText('MOBILE', FORM, PARTIES)).toBe('—');
+  });
+
+  it('two fields at once: the confirm step lists ONLY what changed and the body carries only those', async () => {
+    apiMock.mockResolvedValueOnce(ward(true));
+    renderRoPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'विवरण सुधारें — पंक्ति 1' }));
+    const d = screen.getByRole('alertdialog');
+    await userEvent.selectOptions(within(d).getByLabelText('लिंग'), 'F');
+    await userEvent.type(within(d).getByLabelText('उम्मीदवार मोबाइल'), '9876543210');
+    await userEvent.type(within(d).getByLabelText(/कारण \(अनिवार्य/), 'नामांकन पत्र के अनुसार ठीक किया');
+    await userEvent.type(within(d).getByLabelText(/RO Password/), 'Secret-RO-1');
+    await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
+
+    const list = await screen.findByTestId('change-list');
+    const labels = [...list.querySelectorAll('dt')].map((dt) => dt.textContent);
+    expect(labels).toEqual(['लिंग', 'मोबाइल', 'कारण']); // only what changed
+
+    apiMock.mockResolvedValueOnce({
+      candidateId: 51,
+      oldName: 'रमेश कुमर',
+      nameHindi: 'रमेश कुमर',
+      changes: [
+        { field: 'GENDER', label: 'लिंग', oldValue: 'पुरुष', newValue: 'महिला' },
+        { field: 'MOBILE', label: 'मोबाइल', oldValue: null, newValue: '9876543210' },
+      ],
+      changedAt: '2026-11-20T05:30:00.000Z',
+    });
+    apiMock.mockResolvedValueOnce(ward(true, true));
+    await userEvent.click(screen.getByRole('button', { name: 'विवरण बदलें' }));
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/candidates/wards/7/candidates/51/details', {
+      currentName: 'रमेश कुमर',
+      reason: 'नामांकन पत्र के अनुसार ठीक किया',
+      password: 'Secret-RO-1',
+      gender: 'F',
+      mobile: '9876543210',
+    });
+  });
+
+  it('party change: extra confirmation, a counting warning, and confirmPartyChange in the body', async () => {
+    const w = ward(true);
+    w.ward.hasEntries = true; // counting of this ward has started
+    apiMock.mockResolvedValueOnce(w);
+    renderRoPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'विवरण सुधारें — पंक्ति 1' }));
+    const d = screen.getByRole('alertdialog');
+    await userEvent.selectOptions(within(d).getByLabelText('पार्टी'), '1');
+    expect(within(d).getByTestId('party-warn').textContent).toContain('मतगणना शुरू हो चुकी है');
+    await userEvent.type(within(d).getByLabelText(/कारण \(अनिवार्य/), 'पार्टी का प्रमाण पत्र मिला');
+    await userEvent.type(within(d).getByLabelText(/RO Password/), 'Secret-RO-1');
+    await userEvent.click(within(d).getByRole('button', { name: /आगे/ }));
+
+    const box = await screen.findByTestId('party-confirm');
+    expect(box.textContent).toContain('निर्दलीय');
+    expect(box.textContent).toContain('BJP');
+    expect(box.textContent).toContain('मतगणना शुरू हो चुकी है');
+    // saving without ticking the party box: refused here, the server is never called
+    await userEvent.click(screen.getByRole('button', { name: 'विवरण बदलें' }));
+    expect(screen.getByRole('alert').textContent).toContain('पार्टी बदलने की पुष्टि करें');
+    expect(apiMock).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(within(box).getByRole('checkbox'));
+    apiMock.mockResolvedValueOnce({
+      candidateId: 51,
+      oldName: 'रमेश कुमर',
+      nameHindi: 'रमेश कुमर',
+      changes: [{ field: 'PARTY', label: 'पार्टी', oldValue: 'निर्दलीय', newValue: 'BJP' }],
+      changedAt: '2026-11-20T05:30:00.000Z',
+    });
+    apiMock.mockResolvedValueOnce(ward(true, true));
+    await userEvent.click(screen.getByRole('button', { name: 'विवरण बदलें' }));
+    expect(apiMock).toHaveBeenCalledWith('POST', '/api/candidates/wards/7/candidates/51/details', {
+      currentName: 'रमेश कुमर',
+      reason: 'पार्टी का प्रमाण पत्र मिला',
+      password: 'Secret-RO-1',
+      partyId: 1,
+      confirmPartyChange: true,
+    });
+  });
+});
+
 describe('DM history page', () => {
-  it('lists old -> new, reason, who, when with the ward; CSV button', async () => {
+  it('lists the field, old -> new, reason, who, when with the ward; CSV button', async () => {
     auth.role = 'DM';
     apiMock.mockResolvedValueOnce({ changes: [CHANGE] });
     render(
@@ -293,6 +453,7 @@ describe('DM history page', () => {
     const list = await screen.findByTestId('name-history');
     expect(within(list).getByText('रतनगढ़ पंचायत समिति वार्ड 3')).toBeTruthy();
     expect(within(list).getByText(/RO Ratangarh \(PS RO\)/)).toBeTruthy();
+    expect(within(list).getByText('नाम')).toBeTruthy();
     expect(apiMock).toHaveBeenCalledWith('GET', '/api/admin/candidate-name-changes');
     expect(disabled(screen.getByRole('button', { name: 'CSV डाउनलोड करें' }))).toBe(false);
   });

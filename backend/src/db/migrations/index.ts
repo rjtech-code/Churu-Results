@@ -26,6 +26,7 @@ import * as removeRoundNo from './20261023000001_remove_round_no.js';
 import * as candidateNameChange from './20261024000001_candidate_name_change.js';
 import * as screenAccessKeys from './20261025000001_screen_access_keys.js';
 import * as observerRole from './20261026000001_observer_role.js';
+import * as candidateDetailChange from './20261027000001_candidate_detail_change.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -57,6 +58,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261024000001_candidate_name_change', candidateNameChange],
   ['20261025000001_screen_access_keys', screenAccessKeys],
   ['20261026000001_observer_role', observerRole],
+  ['20261027000001_candidate_detail_change', candidateDetailChange],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {

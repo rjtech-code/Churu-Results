@@ -98,9 +98,9 @@ function WardView({
           {data.ward.unopposed && <p className="msg msg-ok">✓ निर्विरोध (एक ही उम्मीदवार)</p>}
           {data.candidates.length === 0 && <p>इस वार्ड में अभी कोई उम्मीदवार नहीं है।</p>}
           {historyOf && (
-            <section aria-label="नाम सुधार इतिहास" data-testid="dm-name-history">
+            <section aria-label="विवरण सुधार इतिहास" data-testid="dm-name-history">
               <h3>
-                बैलेट नंबर {historyOf.position} — नाम सुधार इतिहास{' '}
+                बैलेट नंबर {historyOf.position} — विवरण सुधार इतिहास{' '}
                 <button
                   type="button"
                   className="btn btn-secondary"

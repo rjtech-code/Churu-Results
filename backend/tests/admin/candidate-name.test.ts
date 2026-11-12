@@ -205,21 +205,31 @@ describe('ballot lock', () => {
     expect(await masterSnapshot(pool)).toBe(before);
   });
 
-  it('the body may carry nothing but the name: extra fields are refused (strict)', async () => {
+  // Since "विवरण सुधारें" (Nov 2026) the body may also carry the other details; the ballot order,
+  // add / remove and NOTA stay frozen and are refused by name (candidate-details.test.ts covers the
+  // fields that ARE allowed).
+  it('frozen keys (ballot order, add / remove, NOTA) and unknown keys are refused', async () => {
     const ro = await apiClient(app, 'ro_ps1_x1');
     for (const extra of [
-      { partyId: w.p1 },
-      { gender: 'F' },
       { ballotPosition: 2 },
+      { position: 2 },
+      { order: 2 },
       { isNota: 1 },
+      { nota: true },
+      { candidates: [] },
+      { remove: true },
+      { symbol: 'कमल' },
     ]) {
       const res = await ro.post(path(w.psW1, w.c.A), body('ए', 'ए दो', extra));
       expect(res.status).toBe(400);
+      expect((res.body as { error?: string }).error).toBe('FIELD_FROZEN');
     }
+    // An unknown key is still refused (strict body).
+    expect((await ro.post(path(w.psW1, w.c.A), body('ए', 'ए दो', { oops: 1 }))).status).toBe(400);
     expect(await nameOf(w.c.A)).toBe('ए');
   });
 
-  it('only name_hindi changes: party, gender, position, details, NOTA and ward stay identical', async () => {
+  it('a name-only correction changes only name_hindi: party, gender, position, details, NOTA and ward stay identical', async () => {
     await pool.execute(
       "UPDATE candidate SET party_id = ?, education = 'SECONDARY', mobile = '9876543210' WHERE id = ?",
       [w.p1, w.c.A],

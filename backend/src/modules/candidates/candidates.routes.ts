@@ -1,8 +1,9 @@
 // /api/candidates — the RO's candidate lists (Part 13). PS_RO: PS wards of its own PS; ZP_RO: ZP
 // wards (checked per ward on the server). The DM gets 403 here; the DM uses /api/admin.
-// After the ballot lock only "नाम सुधारें" (name-change.service.ts) can change anything, and only the name.
+// After the ballot lock only "विवरण सुधारें" (name-change.service.ts) can change anything: the
+// candidate's details, never the ballot position, the list itself or NOTA.
 import { Router } from 'express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
@@ -24,10 +25,12 @@ import {
   saveOwnWard,
 } from './candidates.service.js';
 import {
-  correctCandidateName,
+  correctCandidateDetails,
   visibleNameChanges,
   wardNameChanges,
 } from './name-change.service.js';
+import { FROZEN_FIELD_KEYS } from '../../services/candidate-fields.js';
+import { ApiError } from '../../middleware/errors.js';
 
 const candidate = z
   .object({
@@ -42,15 +45,34 @@ const candidate = z
 // The list size rule (at most 59) is checked by checkWardList, with a Hindi message.
 const listBody = z.object({ candidates: z.array(candidate).max(100) }).strict();
 const readyBody = z.object({}).strict();
-// Generous text limits here; the exact name rules (Hindi messages) are in services/candidate-name.ts.
-const nameBody = z
+// "विवरण सुधारें" (locked ward): the name the RO saw (compare-and-set) plus the fields that changed.
+// A field left out is unchanged. Generous limits here; the exact rules (with Hindi messages) are in
+// services/candidate-fields.ts and services/candidate-name.ts.
+const correctionBody = z
   .object({
     currentName: z.string().min(1).max(400),
-    newName: z.string().max(1000),
+    newName: z.string().max(1000).optional(),
+    partyId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    gender: z.string().max(5).optional(),
+    ...candidateDetailsFields,
     reason,
     password,
+    confirmPartyChange: z.boolean().optional(),
   })
   .strict();
+
+/**
+ * The ballot position, adding / removing a candidate and NOTA can never be corrected after the
+ * lock: a request that carries such a key is refused with FIELD_FROZEN naming the field, instead of
+ * a bare "unknown field".
+ */
+function refuseFrozenFields(body: unknown): void {
+  if (typeof body !== 'object' || body === null) return;
+  for (const key of Object.keys(body)) {
+    const field = FROZEN_FIELD_KEYS[key];
+    if (field !== undefined) throw new ApiError(400, 'FIELD_FROZEN', { field });
+  }
+}
 
 export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
   const router = Router();
@@ -72,14 +94,18 @@ export function candidatesRouter(pool: Pool, _config: AppConfig): Router {
     await markReady(pool, actor(req), wardId(req));
     res.json({ ok: true });
   });
-  // "नाम सुधारें" (locked ward only): password re-check + reason + compare-and-set.
-  router.post('/wards/:wardId/candidates/:candidateId/name', async (req, res) => {
+  // "विवरण सुधारें" (locked ward only): password re-check + reason + compare-and-set.
+  const correct = async (req: Request, res: Response) => {
     const id = wardId(req);
     const candidateId = parse(idParam, req.params.candidateId);
-    const body = parse(nameBody, req.body);
+    refuseFrozenFields(req.body);
+    const body = parse(correctionBody, req.body);
     noStore(res);
-    res.json(await correctCandidateName(pool, actor(req), id, candidateId, body));
-  });
+    res.json(await correctCandidateDetails(pool, actor(req), id, candidateId, body));
+  };
+  // /name is the path this has always had (name-only corrections keep working unchanged).
+  router.post('/wards/:wardId/candidates/:candidateId/name', correct);
+  router.post('/wards/:wardId/candidates/:candidateId/details', correct);
   router.get('/wards/:wardId/name-changes', async (req, res) => {
     const id = wardId(req);
     await authorizeOwnWard(pool, actor(req), id);

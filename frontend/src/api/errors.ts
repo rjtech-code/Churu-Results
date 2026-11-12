@@ -93,6 +93,21 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   NAME_UNCHANGED: 'नया नाम पुराने नाम जैसा ही है — कोई बदलाव नहीं',
   NAME_CHANGED_MEANWHILE: (d) =>
     `इस बीच नाम बदल चुका है${typeof d.currentName === 'string' ? ` (अब: ${d.currentName})` : ''} — पेज दोबारा खोलकर देखें`,
+  // "विवरण सुधारें" (all candidate details, after the ballot lock)
+  FIELD_FROZEN: (d) =>
+    `${typeof d.field === 'string' ? d.field : 'यह जानकारी'} लॉक के बाद नहीं बदल सकती — केवल उम्मीदवार का विवरण (नाम, पार्टी, लिंग, वर्ग, जन्म तिथि/उम्र, शिक्षा, मोबाइल, पता, व्यवसाय) सुधारा जा सकता है`,
+  GENDER_INVALID: 'लिंग पुरुष, महिला या अन्य में से चुनें',
+  CANDIDATE_CATEGORY_INVALID: 'वर्ग सामान्य, अनुसूचित जाति, अनुसूचित जनजाति या अन्य पिछड़ा वर्ग में से चुनें',
+  DOB_INVALID: 'जन्म तिथि ठीक नहीं है',
+  AGE_INVALID: 'उम्र ठीक नहीं है',
+  EDUCATION_INVALID: 'शिक्षा सूची में से चुनें',
+  MOBILE_INVALID: 'मोबाइल नंबर 10 अंकों का हो (शुरुआत 6-9 से)',
+  ADDRESS_TOO_LONG: 'पता 300 अक्षरों से लंबा नहीं हो सकता',
+  OCCUPATION_TOO_LONG: 'व्यवसाय 100 अक्षरों से लंबा नहीं हो सकता',
+  PARTY_UNKNOWN: 'यह पार्टी सूची में नहीं है',
+  PARTY_TAKEN: (d) =>
+    `इस वार्ड में${typeof d.party === 'string' ? ` ${d.party}` : ''} पार्टी का उम्मीदवार पहले से है`,
+  PARTY_CONFIRM_REQUIRED: 'पार्टी बदलने की पुष्टि करें',
   // Part 13: a password the DM types for an RO
   PASSWORD_TOO_SHORT: 'पासवर्ड कम से कम 10 अक्षर का हो',
   PASSWORD_TOO_LONG: 'पासवर्ड 128 अक्षरों से लंबा नहीं हो सकता',

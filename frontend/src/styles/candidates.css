@@ -396,6 +396,22 @@
 .name-mark:hover {
   background: #ffeec2;
 }
+.cw-field-changed label,
+.field.cw-field-changed > label {
+  font-weight: 700;
+}
+.cw-field-changed input,
+.cw-field-changed select,
+.cw-field-changed textarea {
+  border-color: #b45309;
+  box-shadow: 0 0 0 2px rgb(180 83 9 / 20%);
+}
+.name-field {
+  background: #f1f5f9;
+}
+.name-diff-row {
+  display: contents;
+}
 .name-diff {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -441,7 +457,23 @@
     grid-column: auto;
     justify-self: stretch;
   }
-  .name-diff {
+  .cw-field-changed label,
+.field.cw-field-changed > label {
+  font-weight: 700;
+}
+.cw-field-changed input,
+.cw-field-changed select,
+.cw-field-changed textarea {
+  border-color: #b45309;
+  box-shadow: 0 0 0 2px rgb(180 83 9 / 20%);
+}
+.name-field {
+  background: #f1f5f9;
+}
+.name-diff-row {
+  display: contents;
+}
+.name-diff {
     grid-template-columns: minmax(0, 1fr);
   }
 }
