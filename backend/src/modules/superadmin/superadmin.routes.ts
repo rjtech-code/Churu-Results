@@ -25,6 +25,7 @@ import {
   backupNow,
   checkMasterData,
   confirmDanger,
+  exportCountingData,
   overview,
   replaceMasterData,
   resetCountingData,
@@ -141,6 +142,16 @@ export function superAdminRouter(pool: Pool, config: AppConfig): Router {
     res.json(
       await busyAsConflict(() => resetCountingData(pool, config, req, actor(req), body.password)),
     );
+  });
+
+  // ---- counting-data download (read only: allowed even while the counting lock is ON)
+  router.get('/counting-data/export.zip', async (req, res) => {
+    parse(noQuery, req.query);
+    const file = await exportCountingData(pool, actor(req));
+    noStore(res);
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    res.send(file.data);
   });
 
   // ---- master-data replace (dry run first)

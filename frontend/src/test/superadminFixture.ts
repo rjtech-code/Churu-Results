@@ -47,6 +47,9 @@ export const OV: Overview = {
       wards: 274,
     },
   },
+  countingExport: {
+    rows: { boothEntries: 4120, postalEntries: 150, declarations: 9, voidedEntries: 11 },
+  },
   masterData: {
     allowed: true,
     reason: null,

@@ -7,6 +7,7 @@ import '../../styles/admin.css';
 import '../../styles/superadmin.css';
 import { BoothAddCard, BoothDeleteCard } from './BoothCards';
 import { CountingDataCard } from './CountingDataCard';
+import { CountingExportButton } from './CountingExportButton';
 import { DmCard } from './DmCard';
 import { MasterDataCard } from './MasterDataCard';
 import { StatusBar } from './StatusBar';
@@ -52,6 +53,8 @@ export function SuperAdminPage() {
               ये काम data मिटाते हैं। हर काम से पहले दिखेगा कि क्या मिटेगा, और अपने-आप backup बनेगा। Audit log
               कभी नहीं मिटता।
             </p>
+            {/* Above both resets on purpose: save the counting data first. */}
+            <CountingExportButton rows={ov.countingExport.rows} />
             <div className="sa-grid-cards">
               <CountingDataCard ov={ov} onChanged={data.reload} />
               <TestDataCard ov={ov} onChanged={data.reload} />

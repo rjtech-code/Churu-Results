@@ -223,6 +223,32 @@
   border-radius: 4px;
 }
 
+/* Counting-data download, above both resets */
+.sa-export {
+  margin: 0 0 1.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--bad);
+  border-radius: var(--sa-radius);
+  background: #fff;
+}
+.sa-export-note {
+  margin: 0 0 0.6rem;
+}
+.sa-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.4rem;
+}
+.sa-export-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* Impact summary: what goes, what stays */
 .sa-impact {
   display: grid;

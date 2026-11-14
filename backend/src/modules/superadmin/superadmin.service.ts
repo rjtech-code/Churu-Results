@@ -9,6 +9,7 @@ import type { Pool, RowDataPacket } from 'mysql2/promise';
 import type { AppConfig, SetupConfig } from '../../config/app-config.js';
 import type { DbConnectionConfig } from '../../config/db.js';
 import { ApiError } from '../../middleware/errors.js';
+import { writeAudit as writeExportAudit } from '../../services/audit.js';
 import { maskEmail } from '../../services/mailer.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { decodeXlsxUpload } from '../../services/master-data/upload.js';
@@ -20,6 +21,7 @@ import {
   isCountingLocked,
   writeCountingLock,
 } from '../../services/setup/counting-lock.js';
+import { buildCountingExport, exportRowCounts } from '../../services/setup/counting-export.js';
 import {
   countingDataImpact,
   countingDataKept,
@@ -178,6 +180,8 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
       deletes: countingData,
       keeps: countingKept,
     },
+    // The download is read only: allowed even while the counting lock is ON.
+    countingExport: { rows: await exportRowCounts(pool) },
     masterData: {
       allowed: masterReason === null,
       reason: masterReason,
@@ -284,6 +288,22 @@ export async function resetCountingData(
     backup.path,
   );
   return { ok: true, deleted, kept, backupFile: basename(backup.path) };
+}
+
+// ---------------------------------------------------------------- counting-data download
+
+/** The .zip of counting CSVs, plus one audit row. Read only; never blocks a reset. */
+export async function exportCountingData(pool: Pool, who: Actor) {
+  const file = await buildCountingExport(pool, new Date());
+  await writeExportAudit(pool, {
+    userId: who.user.id,
+    action: 'REPORT_EXPORTED',
+    entity: 'database',
+    entityId: null,
+    newValue: { section: 'counting-data-export', format: 'zip', rows: file.counts },
+    ip: who.ip,
+  });
+  return file;
 }
 
 // ---------------------------------------------------------------- master-data replace

@@ -29,6 +29,14 @@ export interface CountingDataKeeps {
   wards: number;
 }
 
+/** Data rows each CSV of the counting-data download will hold. */
+export interface ExportRowCounts {
+  boothEntries: number;
+  postalEntries: number;
+  declarations: number;
+  voidedEntries: number;
+}
+
 export interface MasterDataDeletes {
   booths: number;
   psWards: number;
@@ -52,6 +60,7 @@ export interface Overview {
   counts: MasterDataDeletes & { panchayatSamitis: number; voters: number };
   testData: Task & { deletes: TestDataDeletes };
   countingData: Task & { deletes: CountingDataDeletes; keeps: CountingDataKeeps };
+  countingExport: { rows: ExportRowCounts };
   masterData: Task & {
     deletes: MasterDataDeletes;
     defaults: { hindiNames: number; fixes: { entries: number; savedAt: string } | null };
