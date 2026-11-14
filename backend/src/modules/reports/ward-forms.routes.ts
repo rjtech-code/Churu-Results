@@ -17,6 +17,7 @@ import { boothLabel } from '../../services/booth-no.js';
 import { mapBoothPart2, mapPart2 } from '../../services/ward-forms/map-part2.js';
 import { mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
 import { renderPart2 } from '../../services/ward-forms/render-part2.js';
+import { renderPart2Xlsx } from '../../services/ward-forms/render-part2.xlsx.js';
 import { renderPrarup7 } from '../../services/ward-forms/render-prarup7.js';
 import {
   PART2_TEMPLATES,
@@ -31,6 +32,10 @@ import { readBoothScope, readBoothSheet, readFormSource, readFormWard } from './
 
 const noQuery = z.object({}).strict();
 const PDF = 'application/pdf';
+const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** The booth प्रारूप–14 is offered in both formats; same data, same words, same permissions. */
+export type BoothFormFormat = 'pdf' | 'xlsx';
 
 /** The ward id of a request this user may read: 404 unknown ward, 403 not their ward. */
 async function allowedWard(pool: Pool, req: Request): Promise<number> {
@@ -161,8 +166,12 @@ export function boothFormAllowed(
   }
 }
 
-/** GET /booths/:boothId/:ballotFor/prarup14.pdf — one booth's live entry as प्रारूप–14 भाग–II. */
-function boothDownload(pool: Pool): RequestHandler {
+/**
+ * GET /booths/:boothId/:ballotFor/prarup14.(pdf|xlsx) — one booth's live entry as प्रारूप–14 भाग–II.
+ * Both formats share this one handler, so the permissions, the data, the words and the audit row
+ * can never drift apart; only the renderer, the content type and the extension differ.
+ */
+function boothDownload(pool: Pool, format: BoothFormFormat): RequestHandler {
   return async (req, res) => {
     parse(noQuery, req.query);
     const { boothId, ballotFor } = parse(boothParams, req.params);
@@ -173,9 +182,11 @@ function boothDownload(pool: Pool): RequestHandler {
     if (!boothFormAllowed(user, scope.psId, ballotFor)) throw new ApiError(403, 'FORBIDDEN');
     const { head, sheet, wardId, entryId } = await readBoothSheet(pool, boothId, ballotFor);
     const t = PART2_TEMPLATES[head.kind];
+    const data = mapBoothPart2(head, sheet, t);
     let body: Buffer;
     try {
-      body = await renderPart2(mapBoothPart2(head, sheet, t), t);
+      // The .xlsx has no one-page limit, so only the PDF can refuse to fit.
+      body = format === 'pdf' ? await renderPart2(data, t) : await renderPart2Xlsx(data, t);
     } catch (err) {
       if (err instanceof FormDoesNotFitError) throw new ApiError(409, 'FORM_DOES_NOT_FIT');
       throw err;
@@ -183,12 +194,12 @@ function boothDownload(pool: Pool): RequestHandler {
     const label = boothLabel(sheet.boothNo, sheet.boothSuffix);
     await sendExport(pool, req, res, {
       body,
-      contentType: PDF,
-      fileName: `Prarup14_${head.kind}_${String(head.wardNo)}_Booth${label}.pdf`,
+      contentType: format === 'pdf' ? PDF : XLSX,
+      fileName: `Prarup14_${head.kind}_${String(head.wardNo)}_Booth${label}.${format}`,
       wardId,
       details: {
         section: 'booth-form-prarup14',
-        format: 'pdf',
+        format,
         ward_id: wardId,
         booth_id: boothId,
         ballot_for: ballotFor,
@@ -201,7 +212,8 @@ function boothDownload(pool: Pool): RequestHandler {
 export function wardFormsRouter(pool: Pool): Router {
   const router = Router();
   router.use(requireRole('DM', 'PS_RO', 'ZP_RO'));
-  router.get('/booths/:boothId/:ballotFor/prarup14.pdf', boothDownload(pool));
+  router.get('/booths/:boothId/:ballotFor/prarup14.pdf', boothDownload(pool, 'pdf'));
+  router.get('/booths/:boothId/:ballotFor/prarup14.xlsx', boothDownload(pool, 'xlsx'));
   router.get('/:wardId', availability(pool));
   for (const form of WARD_FORM_NAMES) router.get(`/:wardId/${form}.pdf`, download(pool, form));
   return router;
