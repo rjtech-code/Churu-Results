@@ -97,6 +97,7 @@ export function BoothAddCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
       title="Booth जोड़ें"
       icon="➕"
       testId="card-booth-add"
+      when="जब Geography file में कोई booth छूट गया हो — counting शुरू होने से पहले।"
       intro={<p>छूटा हुआ booth जोड़ें। सिर्फ़ उन्हीं wards में, जहाँ अभी counting शुरू नहीं हुई।</p>}
     >
       <PsSelect
@@ -250,6 +251,7 @@ export function BoothDeleteCard({ ov, onChanged }: { ov: Overview; onChanged: ()
       icon="🗑️"
       danger
       testId="card-booth-delete"
+      when="जब गलती से कोई booth जुड़ गया हो — एक booth, एक बार में।"
       intro={<p>गलती से जुड़ा booth हटाएँ। जिस booth के ward में counting data है, वह नहीं हटेगा।</p>}
     >
       <div className="sa-grid">

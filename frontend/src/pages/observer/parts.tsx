@@ -10,8 +10,7 @@ import type { DictKey } from './i18n';
 
 const reducedMotion = (): boolean =>
   typeof window.requestAnimationFrame !== 'function' ||
-  (typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 /** A big tabular number that counts up once on first appearance (skipped under reduced motion). */
 export function Num({ value, countUp = false }: { value: number; countUp?: boolean }) {
@@ -154,16 +153,11 @@ export function SeatBars({ rows }: { rows: SeatRow[] }) {
           </span>
           <span className="obs-seat-track" aria-hidden="true">
             <span className="obs-seat-won" style={{ width: `${String((r.won / max) * 100)}%` }} />
-            <span
-              className="obs-seat-leading"
-              style={{ width: `${String((r.leading / max) * 100)}%` }}
-            />
+            <span className="obs-seat-leading" style={{ width: `${String((r.leading / max) * 100)}%` }} />
           </span>
           <span className="obs-seat-nums">
             <span className="obs-seat-won-num">{formatNumber(r.won)}</span>
-            <span className="obs-seat-lead-num">
-              {r.leading > 0 ? `+${formatNumber(r.leading)}` : ''}
-            </span>
+            <span className="obs-seat-lead-num">{r.leading > 0 ? `+${formatNumber(r.leading)}` : ''}</span>
           </span>
         </div>
       ))}
@@ -199,15 +193,9 @@ export function Panel({
   );
 }
 
-export function Skeleton({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="obs-skeleton" aria-hidden="true">
-      {Array.from({ length: lines }, (_, i) => (
-        <div key={i} className="obs-skeleton-line" />
-      ))}
-    </div>
-  );
-}
+// The skeleton is shared with the Super Admin panel; re-exported here so observer code keeps
+// importing it from its own parts file.
+export { Skeleton } from '../../components/Skeleton';
 
 /** Calm inline note while a refresh fails; the last good data stays on screen. */
 export function StaleNote() {

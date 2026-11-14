@@ -37,6 +37,7 @@ export function DmCard({ ov, onChanged }: { ov: Overview; onChanged: () => void 
       title="DM account"
       icon="👤"
       testId="card-dm"
+      when="जब DM का password भूल जाए, account lock हो जाए, या OTP का email बदलना हो।"
       intro={
         <dl className="sa-facts">
           <div>

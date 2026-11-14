@@ -15,7 +15,7 @@ import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { decodeXlsxUpload } from '../../services/master-data/upload.js';
 import { writeAudit } from '../../services/setup/audit.js';
 import type { AuditActor } from '../../services/setup/audit.js';
-import { createBackup } from '../../services/setup/backup.js';
+import { createBackup, latestBackup } from '../../services/setup/backup.js';
 import {
   assertCountingUnlocked,
   isCountingLocked,
@@ -158,6 +158,11 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
   const [voters] = await pool.execute<RowDataPacket[]>(
     'SELECT COALESCE(SUM(registered_voters_total), 0) AS n FROM booth',
   );
+  // Shown in the panel's header strip only (read only, like the counts above it).
+  const [roAccounts] = await pool.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) AS n FROM users WHERE role IN ('PS_RO', 'ZP_RO') AND is_active = 1`,
+  );
+  const backup = config.setup === undefined ? null : await latestBackup(config.setup.backupDir);
   const nothingToClear = Object.values(testData).every((n) => n === 0);
   const noCountingData = Object.values(countingData).every((n) => n === 0);
   const blocked = (extra: string | null) =>
@@ -172,7 +177,10 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
       panchayatSamitis: ps.length,
       ...master,
       voters: Number(voters[0]?.n ?? 0),
+      roAccounts: Number(roAccounts[0]?.n ?? 0),
     },
+    /** When the newest backup file was written, or null when there is none yet. */
+    lastBackupAt: backup?.at ?? null,
     testData: { allowed: testReason === null, reason: testReason, deletes: testData },
     countingData: {
       allowed: countingReason === null,

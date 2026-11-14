@@ -41,6 +41,7 @@ import { WinnersPage } from './pages/observer/WinnersPage';
 import { ReportsPage as ObserverReportsPage } from './pages/observer/ReportsPage';
 import { SearchPage as ObserverSearchPage } from './pages/observer/SearchPage';
 import { GuidePage } from './pages/superadmin/GuidePage';
+import { RequireSetupPage, RequireSuperAdmin } from './pages/superadmin/SuperAdminLayout';
 import { SuperAdminPage } from './pages/superadmin/SuperAdminPage';
 import { WardDetailPage } from './pages/WardDetailPage';
 import { WardListPage } from './pages/WardListPage';
@@ -143,12 +144,15 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        // The Super Admin setup panel: nothing else is open to this role.
-        element: <RequireRole roles={['SUPER_ADMIN']} />,
+        // The Super Admin setup panel in its own shell (same surface as the observer dashboard):
+        // nothing else is open to this role.
+        element: <RequireSuperAdmin />,
         children: [{ path: '/superadmin', element: <SuperAdminPage /> }],
       },
       {
-        element: <RequireRole roles={['DM', 'SUPER_ADMIN']} />,
+        // The Guide belongs to both setup roles: the Super Admin shell for the Super Admin, the
+        // operator shell for the DM.
+        element: <RequireSetupPage />,
         children: [{ path: '/guide', element: <GuidePage /> }],
       },
       {

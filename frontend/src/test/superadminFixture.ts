@@ -14,7 +14,9 @@ export const OV: Overview = {
     entries: 1200,
     declaredWards: 7,
     voters: 1_200_000,
+    roAccounts: 14,
   },
+  lastBackupAt: '2026-11-14T03:40:00.000Z',
   testData: {
     allowed: true,
     reason: null,

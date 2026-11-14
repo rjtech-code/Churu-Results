@@ -103,7 +103,9 @@ export function MasterDataCard({ ov, onChanged }: { ov: Overview; onChanged: () 
       title="मास्टर डेटा बदलें (Master data)"
       icon="🗂️"
       danger
+      badge="पूरा data फिर से"
       testId="card-master-data"
+      when="जब नई Geography या Voters Excel आई हो — counting day से बहुत पहले।"
       intro={
         <p>
           कभी-कभार ही: नई Geography और Voters Excel से सारे booths, wards और voters दोबारा भरें। इससे{' '}

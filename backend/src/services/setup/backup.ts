@@ -149,3 +149,25 @@ export async function createBackup(
   await pruneOldBackups(backupDir, path);
   return { path, bytes: size, ...counts };
 }
+
+/**
+ * The newest backup file in the folder (name + its time as ISO), or null when the folder is missing
+ * or holds no backup. Read only: the Super Admin panel shows it, nothing depends on it.
+ */
+export async function latestBackup(
+  backupDir: string,
+): Promise<{ file: string; at: string } | null> {
+  let names: string[];
+  try {
+    names = await readdir(backupDir);
+  } catch {
+    return null;
+  }
+  const files = await Promise.all(
+    names
+      .filter((name) => BACKUP_FILE.test(name))
+      .map(async (name) => ({ name, mtime: (await stat(join(backupDir, name))).mtime })),
+  );
+  const newest = files.sort((a, b) => b.mtime.getTime() - a.mtime.getTime())[0];
+  return newest === undefined ? null : { file: newest.name, at: newest.mtime.toISOString() };
+}

@@ -1,6 +1,7 @@
 /* The one set of design tokens for the "soft luxury" surfaces: deep navy, warm ivory, muted gold.
-   Defined once here and imported by every stylesheet that uses them (observer.css, footer.css),
-   so the observer dashboard and the site-wide footer can never drift apart. */
+   Defined once here and imported by every stylesheet that uses them (observer.css, superadmin.css,
+   footer.css), so the observer dashboard, the Super Admin panel and the site-wide footer can never
+   drift apart. Add a token here — never a second copy in one stylesheet. */
 
 :root {
   --obs-navy: #122744;
@@ -20,6 +21,18 @@
   --obs-amber-soft: #f6eed6;
   --obs-red: #8c3a3a;
   --obs-red-soft: #f3e3e0;
-  --obs-serif: Georgia, 'Noto Serif', 'Noto Serif Devanagari', 'Times New Roman', serif;
   --obs-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+  --obs-serif: Georgia, 'Noto Serif', 'Noto Serif Devanagari', 'Times New Roman', serif;
+
+  /* Shape and elevation (the observer panels and cards, now shared with the Super Admin panel). */
+  --obs-radius: 10px;
+  --obs-radius-lg: 14px;
+  --obs-shadow-1: 0 1px 2px rgb(18 39 68 / 4%), 0 8px 24px -18px rgb(18 39 68 / 18%);
+  --obs-shadow-2: 0 10px 28px -20px rgb(12 28 51 / 60%);
+  --obs-focus: 2px solid var(--obs-gold);
+
+  /* The destructive surface: used only where data can be lost. */
+  --obs-red-deep: #6d2626;
+  --obs-red-line: #d9b6b0;
+  --obs-red-wash: #fbf1ee;
 }

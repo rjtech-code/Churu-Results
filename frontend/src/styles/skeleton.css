@@ -1,0 +1,42 @@
+@import './tokens.css';
+
+/* The one loading skeleton of the "soft luxury" surfaces, beside components/Skeleton.tsx. Imported
+   by observer.css and superadmin.css, so the observer dashboard and the Super Admin panel wait in
+   exactly the same way. */
+
+.obs-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 0;
+}
+
+.obs-skeleton-line {
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--obs-ivory-2) 25%, #ece5d4 50%, var(--obs-ivory-2) 75%);
+  background-size: 200% 100%;
+  animation: obs-shimmer 1.6s linear infinite;
+}
+
+/* Scoped to the skeleton block: the class is reused on its own for page-shaped placeholders. */
+.obs-skeleton > .obs-skeleton-line:first-child {
+  width: 40%;
+  height: 26px;
+}
+
+@keyframes obs-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .obs-skeleton-line {
+    animation: none;
+  }
+}

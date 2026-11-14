@@ -57,7 +57,14 @@ export interface Overview {
   countingLocked: boolean;
   /** Until when no password is needed (epoch ms), or null. */
   confirmedUntil: number | null;
-  counts: MasterDataDeletes & { panchayatSamitis: number; voters: number };
+  counts: MasterDataDeletes & {
+    panchayatSamitis: number;
+    voters: number;
+    /** Active PS_RO / ZP_RO logins. */
+    roAccounts: number;
+  };
+  /** When the newest backup file was written (ISO), or null when there is none yet. */
+  lastBackupAt: string | null;
   testData: Task & { deletes: TestDataDeletes };
   countingData: Task & { deletes: CountingDataDeletes; keeps: CountingDataKeeps };
   countingExport: { rows: ExportRowCounts };

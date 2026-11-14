@@ -15,6 +15,8 @@ export function TaskCard({
   title,
   icon,
   intro,
+  when,
+  badge,
   danger = false,
   children,
   testId,
@@ -22,18 +24,30 @@ export function TaskCard({
   title: string;
   icon: string;
   intro: ReactNode;
+  /** The one-line "कब इस्तेमाल करें" of this task, right under its name. */
+  when?: ReactNode;
+  /** A short word that tells two similar tasks apart at a glance (e.g. "छोटा reset"). */
+  badge?: string;
   danger?: boolean;
   children: ReactNode;
   testId?: string;
 }) {
   return (
     <section className={`sa-card${danger ? ' sa-card-danger' : ''}`} data-testid={testId}>
-      <h3 className="sa-card-title">
-        <span className="sa-card-icon" aria-hidden="true">
-          {icon}
-        </span>
-        {title}
-      </h3>
+      <div className="sa-card-head">
+        <h3 className="sa-card-title">
+          <span className="sa-card-icon" aria-hidden="true">
+            {icon}
+          </span>
+          {title}
+        </h3>
+        {badge !== undefined && <span className="sa-badge">{badge}</span>}
+      </div>
+      {when !== undefined && (
+        <p className="sa-when">
+          <strong>कब:</strong> {when}
+        </p>
+      )}
       <div className="sa-card-intro">{intro}</div>
       {children}
     </section>
@@ -83,21 +97,31 @@ export function Impact({ deletes, keeps }: { deletes: readonly ImpactRow[]; keep
   return (
     <div className="sa-impact">
       <div className="sa-impact-col sa-impact-del">
-        <h4>क्या मिटेगा</h4>
+        <h4>
+          <span className="sa-impact-mark" aria-hidden="true">
+            ✕
+          </span>
+          क्या मिटेगा
+        </h4>
         {shown.length === 0 ? (
           <p className="muted">कुछ नहीं</p>
         ) : (
           <ul>
             {shown.map(([label, n]) => (
               <li key={label}>
-                <strong>{fmt(n)}</strong> {label}
+                <strong>{fmt(n)}</strong> <span className="sa-impact-what">{label}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
       <div className="sa-impact-col sa-impact-keep">
-        <h4>क्या बचेगा</h4>
+        <h4>
+          <span className="sa-impact-mark" aria-hidden="true">
+            ✓
+          </span>
+          क्या बचेगा
+        </h4>
         <p>{keeps}</p>
         <p className="sa-audit-note">Audit log कभी नहीं मिटता।</p>
       </div>
@@ -226,6 +250,11 @@ export function ConfirmDialog({
           </div>
         ) : (
           <form onSubmit={(e) => void submit(e)}>
+            {danger && (
+              <p className="sa-dialog-flag">
+                <span aria-hidden="true">⚠ </span>यह काम data मिटाता है
+              </p>
+            )}
             <h2>{title}</h2>
             <div className="sa-dialog-summary">{summary}</div>
             {word !== undefined && (

@@ -46,25 +46,35 @@ function DeleteKeepImpact({
   return (
     <div className="sa-impact" data-testid="counting-impact">
       <div className="sa-impact-col sa-impact-del">
-        <h4>क्या मिटेगा</h4>
+        <h4>
+          <span className="sa-impact-mark" aria-hidden="true">
+            ✕
+          </span>
+          क्या मिटेगा
+        </h4>
         {shown.length === 0 ? (
           <p className="muted">कुछ नहीं</p>
         ) : (
           <ul>
             {shown.map(([label, n]) => (
               <li key={label}>
-                <strong>{fmt(n)}</strong> {label}
+                <strong>{fmt(n)}</strong> <span className="sa-impact-what">{label}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
       <div className="sa-impact-col sa-impact-keep">
-        <h4>क्या बचेगा</h4>
+        <h4>
+          <span className="sa-impact-mark" aria-hidden="true">
+            ✓
+          </span>
+          क्या बचेगा
+        </h4>
         <ul>
           {keeps.map(([label, n]) => (
             <li key={label}>
-              <strong>{fmt(n)}</strong> {label}
+              <strong>{fmt(n)}</strong> <span className="sa-impact-what">{label}</span>
             </li>
           ))}
         </ul>
@@ -85,18 +95,14 @@ export function CountingDataCard({ ov, onChanged }: { ov: Overview; onChanged: (
       title="मतगणना डेटा हटाएँ (Clear counting only)"
       icon="🔄"
       danger
+      badge="छोटा reset"
       testId="card-counting-data"
+      when="mock counting के बाद, जब वही counting दोबारा चलानी है। पूरा setup जैसा है वैसा रहेगा।"
       intro={
-        <>
-          <p className="sa-when">
-            <strong>कब:</strong> mock counting के बाद, जब वही counting दोबारा चलानी है। पूरा setup जैसा है
-            वैसा रहेगा।
-          </p>
-          <p>
-            सिर्फ़ वह data हटता है जो RO ने भरा — booth और postal entries, घोषणाएँ और void की गई entries।
-            उम्मीदवार, उनकी ballot क्रम, ward की candidate list lock और विवरण-सुधार का इतिहास नहीं हटते।
-          </p>
-        </>
+        <p>
+          सिर्फ़ वह data हटता है जो RO ने भरा — booth और postal entries, घोषणाएँ और void की गई entries।
+          उम्मीदवार, उनकी ballot क्रम, ward की candidate list lock और विवरण-सुधार का इतिहास नहीं हटते।
+        </p>
       }
     >
       <DeleteKeepImpact deletes={deletes} keeps={keeps} />
