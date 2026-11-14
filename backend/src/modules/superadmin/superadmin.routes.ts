@@ -27,6 +27,7 @@ import {
   confirmDanger,
   overview,
   replaceMasterData,
+  resetCountingData,
   resetDmPassword,
   resetTestData,
   setCountingLock,
@@ -131,6 +132,14 @@ export function superAdminRouter(pool: Pool, config: AppConfig): Router {
     const body = parse(resetBody, req.body);
     res.json(
       await busyAsConflict(() => resetTestData(pool, config, req, actor(req), body.password)),
+    );
+  });
+
+  // ---- counting-only reset (keeps candidates, ward locks and the change history)
+  router.post('/counting-data/reset', async (req, res) => {
+    const body = parse(resetBody, req.body);
+    res.json(
+      await busyAsConflict(() => resetCountingData(pool, config, req, actor(req), body.password)),
     );
   });
 

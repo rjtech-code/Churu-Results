@@ -214,6 +214,15 @@
   margin: -0.4rem 0 1rem;
 }
 
+/* "कब इस्तेमाल करें": tells the two resets apart at a glance */
+.sa-when {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 4px solid var(--bad);
+  background: #fff;
+  border-radius: 4px;
+}
+
 /* Impact summary: what goes, what stays */
 .sa-impact {
   display: grid;

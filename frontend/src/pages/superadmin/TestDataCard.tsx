@@ -30,10 +30,16 @@ export function TestDataCard({ ov, onChanged }: { ov: Overview; onChanged: () =>
       danger
       testId="card-test-data"
       intro={
-        <p>
-          Training या mock counting के बाद सब counting data हटाएँ। कोई file upload नहीं चाहिए। Declared wards
-          होने पर भी चलेगा।
-        </p>
+        <>
+          <p className="sa-when">
+            <strong>कब:</strong> जब उम्मीदवार सूची भी नई डालनी है। यह उम्मीदवार, ward की candidate list lock
+            और विवरण-सुधार का इतिहास <strong>भी</strong> मिटा देता है।
+          </p>
+          <p>
+            Training या mock counting के बाद सब counting data हटाएँ। कोई file upload नहीं चाहिए। Declared
+            wards होने पर भी चलेगा।
+          </p>
+        </>
       }
     >
       <Impact deletes={rows(task.deletes)} keeps={KEEPS} />

@@ -34,6 +34,30 @@ export const TEST_DATA_TABLES: readonly string[] = [
 ];
 
 /**
+ * Counting-only reset ("मतगणना डेटा हटाएँ"): ONLY what the ROs entered during counting. The setup
+ * survives, so a mock counting can simply be re-run: candidates, the candidate detail/name change
+ * history, every ward's candidate-list lock / ready / returned state, booths, wards, Panchayat
+ * Samitis, voters, parties, users, settings, the ZP postal assignment, screen keys and the audit log
+ * are all untouched.
+ *
+ * No `ward` column is reset, on purpose: the `ward` table records only the candidate-list lock
+ * (is_locked, locked_at, locked_by, locked_by_name), the list ready / returned state
+ * (candidates_ready_at, candidates_ready_by, candidates_return_reason) and master data
+ * (is_unopposed, reservation_category) — NOT counting progress or declaration. Progress is counted
+ * from the live booth entries (services/booth-progress.ts) and declaration lives only in
+ * ward_declarations, so emptying the tables below is enough for every ward to read
+ * "शुरू नहीं हुआ" again with its ballot still locked.
+ */
+export const COUNTING_DATA_TABLES: readonly string[] = [
+  'booth_entry',
+  'booth_entry_vote',
+  'postal_entry',
+  'postal_entry_vote',
+  'ward_declarations',
+  'voided_entry',
+];
+
+/**
  * Kept by a master-data replace: the audit log (never emptied), the 15 + 1 logins (and their
  * sessions / OTP codes), the screen keys and screen sessions, the district and the Panchayat Samiti rows the RO accounts point to (re-used
  * and renamed by the geography import), and the settings. Everything else is emptied.
@@ -120,6 +144,90 @@ export async function testDataImpact(db: Pool | Connection) {
   };
 }
 export type TestDataImpact = Awaited<ReturnType<typeof testDataImpact>>;
+
+/** What a counting-only reset deletes (shown before it runs). */
+export async function countingDataImpact(db: Pool | Connection) {
+  const [rows] = await db.execute<RowDataPacket[]>(`SELECT
+    (SELECT COUNT(*) FROM booth_entry) AS boothEntries,
+    (SELECT COUNT(*) FROM postal_entry) AS postalEntries,
+    (SELECT COUNT(DISTINCT ward_id) FROM ward_declarations) AS declaredWards,
+    (SELECT COUNT(*) FROM ward_declarations) AS declarationVersions,
+    (SELECT COUNT(*) FROM voided_entry) AS voidedEntries`);
+  const r: RowDataPacket | undefined = rows[0];
+  return {
+    boothEntries: Number(r?.boothEntries ?? 0),
+    postalEntries: Number(r?.postalEntries ?? 0),
+    declaredWards: Number(r?.declaredWards ?? 0),
+    declarationVersions: Number(r?.declarationVersions ?? 0),
+    voidedEntries: Number(r?.voidedEntries ?? 0),
+  };
+}
+export type CountingDataImpact = Awaited<ReturnType<typeof countingDataImpact>>;
+
+/** What a counting-only reset KEEPS, with real counts (shown next to the deletes). */
+export async function countingDataKept(db: Pool | Connection) {
+  const [rows] = await db.execute<RowDataPacket[]>(`SELECT
+    (SELECT COUNT(*) FROM candidate WHERE is_nota = 0) AS candidates,
+    (SELECT COUNT(*) FROM ward WHERE is_locked = 1) AS lockedWards,
+    (SELECT COUNT(*) FROM ward WHERE candidates_ready_at IS NOT NULL) AS readyWards,
+    (SELECT COUNT(*) FROM candidate_name_change) AS nameChanges,
+    (SELECT COUNT(*) FROM booth) AS booths,
+    (SELECT COUNT(*) FROM ward) AS wards`);
+  const r: RowDataPacket | undefined = rows[0];
+  return {
+    candidates: Number(r?.candidates ?? 0),
+    lockedWards: Number(r?.lockedWards ?? 0),
+    readyWards: Number(r?.readyWards ?? 0),
+    nameChanges: Number(r?.nameChanges ?? 0),
+    booths: Number(r?.booths ?? 0),
+    wards: Number(r?.wards ?? 0),
+  };
+}
+export type CountingDataKept = Awaited<ReturnType<typeof countingDataKept>>;
+
+/**
+ * Counting-only reset. The caller has checked role, confirmation and taken the backup. Deletes ONLY
+ * COUNTING_DATA_TABLES; no ward column is touched and candidates, their change history and the ward
+ * candidate-list locks stay exactly as they were. One COUNTING_DATA_RESET audit row is written in a
+ * transaction after the TRUNCATE. Running it on an already-empty system is safe (and still audited).
+ */
+export async function runCountingDataReset(
+  migrationDb: DbConnectionConfig,
+  pool: Pool,
+  actor: AuditActor,
+  backupFile: string,
+): Promise<{ deleted: CountingDataImpact; kept: CountingDataKept }> {
+  return withMigrationConnection(migrationDb, pool, async (conn) => {
+    const deleted = await countingDataImpact(conn);
+    const kept = await countingDataKept(conn);
+    await truncateTables(conn, COUNTING_DATA_TABLES);
+    await conn.beginTransaction();
+    try {
+      await writeAudit(
+        conn,
+        {
+          action: 'COUNTING_DATA_RESET',
+          entity: 'database',
+          entityId: null,
+          oldValue: deleted,
+          newValue: {
+            backup_file: backupFile,
+            emptied_tables: COUNTING_DATA_TABLES,
+            kept,
+          },
+          reason:
+            'Counting data cleared from the Super Admin panel; candidates, ward locks, the candidate change history and the audit log are kept',
+        },
+        actor,
+      );
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    }
+    return { deleted, kept };
+  });
+}
 
 /**
  * Test-data reset. The caller has checked role, confirmation and taken the backup. Ward lock / ready

@@ -10,6 +10,25 @@ export interface TestDataDeletes {
   lockedWards: number;
 }
 
+/** What the counting-only reset ("मतगणना डेटा हटाएँ") deletes. */
+export interface CountingDataDeletes {
+  boothEntries: number;
+  postalEntries: number;
+  declaredWards: number;
+  declarationVersions: number;
+  voidedEntries: number;
+}
+
+/** What the counting-only reset KEEPS, with real counts (shown beside the deletes). */
+export interface CountingDataKeeps {
+  candidates: number;
+  lockedWards: number;
+  readyWards: number;
+  nameChanges: number;
+  booths: number;
+  wards: number;
+}
+
 export interface MasterDataDeletes {
   booths: number;
   psWards: number;
@@ -32,6 +51,7 @@ export interface Overview {
   confirmedUntil: number | null;
   counts: MasterDataDeletes & { panchayatSamitis: number; voters: number };
   testData: Task & { deletes: TestDataDeletes };
+  countingData: Task & { deletes: CountingDataDeletes; keeps: CountingDataKeeps };
   masterData: Task & {
     deletes: MasterDataDeletes;
     defaults: { hindiNames: number; fixes: { entries: number; savedAt: string } | null };

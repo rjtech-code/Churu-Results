@@ -6,6 +6,7 @@ import { useApiData } from '../../components/useApiData';
 import '../../styles/admin.css';
 import '../../styles/superadmin.css';
 import { BoothAddCard, BoothDeleteCard } from './BoothCards';
+import { CountingDataCard } from './CountingDataCard';
 import { DmCard } from './DmCard';
 import { MasterDataCard } from './MasterDataCard';
 import { StatusBar } from './StatusBar';
@@ -52,7 +53,10 @@ export function SuperAdminPage() {
               कभी नहीं मिटता।
             </p>
             <div className="sa-grid-cards">
+              <CountingDataCard ov={ov} onChanged={data.reload} />
               <TestDataCard ov={ov} onChanged={data.reload} />
+            </div>
+            <div className="sa-grid-cards">
               <BoothDeleteCard ov={ov} onChanged={data.reload} />
             </div>
             <MasterDataCard ov={ov} onChanged={data.reload} />

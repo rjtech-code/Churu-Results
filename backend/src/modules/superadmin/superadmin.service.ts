@@ -20,7 +20,13 @@ import {
   isCountingLocked,
   writeCountingLock,
 } from '../../services/setup/counting-lock.js';
-import { runTestDataReset, testDataImpact } from '../../services/setup/data-reset.js';
+import {
+  countingDataImpact,
+  countingDataKept,
+  runCountingDataReset,
+  runTestDataReset,
+  testDataImpact,
+} from '../../services/setup/data-reset.js';
 import { runSetDmEmail } from '../../services/setup/dm-email.js';
 import {
   checkMasterFiles,
@@ -141,6 +147,8 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
   const locked = await isCountingLocked(pool);
   const resetReady = config.setup?.migrationDb != null;
   const testData = await testDataImpact(pool);
+  const countingData = await countingDataImpact(pool);
+  const countingKept = await countingDataKept(pool);
   const master = await masterDataImpact(pool);
   const [ps] = await pool.execute<RowDataPacket[]>(
     'SELECT id, name_english, name_hindi FROM panchayat_samiti ORDER BY name_english',
@@ -149,9 +157,11 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
     'SELECT COALESCE(SUM(registered_voters_total), 0) AS n FROM booth',
   );
   const nothingToClear = Object.values(testData).every((n) => n === 0);
+  const noCountingData = Object.values(countingData).every((n) => n === 0);
   const blocked = (extra: string | null) =>
     locked ? LOCKED_REASON : !resetReady ? NOT_CONFIGURED_REASON : extra;
   const testReason = blocked(nothingToClear ? 'साफ़ करने के लिए कोई test data नहीं है' : null);
+  const countingReason = blocked(noCountingData ? 'हटाने के लिए कोई मतगणना data नहीं है' : null);
   const masterReason = blocked(null);
   return {
     countingLocked: locked,
@@ -162,6 +172,12 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
       voters: Number(voters[0]?.n ?? 0),
     },
     testData: { allowed: testReason === null, reason: testReason, deletes: testData },
+    countingData: {
+      allowed: countingReason === null,
+      reason: countingReason,
+      deletes: countingData,
+      keeps: countingKept,
+    },
     masterData: {
       allowed: masterReason === null,
       reason: masterReason,
@@ -240,6 +256,34 @@ export async function resetTestData(
   const backup = await createBackup(pool, setup.backupDir, 'test-data', new Date());
   const deleted = await runTestDataReset(setup.migrationDb, pool, auditActor(who), backup.path);
   return { ok: true, deleted, backupFile: basename(backup.path) };
+}
+
+// ---------------------------------------------------------------- counting-only reset
+
+/**
+ * "मतगणना डेटा हटाएँ": deletes only what the ROs entered (booth / postal entries and their votes,
+ * declarations, voided entries). Candidates, the candidate change history and every ward's
+ * candidate-list lock / ready state survive, so counting can simply be re-run. Same safety as the
+ * full reset: counting lock, typed word, password (or the confirm window), backup, audit.
+ */
+export async function resetCountingData(
+  pool: Pool,
+  config: AppConfig,
+  req: Request,
+  who: Actor,
+  password: string | undefined,
+) {
+  const setup = resetSetup(config);
+  await assertCountingUnlocked(pool);
+  await confirmDanger(pool, req, who, password);
+  const backup = await createBackup(pool, setup.backupDir, 'counting-data', new Date());
+  const { deleted, kept } = await runCountingDataReset(
+    setup.migrationDb,
+    pool,
+    auditActor(who),
+    backup.path,
+  );
+  return { ok: true, deleted, kept, backupFile: basename(backup.path) };
 }
 
 // ---------------------------------------------------------------- master-data replace
