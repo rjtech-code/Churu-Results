@@ -86,6 +86,11 @@ export interface Part2Template extends PageTemplate {
   >;
   /** Fixed empty band above the officer's title for the pen signature and seal (pt; never scaled). */
   signatureSpace: number;
+  /**
+   * Fixed empty band under (ख), where the officer writes the discrepancy by hand (pt). Never scaled
+   * by the fit steps: a long ballot flows onto the second page rather than eat the writing space.
+   */
+  writingSpace: number;
   /** Where the value of a header line starts / the right-hand column starts (fractions of the width). */
   slots: { value: number; right: number };
   /** Ward number as printed ("01"). */

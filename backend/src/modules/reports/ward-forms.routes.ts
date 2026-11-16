@@ -15,7 +15,11 @@ import { REFUSAL_STATUS, formRefusal } from '../../services/ward-forms/eligibili
 import type { FormSource } from '../../services/ward-forms/form-data.js';
 import { boothLabel } from '../../services/booth-no.js';
 import { renderCheckMemoXlsx } from '../../services/ward-forms/render-check-memo.xlsx.js';
-import { mapBoothPart2, mapPart2 } from '../../services/ward-forms/map-part2.js';
+import {
+  mapBlankBoothPart2,
+  mapBoothPart2,
+  mapPart2,
+} from '../../services/ward-forms/map-part2.js';
 import { mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
 import { renderPart2 } from '../../services/ward-forms/render-part2.js';
 import { renderPart2Xlsx } from '../../services/ward-forms/render-part2.xlsx.js';
@@ -30,7 +34,13 @@ import type { WardFormName } from '../../services/ward-forms/templates/registry.
 import type { AuthUser } from '../../types/auth.js';
 import { idParam, parse } from '../admin/http.js';
 import { readCheckMemo } from './check-memo.data.js';
-import { readBoothScope, readBoothSheet, readFormSource, readFormWard } from './ward-forms.data.js';
+import {
+  readBoothBlank,
+  readBoothScope,
+  readBoothSheet,
+  readFormSource,
+  readFormWard,
+} from './ward-forms.data.js';
 
 const noQuery = z.object({}).strict();
 const PDF = 'application/pdf';
@@ -212,6 +222,51 @@ function boothDownload(pool: Pool, format: BoothFormFormat): RequestHandler {
 }
 
 /**
+ * GET /booths/:boothId/:ballotFor/prarup14-blank.(pdf|xlsx) — the SAME प्रारूप–14 भाग–II sheet with
+ * the figures left out, to print and fill in by hand at the counting table.
+ *
+ * Unlike the filled sheet it needs NO entry: blank forms are printed before counting starts, so any
+ * booth of the ward prints, entered or not. Everything else — who may print it, the words, the audit
+ * row — is the filled sheet's, so the two can never drift apart.
+ */
+function boothBlankDownload(pool: Pool, format: BoothFormFormat): RequestHandler {
+  return async (req, res) => {
+    parse(noQuery, req.query);
+    const { boothId, ballotFor } = parse(boothParams, req.params);
+    const user = req.user;
+    if (!user) throw new ApiError(401, 'UNAUTHENTICATED');
+    const scope = await readBoothScope(pool, boothId);
+    if (scope === null) throw new ApiError(404, 'NOT_FOUND');
+    if (!boothFormAllowed(user, scope.psId, ballotFor)) throw new ApiError(403, 'FORBIDDEN');
+    const { head, sheet, wardId } = await readBoothBlank(pool, boothId, ballotFor);
+    const t = PART2_TEMPLATES[head.kind];
+    const data = mapBlankBoothPart2(head, sheet, t);
+    let body: Buffer;
+    try {
+      body = format === 'pdf' ? await renderPart2(data, t) : await renderPart2Xlsx(data, t);
+    } catch (err) {
+      if (err instanceof FormDoesNotFitError) throw new ApiError(409, 'FORM_DOES_NOT_FIT');
+      throw err;
+    }
+    const label = boothLabel(sheet.boothNo, sheet.boothSuffix);
+    await sendExport(pool, req, res, {
+      body,
+      contentType: format === 'pdf' ? PDF : XLSX,
+      fileName: `Prarup14_Blank_${head.kind}_${String(head.wardNo)}_Booth${label}.${format}`,
+      wardId,
+      details: {
+        section: 'booth-form-prarup14-blank',
+        format,
+        ward_id: wardId,
+        booth_id: boothId,
+        ballot_for: ballotFor,
+        candidates: sheet.candidates.length,
+      },
+    });
+  };
+}
+
+/**
  * GET /:wardId/check-memo.xlsx — "अंतिम परिणाम हेतु चेक मीमो" of one ward.
  *
  * Unlike Part-II and Prarup-7 this one is NOT limited to declared wards: its whole purpose is to
@@ -245,6 +300,8 @@ export function wardFormsRouter(pool: Pool): Router {
   router.use(requireRole('DM', 'PS_RO', 'ZP_RO'));
   router.get('/booths/:boothId/:ballotFor/prarup14.pdf', boothDownload(pool, 'pdf'));
   router.get('/booths/:boothId/:ballotFor/prarup14.xlsx', boothDownload(pool, 'xlsx'));
+  router.get('/booths/:boothId/:ballotFor/prarup14-blank.pdf', boothBlankDownload(pool, 'pdf'));
+  router.get('/booths/:boothId/:ballotFor/prarup14-blank.xlsx', boothBlankDownload(pool, 'xlsx'));
   router.get('/:wardId', availability(pool));
   for (const form of WARD_FORM_NAMES) router.get(`/:wardId/${form}.pdf`, download(pool, form));
   router.get('/:wardId/check-memo.xlsx', checkMemoDownload(pool));

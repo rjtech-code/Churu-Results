@@ -88,6 +88,8 @@ export const PART2: Part2Template = {
     agentsTable: 14,
   },
   signatureSpace: 40,
+  // Three writing lines (18 pt each) under (ख), for the explanation the officer writes by pen.
+  writingSpace: 54,
   slots: { value: 0.33, right: 0.55 },
   wardNoDigits: 2,
   date: (iso) => iso.split('-').reverse().join('.'),

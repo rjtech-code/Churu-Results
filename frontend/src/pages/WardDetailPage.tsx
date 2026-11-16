@@ -158,14 +158,15 @@ export function WardDetailPage() {
                       </Link>
                     </>
                   )}
-                  {b.entered && (
+                  {
                     <BoothFormButton
                       boothId={b.boothId}
                       ballotFor={ward.kind}
                       wardNo={ward.wardNo}
                       boothNo={b.boothNo}
+                      entered={b.entered}
                     />
-                  )}
+                  }
                   <Link className="btn btn-link" to={`/wards/${ward.id}/booths/${b.boothId}/history`}>
                     इतिहास
                   </Link>

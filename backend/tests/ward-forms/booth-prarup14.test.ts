@@ -4,8 +4,8 @@ import type { Express } from 'express';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readBoothSheet } from '../../src/modules/reports/ward-forms.data.js';
-import { mapBoothPart2 } from '../../src/services/ward-forms/map-part2.js';
+import { readBoothBlank, readBoothSheet } from '../../src/modules/reports/ward-forms.data.js';
+import { mapBlankBoothPart2, mapBoothPart2 } from '../../src/services/ward-forms/map-part2.js';
 import { renderPart2 } from '../../src/services/ward-forms/render-part2.js';
 import {
   PART2,
@@ -70,6 +70,8 @@ afterAll(async () => {
 
 const url = (booth: number, ballot: 'PS' | 'ZP') =>
   `/api/ward-forms/booths/${String(booth)}/${ballot}/prarup14.pdf`;
+const blankUrl = (booth: number, ballot: 'PS' | 'ZP', ext = 'pdf') =>
+  `/api/ward-forms/booths/${String(booth)}/${ballot}/prarup14-blank.${ext}`;
 
 describe('officer title (one function of the ward kind)', () => {
   it('PS ward: रिटर्निंग अधिकारी; ZP ward: सहायक रिटर्निंग अधिकारी (never both)', () => {
@@ -222,5 +224,63 @@ describe('download: permissions, errors, audit', () => {
     expect(voided.status).toBe(200);
     const res = await getForm(await as('dm_x4'), url(w.b1, 'PS'));
     expect([res.status, res.body]).toEqual([404, { error: 'NO_ENTRY' }]);
+  });
+});
+
+describe('the BLANK sheet (printed before counting, filled by hand)', () => {
+  it('same form, no figures: every vote cell, NOTA and the total are empty', async () => {
+    const filled = await readBoothSheet(pool, w.b2, 'PS');
+    const blank = await readBoothBlank(pool, w.b2, 'PS');
+    const f = mapBoothPart2(filled.head, filled.sheet, PART2);
+    const d = mapBlankBoothPart2(blank.head, blank.sheet, PART2);
+    // The same sheet: header, ward, booth, candidates in ballot order, the NOTA row.
+    expect([d.kind, d.bodyName, d.wardNo, d.booth, d.date, d.place]).toEqual([
+      f.kind,
+      f.bodyName,
+      f.wardNo,
+      f.booth,
+      f.date,
+      f.place,
+    ]);
+    expect(d.rows.map((r) => [r.serial, r.name])).toEqual(f.rows.map((r) => [r.serial, r.name]));
+    expect(d.notaSerial).toBe(f.notaSerial);
+    // and not one figure on it.
+    expect([...d.rows.map((r) => r.votes), d.nota, d.total]).toEqual(['', '', '', '']);
+    expect(f.total).not.toBe('');
+  });
+
+  it('a booth with NO entry still prints (the filled sheet refuses it)', async () => {
+    await expect(readBoothSheet(pool, w.b4, 'PS')).rejects.toMatchObject({ code: 'NO_ENTRY' });
+    const { head, sheet } = await readBoothBlank(pool, w.b4, 'PS');
+    const d = mapBlankBoothPart2(head, sheet, PART2);
+    expect(d.rows.length).toBeGreaterThan(0);
+    expect(d.total).toBe('');
+    expect(pageCount(await renderPart2(d, PART2))).toBe(1);
+  });
+
+  it('download: same permissions, its own file name and audit row, entered or not', async () => {
+    const a = agentFor(app, 'ro_ps1_x1');
+    const res = await getForm(await a, blankUrl(w.b4, 'PS'));
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="Prarup14_Blank_PS_1_Booth4.pdf"',
+    );
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      "SELECT new_value FROM audit_log WHERE action = 'REPORT_EXPORTED' ORDER BY id DESC LIMIT 1",
+    );
+    expect(rows[0]?.new_value).toMatchObject({
+      section: 'booth-form-prarup14-blank',
+      format: 'pdf',
+      ward_id: w.psW1,
+      booth_id: w.b4,
+      ballot_for: 'PS',
+    });
+    // Another PS's booth is refused exactly as the filled sheet refuses it.
+    expect((await getForm(await agentFor(app, 'ro_ps2_x2'), blankUrl(w.b2, 'PS'))).status).toBe(
+      403,
+    );
+    // The Excel blank is there too.
+    expect((await getForm(await a, blankUrl(w.b4, 'PS', 'xlsx'))).status).toBe(200);
   });
 });

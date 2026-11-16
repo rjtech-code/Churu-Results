@@ -84,14 +84,15 @@ export function ZpWardPage() {
                       </Link>
                     </>
                   )}
-                  {b.entered && (
+                  {
                     <BoothFormButton
                       boothId={b.boothId}
                       ballotFor="ZP"
                       wardNo={ward.wardNo}
                       boothNo={b.boothNo}
+                      entered={b.entered}
                     />
-                  )}
+                  }
                 </td>
               </tr>
             );

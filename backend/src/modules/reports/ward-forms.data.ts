@@ -12,7 +12,11 @@ import { readWardInputs, withReadOnlySnapshot } from '../../services/result-load
 import { ResultInputError, computeWardResult } from '../../services/result.js';
 import type { WardResult, WardResultInput } from '../../services/result.js';
 import type { FormCandidate, FormSource } from '../../services/ward-forms/form-data.js';
-import type { BoothSheet, Part2Head } from '../../services/ward-forms/map-part2.js';
+import type {
+  BlankBoothSheet,
+  BoothSheet,
+  Part2Head,
+} from '../../services/ward-forms/map-part2.js';
 
 interface WardRow {
   id: number;
@@ -159,6 +163,56 @@ export async function readBoothScope(
     psWardId: Number(r.ps_ward_id),
     zpWardId: Number(r.zp_ward_id),
   };
+}
+
+/**
+ * The BLANK प्रारूप–14 of one booth: the same header and the ward's candidates in ballot order, with
+ * NO figures. Unlike the filled sheet this needs no entry at all — blank forms are printed before
+ * counting starts — so a booth that nobody has entered yet prints normally.
+ */
+export async function readBoothBlank(
+  pool: Pool,
+  boothId: number,
+  ballotFor: 'PS' | 'ZP',
+): Promise<{ head: Part2Head; sheet: BlankBoothSheet; wardId: number }> {
+  return withReadOnlySnapshot(pool, async (conn) => {
+    const [boothRows] = await conn.execute<RowDataPacket[]>(
+      `SELECT b.booth_no, b.booth_suffix, b.name_hindi, b.ps_ward_id, b.zp_ward_id
+         FROM booth b WHERE b.id = ?`,
+      [boothId],
+    );
+    const b = boothRows[0];
+    if (b === undefined) throw new ApiError(404, 'NOT_FOUND');
+    const wardId = Number(ballotFor === 'PS' ? b.ps_ward_id : b.zp_ward_id);
+    const ward = await readFormWard(conn, wardId);
+    if (ward === null) throw new ApiError(404, 'NOT_FOUND');
+    // The ballot as it stands: candidates in ballot order. NOTA is a row of the form, not a
+    // candidate row, so it is left out here exactly as the filled sheet leaves it out.
+    const [candidates] = await conn.execute<RowDataPacket[]>(
+      `SELECT ballot_position, name_hindi FROM candidate
+        WHERE ward_id = ? AND is_nota = 0 ORDER BY ballot_position`,
+      [wardId],
+    );
+    return {
+      wardId,
+      head: {
+        kind: ward.kind,
+        bodyName: (await readBody(conn, ward)).name,
+        wardNo: ward.wardNo,
+        district: ward.district,
+        electionDate: await readElectionDate(conn),
+      },
+      sheet: {
+        boothNo: Number(b.booth_no),
+        boothSuffix: String(b.booth_suffix),
+        boothName: String(b.name_hindi),
+        candidates: candidates.map((r) => ({
+          position: Number(r.ballot_position),
+          nameHindi: String(r.name_hindi),
+        })),
+      },
+    };
+  });
 }
 
 /**

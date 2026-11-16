@@ -162,7 +162,9 @@ function part2Parts(d: Part2Data, t: Part2Template, page: Page, step: FitStep): 
       gridBlock(page, votesTable(d, c), page.left, g(gaps.table)),
       leftText(c, t.text.verification, s('heading'), g(gaps.verification)),
       leftText(c, `${t.text.tallyQuestion}  ${t.text.tallyAnswer}`, s('body'), g(gaps.tally)),
-      leftText(c, t.text.discrepancy, s('body'), g(gaps.tally) * 4),
+      leftText(c, t.text.discrepancy, s('body'), g(gaps.tally)),
+      // The officer writes the explanation here by hand: a fixed band, never shrunk to save a page.
+      gap(t.writingSpace),
     ],
     [
       ...datePlace(d, c),

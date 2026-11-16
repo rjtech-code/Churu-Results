@@ -15,17 +15,37 @@ beforeEach(() => {
   downloadMock.mockClear();
 });
 
-const render12A = () => render(<BoothFormButton boothId={7} ballotFor="PS" wardNo={4} boothNo="12A" />);
+const render12A = () =>
+  render(<BoothFormButton boothId={7} ballotFor="PS" wardNo={4} boothNo="12A" entered />);
 
 describe('प्रारूप–14: PDF and Excel side by side', () => {
   it('both buttons are there, each with its own label', () => {
     render12A();
     expect(screen.getByRole('button', { name: /प्रारूप–14 डाउनलोड करें/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /प्रारूप–14 Excel डाउनलोड करें/ })).toBeTruthy();
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /प्रारूप–14 खाली फ़ॉर्म डाउनलोड करें/ })).toBeTruthy();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
     // The PDF button's visible label is unchanged.
     expect(screen.getByText('प्रारूप–14 डाउनलोड')).toBeTruthy();
     expect(screen.getByText('प्रारूप–14 Excel')).toBeTruthy();
+    expect(screen.getByText('प्रारूप–14 खाली')).toBeTruthy();
+  });
+
+  it('the blank sheet: its own URL and file name, and it needs no entry', async () => {
+    render12A();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: /प्रारूप–14 खाली फ़ॉर्म डाउनलोड करें/ }));
+    expect(downloadMock).toHaveBeenCalledWith(
+      '/api/ward-forms/booths/7/PS/prarup14-blank.pdf',
+      'Prarup14_Blank_PS_4_Booth12A.pdf',
+    );
+  });
+
+  it('a booth with no entry: only the blank sheet is offered', () => {
+    render(<BoothFormButton boothId={7} ballotFor="PS" wardNo={4} boothNo="12A" entered={false} />);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /प्रारूप–14 खाली फ़ॉर्म डाउनलोड करें/ })).toBeTruthy();
   });
 
   it('the PDF button downloads the .pdf, exactly as before', async () => {
@@ -47,7 +67,7 @@ describe('प्रारूप–14: PDF and Excel side by side', () => {
   });
 
   it('the ZP ballot of the same booth asks for the ZP sheet', async () => {
-    render(<BoothFormButton boothId={7} ballotFor="ZP" wardNo={9} boothNo="12A" />);
+    render(<BoothFormButton boothId={7} ballotFor="ZP" wardNo={9} boothNo="12A" entered />);
     await userEvent.setup().click(screen.getByRole('button', { name: /प्रारूप–14 Excel डाउनलोड करें/ }));
     expect(downloadMock).toHaveBeenCalledWith(
       '/api/ward-forms/booths/7/ZP/prarup14.xlsx',
