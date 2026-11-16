@@ -1,16 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { reportLayoutProblems } from './layout-check';
-import { RO_STATE, expect, loginUi, test, world } from './support';
+import { DM_STATE, RO_STATE, expect, test, world } from './support';
 
 // DM reports (Part 10). Runs after the declare/correction specs, before the TV-screen specs.
 
 test.describe('as the DM', () => {
+  // The stored DM session (global setup): the run's login budget is 20 per 15 minutes.
+  test.use({ storageState: DM_STATE });
+
   test('home: alarms and every section; filter; ward detail; CSV download; print view; layout', async ({
     page,
   }) => {
     test.setTimeout(60_000);
-    await loginUi(page, world().users.dm);
-    await expect(page).toHaveURL(/\/reports$/);
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/reports$/); // the DM's own start page
     await expect(page.getByTestId('report-updated')).toContainText(/अंतिम अपडेट/);
 
     // The declare spec declared a NOTA-highest ward: a district alarm.

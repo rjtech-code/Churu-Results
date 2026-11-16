@@ -1,14 +1,16 @@
-import { expect, loginUi, test, world } from './support';
+import { DM_STATE, expect, test } from './support';
 
 // DM creates a key -> a screen (another browser, no key) asks for it -> a wrong key is refused ->
 // the right key shows the screen -> the DM revokes the key -> the open screen asks again at once.
+// The DM session comes from global setup (the run's login budget is 20 per 15 minutes).
+test.use({ storageState: DM_STATE });
 test('screen key: create, refuse wrong key, unlock, revoke closes the open screen', async ({
   page,
   browser,
 }) => {
   test.setTimeout(60_000);
-  await loginUi(page, world().users.dm);
-  await expect(page).toHaveURL(/\/reports$/);
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/reports$/); // the DM's own start page
   await page.getByRole('link', { name: 'स्क्रीन सुरक्षा (Screen Keys)' }).click();
   await expect(page.getByRole('heading', { name: 'स्क्रीन सुरक्षा (Screen Keys)' })).toBeVisible();
   await page.getByLabel('key का नाम (कौन-सा TV / कक्ष)').fill('प्रेस कक्ष e2e');

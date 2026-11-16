@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test as base, expect, request } from '@playwright/test';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, BrowserContext, Page } from '@playwright/test';
 
 export const STATE_DIR = resolve(import.meta.dirname, '.state');
 export const WORLD_FILE = resolve(STATE_DIR, 'world.json');
@@ -10,6 +10,12 @@ export const WORLD_FILE = resolve(STATE_DIR, 'world.json');
 export const RO_STATE = resolve(STATE_DIR, 'ro.json');
 /** Browser storage of an UNLOCKED TV (screen key typed once in global setup): test.use({ storageState }). */
 export const SCREEN_STATE = resolve(STATE_DIR, 'screen.json');
+/**
+ * Browser storage of the DM, logged in once in global setup. Every spec that only needs to BE the
+ * DM reuses it (the login rate limit — 20 per 15 minutes per IP — is shared by the whole run).
+ * Specs about logging in itself (access, session) still log in for real.
+ */
+export const DM_STATE = resolve(STATE_DIR, 'dm.json');
 const BACKEND = resolve(import.meta.dirname, '../../backend');
 
 export interface E2eWard {
@@ -114,6 +120,19 @@ export const test = base.extend<{ cspGuard: undefined }>({
   ],
 });
 export { expect };
+
+/**
+ * Makes this page the DM by reusing the session global setup stored, instead of logging in again
+ * (the whole run shares one login rate limit). The page keeps its fixtures, so the CSP guard and
+ * the baseURL still apply.
+ */
+export async function becomeDm(page: Page): Promise<void> {
+  const state = JSON.parse(readFileSync(DM_STATE, 'utf8')) as {
+    cookies: Parameters<BrowserContext['addCookies']>[0];
+  };
+  await page.context().clearCookies();
+  await page.context().addCookies(state.cookies);
+}
 
 export async function loginUi(page: Page, username: string, password = world().password): Promise<void> {
   await page.goto('/login');

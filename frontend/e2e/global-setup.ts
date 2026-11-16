@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { request } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
 import {
+  DM_STATE,
   RO_STATE,
   SCREEN_STATE,
   STATE_DIR,
@@ -24,6 +25,16 @@ export default async function globalSetup(): Promise<void> {
   });
   if (res.status() !== 200) throw new Error(`global setup login failed: ${res.status()}`);
   await ctx.storageState({ path: RO_STATE });
+  // One DM login for the whole run: the DM specs reuse this session instead of logging in again.
+  const dm = await request.newContext({ baseURL: BASE_URL });
+  const dmCsrf = (await (await dm.get('/api/auth/csrf')).json()) as { csrfToken: string };
+  const dmRes = await dm.post('/api/auth/login', {
+    headers: { 'X-CSRF-Token': dmCsrf.csrfToken },
+    data: { username: world().users.dm, password: world().password },
+  });
+  if (dmRes.status() !== 200) throw new Error(`global setup DM login failed: ${dmRes.status()}`);
+  await dm.storageState({ path: DM_STATE });
+  await dm.dispose();
   // An unlocked TV: the screen specs start from this state (the screens need the DEO's key).
   const tv = await request.newContext({ baseURL: BASE_URL });
   await unlockScreens(tv);

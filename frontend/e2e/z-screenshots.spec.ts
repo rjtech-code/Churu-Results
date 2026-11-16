@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { eachPage, layoutProblems } from './layout-check';
-import { SCREEN_STATE, expect, loginUi, test, world } from './support';
+import { DM_STATE, SCREEN_STATE, expect, test } from './support';
 
 // The TV screens need the DEO's screen key: start as an unlocked TV (global setup).
 test.use({ storageState: SCREEN_STATE });
@@ -31,14 +31,19 @@ for (const viewport of [
   });
 }
 
-test('screenshots of the DM reports (home and a ward) at 1920x1080', async ({ page }) => {
-  mkdirSync(DIR, { recursive: true });
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await loginUi(page, world().users.dm);
-  await expect(page.getByTestId('section-progress')).toBeVisible();
-  await page.screenshot({ path: resolve(DIR, 'reports-home.png'), fullPage: true });
-  await page.getByRole('button', { name: /सरदारशहर|SARDARSHAHAR/ }).click();
-  await page.getByTestId('section-corrections').locator('td a').first().click();
-  await expect(page.getByTestId('ward-declarations')).toBeVisible();
-  await page.screenshot({ path: resolve(DIR, 'reports-ward.png'), fullPage: true });
+test.describe('the DM reports', () => {
+  // The stored DM session (global setup): the run's login budget is 20 per 15 minutes.
+  test.use({ storageState: DM_STATE });
+
+  test('screenshots of the DM reports (home and a ward) at 1920x1080', async ({ page }) => {
+    mkdirSync(DIR, { recursive: true });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/reports');
+    await expect(page.getByTestId('section-progress')).toBeVisible();
+    await page.screenshot({ path: resolve(DIR, 'reports-home.png'), fullPage: true });
+    await page.getByRole('button', { name: /सरदारशहर|SARDARSHAHAR/ }).click();
+    await page.getByTestId('section-corrections').locator('td a').first().click();
+    await expect(page.getByTestId('ward-declarations')).toBeVisible();
+    await page.screenshot({ path: resolve(DIR, 'reports-ward.png'), fullPage: true });
+  });
 });
