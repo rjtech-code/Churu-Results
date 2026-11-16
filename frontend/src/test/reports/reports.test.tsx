@@ -299,6 +299,11 @@ describe('ward report', () => {
     expect(within(cands).getByText('महिला')).toBeTruthy();
     expect(within(screen.getByTestId('ward-booths')).getAllByText('150')).toHaveLength(2);
     expect(screen.getByTestId('ward-declarations').textContent).toContain('आरओ: पर्ची निकाली');
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['प्रिंट करें']);
+    // The ward page's buttons, in order: printing, and the final-result check memo (the official
+    // PDF forms are links the server offers separately).
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'प्रिंट करें',
+      'चेक मीमो (Excel)',
+    ]);
   });
 });

@@ -16,6 +16,7 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { candidatesRouter } from './modules/candidates/candidates.routes.js';
 import { countingRouter } from './modules/counting/counting.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
+import { sarniRouter } from './modules/reports/sarni.routes.js';
 import { stFormatRouter } from './modules/reports/st-format.routes.js';
 import { wardFormsRouter } from './modules/reports/ward-forms.routes.js';
 import { declareRouter } from './modules/declare/declare.routes.js';
@@ -152,6 +153,7 @@ export function createApp({
   app.use('/api/counting', countingRouter(pool));
   app.use('/api/declare', declareRouter(pool));
   app.use('/api/reports', reportsRouter(pool));
+  app.use('/api/sarni', sarniRouter(pool));
   app.use('/api/st-format', stFormatRouter(pool));
   app.use('/api/ward-forms', wardFormsRouter(pool));
   app.use('/api/admin/screen-keys', screenKeysRouter(screenAccess));

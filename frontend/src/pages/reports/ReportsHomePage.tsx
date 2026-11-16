@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api/api';
 import type { ReportSummary } from '../../api/reportTypes';
 import { ErrorBox } from '../../components/ErrorBox';
+import { SarniPanel } from '../../components/SarniPanel';
 import { StFormatPanel } from '../../components/StFormatPanel';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
@@ -149,6 +150,8 @@ export function ReportsView({
         </section>
         <StFormatPanel kind="ZP" />
         <StFormatPanel kind="PS" psSelector />
+        <SarniPanel kind="ZP" />
+        <SarniPanel kind="PS" />
         <Panel id="close" title="नज़दीकी मुकाबले" section="close-contests" scope={scope} wide>
           <Close rows={s.close} />
         </Panel>
