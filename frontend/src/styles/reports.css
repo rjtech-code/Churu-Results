@@ -344,3 +344,12 @@
     text-decoration: none;
   }
 }
+
+/* A PS RO's own Panchayat Samiti name beside the सारणी-"ख" button (it has no choice to make). */
+.st-ps-name {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

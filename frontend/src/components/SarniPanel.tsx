@@ -1,7 +1,8 @@
 // सारणी-"क" / सारणी-"ख": the two official summary tables of elected members, as Excel downloads,
-// under the ST Format sections. ZP: one file for the district. PS: one file per Panchayat Samiti —
-// the DM picks one (the same picker the PS ST Format uses), a PS_RO always gets its own (the server
-// enforces it, and the picker then shows only that one).
+// under the ST Format sections. ZP: one file for the district. PS: one file per Panchayat Samiti.
+// The DM may hold any of them, so the DM's panel gets the picker (`psSelector`, as the PS ST Format
+// panel has). A PS_RO has exactly ONE Panchayat Samiti: it gets no picker, just its own Hindi name
+// beside the button, and the server resolves the Panchayat Samiti from the session.
 import { useState } from 'react';
 import { api } from '../api/api';
 import { ErrorBox } from './ErrorBox';
@@ -16,27 +17,30 @@ interface Summary {
   unmappedCategories: string[];
 }
 
-export function SarniPanel({ kind }: { kind: 'ZP' | 'PS' }) {
+export function SarniPanel({ kind, psSelector = false }: { kind: 'ZP' | 'PS'; psSelector?: boolean }) {
   const [ps, setPs] = useState('');
   const isPs = kind === 'PS';
-  const query = isPs && ps !== '' ? `?ps=${encodeURIComponent(ps)}` : '';
   const base = `/api/sarni/${isPs ? 'ps' : 'zp'}`;
   const list = useApiData(
     () =>
-      isPs
+      psSelector
         ? api<{ ps: { id: number; nameEnglish: string }[] }>('GET', '/api/st-format/ps/list')
         : Promise.resolve({ ps: [] }),
-    [isPs],
+    [psSelector],
   );
-  // The PS table needs a Panchayat Samiti; a PS_RO has exactly one and it is chosen for them.
-  const only = list.data?.ps.length === 1 ? String(list.data.ps[0]?.id ?? '') : '';
-  const chosen = isPs ? (ps !== '' ? ps : only) : '';
-  const effective = isPs && chosen !== '' ? `?ps=${encodeURIComponent(chosen)}` : query;
+  // Only the picker ever names a Panchayat Samiti; without it the session decides (a PS_RO's own).
+  const query = psSelector && ps !== '' ? `?ps=${encodeURIComponent(ps)}` : '';
   const { data, error } = useApiData(
-    () =>
-      isPs && chosen === '' ? Promise.resolve(null) : api<Summary>('GET', `${base}/summary${effective}`),
-    [base, effective, chosen],
+    () => (psSelector && ps === '' ? Promise.resolve(null) : api<Summary>('GET', `${base}/summary${query}`)),
+    [base, query, psSelector],
   );
+  // The link always carries the Panchayat Samiti the summary was built for, so the file and the
+  // numbers on screen can never be from two different Panchayat Samitis.
+  const href = isPs
+    ? data?.psId === undefined
+      ? null
+      : `${base}.xlsx?ps=${encodeURIComponent(String(data.psId))}`
+    : `${base}.xlsx`;
   const titleId = `sarni-title-${kind.toLowerCase()}`;
   const title = isPs ? 'सारणी-"ख" — सदस्य पंचायत समिति (Excel)' : 'सारणी-"क" — सदस्य जिला परिषद (Excel)';
 
@@ -49,11 +53,11 @@ export function SarniPanel({ kind }: { kind: 'ZP' | 'PS' }) {
       <header className="rp-panel-head st-head">
         <h2 id={titleId}>{title}</h2>
         <div className="st-actions">
-          {isPs && (
+          {psSelector && (
             <label className="st-ps-picker">
               Panchayat Samiti / पंचायत समिति{' '}
               <select
-                value={chosen}
+                value={ps}
                 onChange={(e) => {
                   setPs(e.target.value);
                 }}
@@ -67,10 +71,16 @@ export function SarniPanel({ kind }: { kind: 'ZP' | 'PS' }) {
               </select>
             </label>
           )}
-          {isPs && chosen === '' ? (
-            <span className="muted">पहले पंचायत समिति चुनें</span>
+          {/* A PS_RO's own Panchayat Samiti: shown, not chosen. */}
+          {isPs && !psSelector && data?.psName !== undefined && (
+            <span className="st-ps-name" data-testid="sarni-ps-name">
+              {data.psName}
+            </span>
+          )}
+          {href === null ? (
+            <span className="muted">{psSelector ? 'पहले पंचायत समिति चुनें' : 'लोड हो रहा है…'}</span>
           ) : (
-            <a className="btn btn-secondary rp-csv" href={`${base}.xlsx${effective}`} download>
+            <a className="btn btn-secondary rp-csv" href={href} download>
               {isPs ? 'सारणी-"ख" (Excel)' : 'सारणी-"क" (Excel)'}
             </a>
           )}

@@ -151,7 +151,7 @@ export function ReportsView({
         <StFormatPanel kind="ZP" />
         <StFormatPanel kind="PS" psSelector />
         <SarniPanel kind="ZP" />
-        <SarniPanel kind="PS" />
+        <SarniPanel kind="PS" psSelector />
         <Panel id="close" title="नज़दीकी मुकाबले" section="close-contests" scope={scope} wide>
           <Close rows={s.close} />
         </Panel>

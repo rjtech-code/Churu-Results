@@ -39,6 +39,17 @@ beforeEach(() => {
         },
       });
     }
+    if (path.startsWith('/api/sarni/ps/summary')) {
+      // No ?ps: the server answers for the PS RO's own Panchayat Samiti and names it in Hindi.
+      if (path.includes('?')) return Promise.reject(new Error(`PS RO must not name a PS: ${path}`));
+      return Promise.resolve({
+        psId: 4,
+        psName: 'पंचायत समिति चूरू',
+        wards: 9,
+        decided: 1,
+        unmappedCategories: [],
+      });
+    }
     if (path.startsWith('/api/sarni')) {
       return Promise.resolve({ wards: 39, decided: 39, unmappedCategories: [] });
     }
@@ -77,8 +88,11 @@ describe('the ward list page', () => {
     expect(screen.getByTestId('section-sarni-ps')).toBeTruthy();
     expect(order('section-st-format-ps', 'section-sarni-ps')).toBe(true);
     expect(screen.queryByTestId('section-sarni-zp')).toBeNull();
-    // One Panchayat Samiti in the list: it is already chosen, so the button is ready.
+    // A PS RO has one Panchayat Samiti: nothing to pick, so no dropdown anywhere on the page.
     const link = await screen.findByRole('link', { name: /सारणी-"ख"/ });
     expect(link.getAttribute('href')).toBe('/api/sarni/ps.xlsx?ps=4');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    // Its own Panchayat Samiti is shown instead, in Hindi.
+    expect(screen.getByTestId('sarni-ps-name').textContent).toBe('पंचायत समिति चूरू');
   });
 });
