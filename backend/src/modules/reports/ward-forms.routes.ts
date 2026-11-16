@@ -14,6 +14,7 @@ import { FormDoesNotFitError } from '../../services/pdf/fit.js';
 import { REFUSAL_STATUS, formRefusal } from '../../services/ward-forms/eligibility.js';
 import type { FormSource } from '../../services/ward-forms/form-data.js';
 import { boothLabel } from '../../services/booth-no.js';
+import { renderCheckMemoXlsx } from '../../services/ward-forms/render-check-memo.xlsx.js';
 import { mapBoothPart2, mapPart2 } from '../../services/ward-forms/map-part2.js';
 import { mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
 import { renderPart2 } from '../../services/ward-forms/render-part2.js';
@@ -28,6 +29,7 @@ import {
 import type { WardFormName } from '../../services/ward-forms/templates/registry.js';
 import type { AuthUser } from '../../types/auth.js';
 import { idParam, parse } from '../admin/http.js';
+import { readCheckMemo } from './check-memo.data.js';
 import { readBoothScope, readBoothSheet, readFormSource, readFormWard } from './ward-forms.data.js';
 
 const noQuery = z.object({}).strict();
@@ -209,6 +211,35 @@ function boothDownload(pool: Pool, format: BoothFormFormat): RequestHandler {
   };
 }
 
+/**
+ * GET /:wardId/check-memo.xlsx — "अंतिम परिणाम हेतु चेक मीमो" of one ward.
+ *
+ * Unlike Part-II and Prarup-7 this one is NOT limited to declared wards: its whole purpose is to
+ * check the counting as it stands (a partly counted ward prints with empty booth rows). Same
+ * permissions as every other ward form (DM any ward, the ward's own RO), same audit row.
+ */
+function checkMemoDownload(pool: Pool): RequestHandler {
+  return async (req, res) => {
+    const wardId = await allowedWard(pool, req);
+    const data = await readCheckMemo(pool, wardId);
+    await sendExport(pool, req, res, {
+      body: await renderCheckMemoXlsx(data),
+      contentType: XLSX,
+      fileName: `CheckMemo_${data.kind}_${String(data.wardNo)}.xlsx`,
+      wardId,
+      details: {
+        section: 'check-memo',
+        format: 'xlsx',
+        ward_id: wardId,
+        ward_kind: data.kind,
+        ward_no: data.wardNo,
+        booths: data.booths.length,
+        candidates: data.candidates.length,
+      },
+    });
+  };
+}
+
 export function wardFormsRouter(pool: Pool): Router {
   const router = Router();
   router.use(requireRole('DM', 'PS_RO', 'ZP_RO'));
@@ -216,5 +247,6 @@ export function wardFormsRouter(pool: Pool): Router {
   router.get('/booths/:boothId/:ballotFor/prarup14.xlsx', boothDownload(pool, 'xlsx'));
   router.get('/:wardId', availability(pool));
   for (const form of WARD_FORM_NAMES) router.get(`/:wardId/${form}.pdf`, download(pool, form));
+  router.get('/:wardId/check-memo.xlsx', checkMemoDownload(pool));
   return router;
 }
