@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { loadPsZpPostalWards, loadPsZpWards, loadWards } from '../api/loaders';
 import { useRole } from '../auth/AuthContext';
 import { ErrorBox } from '../components/ErrorBox';
+import { SarniPanel } from '../components/SarniPanel';
 import { StFormatPanel } from '../components/StFormatPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { boothProgress, formatDateTime, formatTime, wardShort } from '../components/format';
@@ -119,8 +120,12 @@ export function WardListPage() {
     <>
       <h1>मेरे वार्ड</h1>
       {zpTab ? <PsZpWardList /> : <PsWardList />}
+      {/* Each official download sits under the ST Format panel of the same side: the ZP RO sees the
+          Zila Parishad pair, the PS RO its own Panchayat Samiti pair. */}
       {role === 'ZP_RO' && <StFormatPanel kind="ZP" />}
+      {role === 'ZP_RO' && <SarniPanel kind="ZP" />}
       {role === 'PS_RO' && <StFormatPanel kind="PS" />}
+      {role === 'PS_RO' && <SarniPanel kind="PS" />}
     </>
   );
 }
