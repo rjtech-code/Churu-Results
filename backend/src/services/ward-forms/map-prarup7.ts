@@ -116,7 +116,6 @@ export function mapPrarup7(
       district: src.district,
       electionDate: date,
     },
-    signaturePlace: t.signaturePlace === 'district' ? src.district : null,
     place: src.district,
     date,
     roName: nameOrBlank(roName),

@@ -176,8 +176,8 @@ function headerLine(d: Prarup7Data, { t, s, page }: Ctx, after: number): Block {
 
 /**
  * The footer, as on the signed sample: first a fixed empty band for the handwritten signature and
- * stamp, then स्थान / दिनांक on the left and the Returning Officer's block on the right, with the
- * RO's name right under the "... निर्वाचन" line (a long name wraps inside the right half). One block: measured with the
+ * stamp, then स्थान / दिनांक on the left and the Returning Officer's block on the right, the RO's own
+ * name at the top of it (a long name wraps inside the right half). One block: measured with the
  * rest of the page, so it never overlaps the tables and is never split from them.
  */
 function footer(d: Prarup7Data, { t, s, page, g }: Ctx): Block {
@@ -189,10 +189,12 @@ function footer(d: Prarup7Data, { t, s, page, g }: Ctx): Block {
   const left = [labelled(t.text.place, d.place), labelled(t.text.date, d.date)].map((text) =>
     line(text, page.left, split, 'left'),
   );
-  // Empty lines stay as blank lines, for hand filling.
-  // रिटर्निंग अधिकारी, the "... निर्वाचन" line, then the RO's name, then the designation and place.
-  const [title, election, ...rest] = t.text.signature;
-  const officer = [title ?? '', election ?? '', d.roName ?? '', ...rest, d.signaturePlace ?? ''];
+  // The officer's own name first, then (where the level has one) their designation, रिटर्निंग अधिकारी
+  // and the body this form was downloaded for. A line whose value is missing stays blank, for hand
+  // filling; the body's name is the one already printed in the header, never a second source.
+  const officer = t.text.signature.map((l) =>
+    l.replace(PLACEHOLDER.ro, d.roName ?? '').replace(PLACEHOLDER.name, d.header.bodyName ?? ''),
+  );
   const right = officer.map((text) => line(text, page.left + split, page.width - split, 'center'));
   return columnsBlock(
     [

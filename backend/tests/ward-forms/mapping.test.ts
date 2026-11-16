@@ -178,12 +178,13 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
     );
     expect(T.text.columns.uncontested).toMatch(/^नियम 29\(2\) के अधीन/);
     expect(T.text.columns.lot).toBe('नियम 51 के अधीन लॉट का यदि कोई हो, परिणाम');
+    // The signed block: the officer's name, their designation, the office, then the body.
     expect(T.text.signature).toEqual([
-      'रिटर्निंग अधिकारी',
-      'जिला परिषद् निर्वाचन',
+      '{ro}',
       '(जिला कलक्टर एवं जिला मजिस्ट्रेट)',
+      'रिटर्निंग अधिकारी',
+      'जिला परिषद {name}',
     ]);
-    expect(mapPrarup7(formSource(), T).signaturePlace).toBe('चूरू');
   });
 
   it('PS: Panchayat Samiti words, the form rule numbers, column rules left as dots, no Zila Parishad wording anywhere', () => {
@@ -193,11 +194,19 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
     expect(PS.text.office).toBe('पंचायत समिति के सदस्य');
     // The header blank carries the rule numbers (DEO instruction, Nov 2026), as on the ZP form.
     expect(PS.text.rules).toBe('(नियम 52, 59, 60, 61 देखिये)');
-    expect(PS.text.columns.uncontested).toMatch(new RegExp(`^नियम ${RULE_NUMBER_BLANK} के अधीन`));
-    expect(PS.text.columns.lot).toMatch(new RegExp(`^नियम ${RULE_NUMBER_BLANK} के अधीन`));
+    // The two column rules are the same at both levels (officers' instruction, Nov 2026).
+    expect(PS.text.columns.uncontested).toMatch(/^नियम 29\(2\) के अधीन/);
+    expect(PS.text.columns.lot).toBe('नियम 51 के अधीन लॉट का यदि कोई हो, परिणाम');
+    // Nothing is left for hand filling any more.
+    expect(allText(PS.text).filter((t) => t.includes(RULE_NUMBER_BLANK))).toEqual([]);
     expect(PS.text.declarationColumns[1]).toBe('कार्यालय का नाम सदस्य, पंचायत समिति');
     expect(allText(PS.text).filter((t) => t.includes('परिषद'))).toEqual([]);
-    expect(allText(PS.text).filter((t) => /\d{2}/.test(t))).toEqual([PS.text.rules]);
+    // The only printed numbers are the three rule numbers; nothing else carries a figure.
+    expect(allText(PS.text).filter((t) => /\d{2}/.test(t))).toEqual([
+      PS.text.rules,
+      PS.text.columns.uncontested,
+      PS.text.columns.lot,
+    ]);
   });
 
   it('PS header: its own name and its ward count; no "PS names of this ward" item', () => {
@@ -218,8 +227,8 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
   it('PS declaration: the PS office; the RO designation and place left blank', () => {
     const d = mapPrarup7(formSource({ kind: 'PS' }), PS);
     expect(d.declaration.office).toBe(`पंचायत समिति, ${PS_BODY.name}`);
-    expect(d.signaturePlace).toBeNull();
-    expect(PS.text.signature).toEqual(['रिटर्निंग अधिकारी', 'पंचायत समिति निर्वाचन', '']);
+    // No designation line at this level: name, office, Panchayat Samiti.
+    expect(PS.text.signature).toEqual(['{ro}', 'रिटर्निंग अधिकारी', 'पंचायत समिति {name}']);
   });
 
   it('PS keeps the shared rules: column (च) blank, uncontested layout', () => {

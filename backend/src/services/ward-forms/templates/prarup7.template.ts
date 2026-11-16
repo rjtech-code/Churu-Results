@@ -11,7 +11,7 @@ import type { HeaderValue, Prarup7Level, Prarup7Template } from './types.js';
 export const PRARUP7_MAX_CANDIDATES = 12;
 
 /** Values filled into the printed text when the form is made. */
-export const PLACEHOLDER = { ward: '{ward}', name: '{name}' } as const;
+export const PLACEHOLDER = { ward: '{ward}', name: '{name}', ro: '{ro}' } as const;
 
 function headerLabels(w: Prarup7Level): Record<HeaderValue, string> {
   return {
@@ -73,12 +73,20 @@ function text(w: Prarup7Level): Prarup7Template['text'] {
     declarationOffice: `${w.body}, ${PLACEHOLDER.name}`,
     place: 'स्थान :',
     date: 'दिनांक :',
-    signature: ['रिटर्निंग अधिकारी', `${w.bodyFormal} निर्वाचन`, w.roDesignation ?? ''],
+    // The signed block, top to bottom: the officer's own name, their designation where the level has
+    // one, the office they sign in, and the body this form was downloaded for ("पंचायत समिति चूरू",
+    // "जिला परिषद चूरू"). {ro} and {name} are filled when the form is made.
+    signature: [
+      PLACEHOLDER.ro,
+      ...(w.roDesignation === null ? [] : [w.roDesignation]),
+      'रिटर्निंग अधिकारी',
+      `${w.body} ${PLACEHOLDER.name}`,
+    ],
   };
 }
 
 /** The layout, sizes and labels shared by both levels. */
-const LAYOUT: Omit<Prarup7Template, 'title' | 'text' | 'signaturePlace'> = {
+const LAYOUT: Omit<Prarup7Template, 'title' | 'text'> = {
   page: { size: 'A4', layout: 'landscape', margin: 22 },
   latin: 'sans',
   maxCandidates: PRARUP7_MAX_CANDIDATES,
@@ -154,5 +162,5 @@ const LAYOUT: Omit<Prarup7Template, 'title' | 'text' | 'signaturePlace'> = {
 
 /** The Prarup-7 template of one level. */
 export function prarup7Template(level: Prarup7Level): Prarup7Template {
-  return { ...LAYOUT, title: level.title, signaturePlace: level.signaturePlace, text: text(level) };
+  return { ...LAYOUT, title: level.title, text: text(level) };
 }

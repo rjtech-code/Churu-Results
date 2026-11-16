@@ -131,15 +131,11 @@ export interface Prarup7Level {
   /** Rule numbers as printed; a level that cannot verify them prints a blank to fill by hand. */
   rules: { form: string; uncontested: string; lot: string };
   header: readonly { value: HeaderValue; at: number }[];
-  /** Null: the designation line is left blank for hand filling. */
+  /** Null: the level has no designation line under the officer's name. */
   roDesignation: string | null;
-  /** The place below the signature: the district's name, or null (blank). */
-  signaturePlace: 'district' | null;
 }
 
 export interface Prarup7Template extends PageTemplate {
-  /** Where the place below the Returning Officer's signature comes from (null = blank). */
-  signaturePlace: Prarup7Level['signaturePlace'];
   text: {
     form: string;
     rules: string;

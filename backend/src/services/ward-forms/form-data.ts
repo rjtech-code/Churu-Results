@@ -100,8 +100,6 @@ export interface Prarup7Declaration {
 export interface Prarup7Data {
   /** The header line's values; the template's level decides which ones are printed. */
   header: Record<HeaderValue, Cell>;
-  /** Below the Returning Officer's signature; null = blank for hand filling. */
-  signaturePlace: Cell;
   /** Footer "स्थान :" (the district) and "दिनांक :" (the election date, as in the header). */
   place: Cell;
   date: Cell;
