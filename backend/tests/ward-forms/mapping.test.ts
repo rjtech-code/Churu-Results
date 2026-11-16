@@ -86,7 +86,25 @@ describe('Prarup-7 mapping', () => {
     expect(d.declaration.gender).toBeNull();
   });
 
-  it('column (च) is blank on every row, NOTA included', () => {
+  it('column (च): हाँ, नहीं, and BLANK when it was never recorded — on both forms, NOTA always blank', () => {
+    const details = [
+      { heldPanchSarpanch: 'YES' as const },
+      { heldPanchSarpanch: 'NO' as const },
+      {},
+    ];
+    for (const t of [T, PS]) {
+      const d = mapPrarup7(formSource({ kind: t === PS ? 'PS' : 'ZP', candidates: 3, details }), t);
+      expect(d.rows.map((r) => r.particulars.heldPanchSarpanch)).toEqual([
+        'हाँ',
+        'नहीं',
+        // not recorded, and the NOTA row
+        null,
+        null,
+      ]);
+    }
+  });
+
+  it('column (च) is never guessed: a candidate without the detail prints nothing, not "नहीं"', () => {
     const d = mapPrarup7(formSource({ candidates: 4 }), T);
     expect(d.rows).toHaveLength(5);
     for (const row of d.rows) expect(row.particulars.heldPanchSarpanch).toBeNull();
@@ -231,7 +249,7 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
     expect(PS.text.signature).toEqual(['{ro}', 'रिटर्निंग अधिकारी', 'पंचायत समिति {name}']);
   });
 
-  it('PS keeps the shared rules: column (च) blank, uncontested layout', () => {
+  it('PS keeps the shared rules: column (च) blank when not recorded, uncontested layout', () => {
     for (const row of mapPrarup7(formSource({ kind: 'PS', candidates: 3 }), PS).rows) {
       expect(row.particulars.heldPanchSarpanch).toBeNull();
     }

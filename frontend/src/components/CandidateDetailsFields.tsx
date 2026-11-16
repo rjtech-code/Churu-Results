@@ -2,11 +2,13 @@ import { useState } from 'react';
 import {
   CANDIDATE_CATEGORIES,
   EDUCATION_HINDI,
+  HELD_PANCH_SARPANCH,
+  HELD_PANCH_SARPANCH_HINDI,
   MAX_ADDRESS_LENGTH,
   MAX_OCCUPATION_LENGTH,
 } from '../api/adminTypes';
 import '../styles/candidates.css';
-import type { CandidateCategory, CandidateDetails, Education } from '../api/adminTypes';
+import type { CandidateCategory, CandidateDetails, Education, HeldPanchSarpanch } from '../api/adminTypes';
 
 const EDUCATIONS = Object.keys(EDUCATION_HINDI) as Education[];
 
@@ -15,7 +17,13 @@ const dmy = (dob: string) => (/^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob.split('-').r
 /** What the server accepts as typed: D/M/YYYY with / . or - (it checks the real date and age). */
 const DOB_TYPED = /^\d{1,2}[/.-]\d{1,2}[/.-]\d{4}$/;
 
-/** Every optional detail filled (the "पूरी जानकारी" count). */
+/**
+ * Every optional detail filled (the "पूरी जानकारी" count the RO sees on their own ward).
+ *
+ * `heldPanchSarpanch` is deliberately NOT counted: it was added four days before counting, so every
+ * candidate entered before it would suddenly read as incomplete on the RO's screen. It is optional
+ * on the form like the rest, and the form prints a blank cell when it is missing.
+ */
 export function detailsComplete(d: CandidateDetails): boolean {
   return (
     (d.dob !== null || d.ageStated !== null) &&
@@ -117,7 +125,8 @@ function DobField({
 
 /**
  * The optional candidate details: date of birth OR age, education (9 values), mobile, the
- * candidate's own category (GEN/SC/ST/OBC), address and occupation. All may stay empty. The
+ * candidate's own category (GEN/SC/ST/OBC), address, occupation and whether the candidate has held
+ * the post of Panch or Sarpanch before. All may stay empty. The
  * server checks every value (Hindi message on a mistake).
  */
 export function CandidateDetailsFields({
@@ -236,6 +245,27 @@ export function CandidateDetailsFields({
           onChange({ occupation });
         }}
       />
+      <span className="cd-field">
+        <label htmlFor={`${idPrefix}-panch`}>पूर्व में पंच/सरपंच</label>
+        <select
+          id={`${idPrefix}-panch`}
+          aria-label={`${label} पूर्व में पंच/सरपंच`}
+          disabled={disabled}
+          value={value.heldPanchSarpanch ?? ''}
+          onChange={(e) => {
+            onChange({
+              heldPanchSarpanch: e.target.value === '' ? null : (e.target.value as HeldPanchSarpanch),
+            });
+          }}
+        >
+          <option value="">— चुनें —</option>
+          {HELD_PANCH_SARPANCH.map((v) => (
+            <option key={v} value={v}>
+              {HELD_PANCH_SARPANCH_HINDI[v]}
+            </option>
+          ))}
+        </select>
+      </span>
     </div>
   );
 }

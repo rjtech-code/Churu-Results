@@ -26,6 +26,7 @@ export const CANDIDATE_COLUMN_NOTES: Readonly<Record<CandidateColumn, string>> =
   candidate_category: 'GEN / SC / ST / OBC (optional)',
   address: 'Address (optional)',
   occupation: 'Occupation (optional)',
+  held_panch_sarpanch: 'पूर्व में पंच/सरपंच? हाँ / नहीं (optional)',
 };
 
 export function templateSheets(name: TemplateName): SheetSpec[] {

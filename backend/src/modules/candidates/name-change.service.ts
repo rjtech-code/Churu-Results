@@ -2,7 +2,7 @@
 // after the ward's ballot is locked (also while counting and after the ward is declared).
 //
 //   editable: name, party, gender, the candidate's own category, date of birth / stated age,
-//             education, mobile, address, occupation.
+//             education, mobile, address, occupation, "previously held the post of Panch/Sarpanch".
 //   frozen:   the ballot position (क्रम), adding or removing a candidate, NOTA — refused with
 //             FIELD_FROZEN naming the field (see services/candidate-fields.ts).
 //
@@ -145,6 +145,7 @@ const PATCH_KEYS = [
   'mobile',
   'address',
   'occupation',
+  'heldPanchSarpanch',
 ] as const satisfies readonly (keyof CandidatePatch)[];
 
 const patchOf = (body: NameCorrectionBody): CandidatePatch => {
@@ -254,7 +255,8 @@ export async function correctCandidateDetails(
       const [upd] = await conn.execute<ResultSetHeader>(
         `UPDATE candidate
             SET name_hindi = ?, party_id = ?, gender = ?, candidate_category = ?, dob = ?,
-                age_stated = ?, education = ?, mobile = ?, address = ?, occupation = ?
+                age_stated = ?, education = ?, mobile = ?, address = ?, occupation = ?,
+                held_panch_sarpanch = ?
           WHERE id = ? AND ward_id = ? AND is_nota = 0 AND name_hindi = ?`,
         [
           next.name,
@@ -267,6 +269,7 @@ export async function correctCandidateDetails(
           next.mobile,
           next.address,
           next.occupation,
+          next.heldPanchSarpanch,
           candidateId,
           wardId,
           current.name,

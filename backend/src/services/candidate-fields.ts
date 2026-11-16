@@ -1,7 +1,7 @@
 // Pure rules for "विवरण सुधारें": the correction of a candidate's details after the ballot is locked.
 //
 // EDITABLE after the lock: name, party, gender, the candidate's own category, date of birth / stated
-// age, education, mobile, address, occupation.
+// age, education, mobile, address, occupation, "previously held the post of Panch or Sarpanch".
 // FROZEN for ever: the ballot position (क्रम), adding or removing a candidate, and NOTA. A request
 // that carries one of those keys is refused with FIELD_FROZEN (the field is named in the message).
 //
@@ -11,18 +11,22 @@ import { checkNewName } from './candidate-name.js';
 import {
   CANDIDATE_CATEGORIES,
   EDUCATIONS,
+  HELD_PANCH_SARPANCH,
   MAX_ADDRESS_LENGTH,
   MAX_OCCUPATION_LENGTH,
+  HELD_PANCH_SARPANCH_HI,
   MAX_AGE,
   MIN_AGE,
   parseCandidateCategory,
   parseDob,
   parseEducation,
+  parseHeldPanchSarpanch,
 } from './master-data/candidate-details.js';
 import type {
   CandidateCategory,
   CandidateDetails,
   Education,
+  HeldPanchSarpanch,
 } from './master-data/candidate-details.js';
 import { normalizePhone } from './master-data/accounts.js';
 import { normalizeText } from './master-data/text.js';
@@ -38,6 +42,7 @@ export const CORRECTABLE_FIELDS = [
   'MOBILE',
   'ADDRESS',
   'OCCUPATION',
+  'HELD_PANCH_SARPANCH',
 ] as const;
 export type CorrectableField = (typeof CORRECTABLE_FIELDS)[number];
 
@@ -53,6 +58,7 @@ export const FIELD_HI: Readonly<Record<CorrectableField, string>> = {
   MOBILE: 'मोबाइल',
   ADDRESS: 'पता',
   OCCUPATION: 'व्यवसाय',
+  HELD_PANCH_SARPANCH: 'पूर्व में पंच/सरपंच',
 };
 
 /**
@@ -97,6 +103,7 @@ export interface CandidatePatch {
   mobile?: string | null | undefined;
   address?: string | null | undefined;
   occupation?: string | null | undefined;
+  heldPanchSarpanch?: string | null | undefined;
 }
 
 export interface FieldChange {
@@ -158,6 +165,8 @@ export function fieldText(field: CorrectableField, f: CandidateFields): string |
       return f.address;
     case 'OCCUPATION':
       return f.occupation;
+    case 'HELD_PANCH_SARPANCH':
+      return f.heldPanchSarpanch === null ? null : HELD_PANCH_SARPANCH_HI[f.heldPanchSarpanch];
   }
 }
 
@@ -177,7 +186,8 @@ export function diffCandidate(
   if (patch.newName !== undefined) {
     const check = checkNewName(patch.newName, current.name);
     // NAME_UNCHANGED is not a problem any more when other fields change: it just is no change.
-    if (!check.ok && check.problem !== 'NAME_UNCHANGED') throw new FieldError(check.problem, 'NAME');
+    if (!check.ok && check.problem !== 'NAME_UNCHANGED')
+      throw new FieldError(check.problem, 'NAME');
     if (check.ok) next.name = check.name;
   }
   if (patch.partyId !== undefined) {
@@ -253,6 +263,16 @@ export function diffCandidate(
     next.occupation = raw;
   }
 
+  if (patch.heldPanchSarpanch !== undefined) {
+    const raw = blank(patch.heldPanchSarpanch);
+    if (raw === null) next.heldPanchSarpanch = null;
+    else {
+      const parsed = parseHeldPanchSarpanch(raw);
+      if (parsed === null) throw new FieldError('PANCH_SARPANCH_INVALID', 'HELD_PANCH_SARPANCH');
+      next.heldPanchSarpanch = parsed;
+    }
+  }
+
   const changes: FieldChange[] = [];
   for (const field of CORRECTABLE_FIELDS) {
     const before = fieldText(field, current);
@@ -266,3 +286,4 @@ export function diffCandidate(
 
 export const EDUCATION_VALUES: readonly Education[] = EDUCATIONS;
 export const CATEGORY_VALUES: readonly CandidateCategory[] = CANDIDATE_CATEGORIES;
+export const PANCH_SARPANCH_VALUES: readonly HeldPanchSarpanch[] = HELD_PANCH_SARPANCH;

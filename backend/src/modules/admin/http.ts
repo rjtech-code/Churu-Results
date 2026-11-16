@@ -40,6 +40,8 @@ export const candidateDetailsFields = {
   // Generous: the exact limits (after whitespace is collapsed) are checked by checkDetails.
   address: z.string().max(1000).nullable().optional(),
   occupation: z.string().max(1000).nullable().optional(),
+  // हाँ / नहीं and their accepted spellings; parseHeldPanchSarpanch decides, never this schema.
+  heldPanchSarpanch: z.string().max(20).nullable().optional(),
 };
 /** Why a change was made (stored in the audit log). */
 export const reason = z.string().trim().min(10).max(500);

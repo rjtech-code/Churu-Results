@@ -246,6 +246,14 @@ export type CandidateCategory = 'GEN' | 'SC' | 'ST' | 'OBC';
 export const CANDIDATE_CATEGORIES: readonly CandidateCategory[] = ['GEN', 'SC', 'ST', 'OBC'];
 
 /** Optional private details (DM and the ward's own RO only). dob is YYYY-MM-DD. */
+/** Prarup-7 column (च): two values, and null for "not recorded" (the form's cell stays blank). */
+export const HELD_PANCH_SARPANCH = ['YES', 'NO'] as const;
+export type HeldPanchSarpanch = (typeof HELD_PANCH_SARPANCH)[number];
+export const HELD_PANCH_SARPANCH_HINDI: Record<HeldPanchSarpanch, string> = {
+  YES: 'हाँ',
+  NO: 'नहीं',
+};
+
 export interface CandidateDetails {
   dob: string | null;
   ageStated: number | null;
@@ -255,6 +263,8 @@ export interface CandidateDetails {
   /** Free text, Hindi allowed (Prarup-7 पता / व्यवसाय). */
   address: string | null;
   occupation: string | null;
+  /** "क्या पूर्व में पंच या सरपंच का पद धारित किया है" — null = not recorded. */
+  heldPanchSarpanch: HeldPanchSarpanch | null;
 }
 
 /** The server's limits (candidate.address / candidate.occupation). */
@@ -269,6 +279,7 @@ export const NO_CANDIDATE_DETAILS: CandidateDetails = {
   candidateCategory: null,
   address: null,
   occupation: null,
+  heldPanchSarpanch: null,
 };
 
 /** Only the detail fields of a candidate (what the forms send). */
@@ -280,6 +291,7 @@ export const pickDetails = (d: CandidateDetails): CandidateDetails => ({
   candidateCategory: d.candidateCategory,
   address: d.address,
   occupation: d.occupation,
+  heldPanchSarpanch: d.heldPanchSarpanch,
 });
 
 export interface RoCandidate extends CandidateDetails {
@@ -333,6 +345,7 @@ export const CORRECTABLE_FIELDS = [
   'MOBILE',
   'ADDRESS',
   'OCCUPATION',
+  'HELD_PANCH_SARPANCH',
 ] as const;
 export type CorrectableField = (typeof CORRECTABLE_FIELDS)[number];
 

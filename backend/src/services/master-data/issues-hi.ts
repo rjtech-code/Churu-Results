@@ -89,6 +89,8 @@ function text(issue: IssueBody): string {
       return `मोबाइल "${issue.value}" सही नहीं है — 10 अंकों का नंबर लिखें जो 6, 7, 8 या 9 से शुरू हो`;
     case 'CANDIDATE_CATEGORY_INVALID':
       return `Category "${issue.value}" is not valid — use ${CANDIDATE_CATEGORIES.join(', ')} / श्रेणी सही नहीं है`;
+    case 'PANCH_SARPANCH_INVALID':
+      return `"पंच/सरपंच" में हाँ या नहीं लिखें, लिखा है "${issue.value}"`;
     case 'DETAIL_TOO_LONG':
       return `${columnHi(issue.column)} ${issue.max} अक्षरों से लंबा है`;
     case 'PARTY_UNKNOWN':

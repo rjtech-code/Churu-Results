@@ -1,7 +1,9 @@
 // FormSource -> Prarup-7 cells. Pure. Votes and the winner come from the result engine; candidate
 // details come as saved. A value the system does not have is null (printed blank), never guessed:
-// no category from the seat's reservation, no "O" in the F/M column, column (च) always blank.
+// no category from the seat's reservation, no "O" in the F/M column, and column (च) blank unless
+// "previously held the post of Panch/Sarpanch" was actually recorded for that candidate.
 import { candidateAge } from '../master-data/candidate-age.js';
+import { HELD_PANCH_SARPANCH_HI } from '../master-data/candidate-details.js';
 import type {
   Cell,
   FormCandidate,
@@ -31,7 +33,9 @@ function particulars(c: FormCandidate, t: Prarup7Template): Particulars {
     education: d.education === null ? null : t.labels.education[d.education],
     age: age === null ? null : String(age),
     occupation: d.occupation,
-    heldPanchSarpanch: null,
+    // (च): हाँ / नहीं, and a BLANK cell when it was never recorded — never "नहीं" as a default.
+    heldPanchSarpanch:
+      d.heldPanchSarpanch === null ? null : HELD_PANCH_SARPANCH_HI[d.heldPanchSarpanch],
   };
 }
 

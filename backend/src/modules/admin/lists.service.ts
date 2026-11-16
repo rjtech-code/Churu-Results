@@ -158,6 +158,7 @@ export async function wardCandidates(pool: Pool, wardId: number) {
       candidateCategory: c.details.candidateCategory,
       address: c.details.address,
       occupation: c.details.occupation,
+      heldPanchSarpanch: c.details.heldPanchSarpanch,
     })),
   };
 }
@@ -194,7 +195,7 @@ export async function updateCandidateDetails(
 
       await conn.execute(
         `UPDATE candidate SET dob = ?, age_stated = ?, education = ?, mobile = ?, candidate_category = ?,
-                address = ?, occupation = ?
+                address = ?, occupation = ?, held_panch_sarpanch = ?
           WHERE id = ?`,
         [
           details.dob,
@@ -204,6 +205,7 @@ export async function updateCandidateDetails(
           details.candidateCategory,
           details.address,
           details.occupation,
+          details.heldPanchSarpanch,
           candidateId,
         ],
       );

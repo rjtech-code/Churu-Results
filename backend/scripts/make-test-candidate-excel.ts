@@ -18,7 +18,11 @@ import {
   CANDIDATE_COLUMNS,
   OPTIONAL_CANDIDATE_COLUMNS,
 } from '../src/services/master-data/candidates.js';
-import { EDUCATIONS, ageOn } from '../src/services/master-data/candidate-details.js';
+import {
+  EDUCATIONS,
+  HELD_PANCH_SARPANCH_HI,
+  ageOn,
+} from '../src/services/master-data/candidate-details.js';
 import type { CandidateCategory } from '../src/services/master-data/candidate-details.js';
 import { parseReservation } from '../src/services/st-format-common.js';
 import { isMainModule, parseCli, runCli } from './lib/cli.js';
@@ -135,6 +139,8 @@ export function buildTestRows(
       candidate_category: category,
       address: blank.has(i) ? null : testAddress(c, i),
       occupation: blank.has(i) ? null : (TEST_OCCUPATIONS[i % TEST_OCCUPATIONS.length] ?? null),
+      // Both values and "not recorded" appear in the test file, so all three states get exercised.
+      held_panch_sarpanch: blank.has(i) ? null : HELD_PANCH_SARPANCH_HI[i % 3 === 0 ? 'YES' : 'NO'],
     };
   });
   return { rows, blankRows: [...blank].sort((a, b) => a - b) };

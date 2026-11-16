@@ -3,6 +3,7 @@ import type { SubmitEvent } from 'react';
 import {
   EDUCATION_HINDI,
   GENDER_HINDI,
+  HELD_PANCH_SARPANCH_HINDI,
   NO_CANDIDATE_DETAILS,
   pickDetails,
 } from '../api/adminTypes';
@@ -40,6 +41,7 @@ export const FIELD_HINDI: Record<CorrectableField, string> = {
   MOBILE: 'मोबाइल',
   ADDRESS: 'पता',
   OCCUPATION: 'व्यवसाय',
+  HELD_PANCH_SARPANCH: 'पूर्व में पंच/सरपंच',
 };
 
 /** What the RO may correct here, and what the lock keeps frozen. */
@@ -63,11 +65,7 @@ const partyText = (partyId: number | null, parties: readonly Party[]): string =>
   partyId === null ? 'निर्दलीय' : (parties.find((p) => p.id === partyId)?.shortName ?? '—');
 
 /** The value of one field as the confirm step and the history show it. */
-export function valueText(
-  field: CorrectableField,
-  f: CorrectionForm,
-  parties: readonly Party[],
-): string {
+export function valueText(field: CorrectableField, f: CorrectionForm, parties: readonly Party[]): string {
   switch (field) {
     case 'NAME':
       return normalizeName(f.nameHindi);
@@ -89,6 +87,8 @@ export function valueText(
       return f.address ?? '—';
     case 'OCCUPATION':
       return f.occupation ?? '—';
+    case 'HELD_PANCH_SARPANCH':
+      return f.heldPanchSarpanch === null ? '—' : HELD_PANCH_SARPANCH_HINDI[f.heldPanchSarpanch];
   }
 }
 
@@ -107,6 +107,7 @@ export function changedFields(before: CorrectionForm, after: CorrectionForm): Co
   if (blank(after.mobile) !== blank(before.mobile)) out.push('MOBILE');
   if (blank(after.address) !== blank(before.address)) out.push('ADDRESS');
   if (blank(after.occupation) !== blank(before.occupation)) out.push('OCCUPATION');
+  if (after.heldPanchSarpanch !== before.heldPanchSarpanch) out.push('HELD_PANCH_SARPANCH');
   return out;
 }
 
@@ -122,8 +123,7 @@ export function correctionProblem(
   if (name.length > NAME_MAX) return `नाम ${String(NAME_MAX)} अक्षरों से लंबा नहीं हो सकता`;
   if (changedFields(before, after).length === 0) return 'कोई बदलाव नहीं — पहले कुछ सुधारें';
   const r = reason.trim();
-  if (r.length < NAME_REASON_MIN)
-    return `सुधार का कारण कम से कम ${String(NAME_REASON_MIN)} अक्षर का लिखें`;
+  if (r.length < NAME_REASON_MIN) return `सुधार का कारण कम से कम ${String(NAME_REASON_MIN)} अक्षर का लिखें`;
   if (r.length > NAME_REASON_MAX) return `कारण ${String(NAME_REASON_MAX)} अक्षरों से अधिक नहीं हो सकता`;
   if (password === '') return 'अपना पासवर्ड लिखें';
   return null;
@@ -196,6 +196,9 @@ function bodyOf(
       case 'OCCUPATION':
         body.occupation = details.occupation;
         break;
+      case 'HELD_PANCH_SARPANCH':
+        body.heldPanchSarpanch = details.heldPanchSarpanch;
+        break;
     }
   }
   return body;
@@ -203,7 +206,7 @@ function bodyOf(
 
 /**
  * "विवरण सुधारें" (locked ward): one form with every editable detail pre-filled (name, party, लिंग,
- * वर्ग, जन्म तिथि / उम्र, शिक्षा, मोबाइल, पता, व्यवसाय), changed fields highlighted, then a confirm
+ * वर्ग, जन्म तिथि / उम्र, शिक्षा, मोबाइल, पता, व्यवसाय, पूर्व में पंच/सरपंच), changed fields highlighted, then a confirm
  * step that lists ONLY what changed as "पुराना → नया", with the reason and the RO's own password.
  * The ballot order, adding / removing a candidate and NOTA are not here at all (and the server
  * refuses them). The password is sent once and cleared after every try; it is never kept.
@@ -235,6 +238,7 @@ export function CandidateCorrectionDialog({
     candidateCategory: candidate.candidateCategory,
     address: candidate.address,
     occupation: candidate.occupation,
+    heldPanchSarpanch: candidate.heldPanchSarpanch,
   };
   const [form, setForm] = useState<CorrectionForm>(before);
   const [step, setStep] = useState<'form' | 'confirm'>('form');
@@ -420,8 +424,8 @@ export function CandidateCorrectionDialog({
               </p>
               {countingStarted && (
                 <p>
-                  <strong>ध्यान दें:</strong> इस वार्ड की मतगणना शुरू हो चुकी है। बदलाव रिपोर्ट और
-                  पार्टी-वार गिनती में तुरंत दिखेगा।
+                  <strong>ध्यान दें:</strong> इस वार्ड की मतगणना शुरू हो चुकी है। बदलाव रिपोर्ट और पार्टी-वार गिनती में
+                  तुरंत दिखेगा।
                 </p>
               )}
               <label>

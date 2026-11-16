@@ -1,6 +1,7 @@
 // The printable ballot list for the two-person cross-check, shared by `npm run ballot:report` and the
 // DM's "रिपोर्ट (Excel) डाउनलोड करें". Reads only.
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { HELD_PANCH_SARPANCH_HI, parseHeldPanchSarpanch } from './candidate-details.js';
 import { loadPanchayatSamitis, loadWards } from './lookups.js';
 import type { WardRow } from './lookups.js';
 import type { Cell, SheetSpec } from './xlsx.js';
@@ -16,7 +17,15 @@ export const BALLOT_REPORT_HEADERS = [
   'gender',
   'nota',
   'unopposed',
+  // Prarup-7 column (च): the officers check it here before the form is printed. Blank = not recorded.
+  'panch_sarpanch',
 ] as const;
+
+/** The stored YES / NO as the officers read it; anything else (NULL) is an empty cell. */
+function panchSarpanchText(stored: unknown): Cell {
+  const parsed = typeof stored === 'string' ? parseHeldPanchSarpanch(stored) : null;
+  return parsed === null ? null : HELD_PANCH_SARPANCH_HI[parsed];
+}
 
 /** Excel sheet names: max 31 chars, no []:*?/\ characters, unique. */
 function sheetName(name: string, used: Set<string>): string {
@@ -43,7 +52,7 @@ export async function buildBallotReportSheets(
   const wards = await loadWards(db);
   const [candidates] = await db.query<RowDataPacket[]>(
     `SELECT c.ward_id, c.ballot_position, c.name_hindi, c.gender, c.is_nota,
-            p.short_name, p.name_hindi AS party_hindi
+            c.held_panch_sarpanch, p.short_name, p.name_hindi AS party_hindi
        FROM candidate c LEFT JOIN party p ON p.id = c.party_id
       ORDER BY c.ward_id, c.ballot_position`,
   );
@@ -61,7 +70,8 @@ export async function buildBallotReportSheets(
         w.is_locked === 1 ? 'LOCKED' : 'open',
       ];
       const cands = byWard.get(w.id) ?? [];
-      if (cands.length === 0) rows.push([...base, null, 'NO CANDIDATES', null, null, null, null]);
+      if (cands.length === 0)
+        rows.push([...base, null, 'NO CANDIDATES', null, null, null, null, null]);
       for (const c of cands) {
         const nota = Number(c.is_nota) === 1;
         rows.push([
@@ -76,6 +86,8 @@ export async function buildBallotReportSheets(
           c.gender === null ? null : String(c.gender),
           nota ? 'NOTA' : null,
           w.is_unopposed === 1 ? 'UNOPPOSED' : null,
+          // NOTA is a ballot row, not a person: its cell stays empty.
+          nota ? null : panchSarpanchText(c.held_panch_sarpanch),
         ]);
       }
     }

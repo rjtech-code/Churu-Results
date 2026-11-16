@@ -38,6 +38,7 @@ export type IssueBody =
   | { code: 'EDUCATION_INVALID'; value: string }
   | { code: 'MOBILE_INVALID'; value: string }
   | { code: 'CANDIDATE_CATEGORY_INVALID'; value: string }
+  | { code: 'PANCH_SARPANCH_INVALID'; value: string }
   | { code: 'DETAIL_TOO_LONG'; column: 'address' | 'occupation'; max: number }
   // Per-ward candidate rules
   | { code: 'WARD_LOCKED'; ward: WardRef }

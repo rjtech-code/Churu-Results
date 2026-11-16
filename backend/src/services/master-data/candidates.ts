@@ -25,7 +25,7 @@ export const CANDIDATE_COLUMNS = [
 ] as const;
 /**
  * Old files without the detail columns (dob, age, education, mobile, candidate_category, address,
- * occupation) still import.
+ * occupation, held_panch_sarpanch) still import.
  */
 export const OPTIONAL_CANDIDATE_COLUMNS = [
   'reservation_category',
@@ -36,6 +36,7 @@ export const OPTIONAL_CANDIDATE_COLUMNS = [
   'candidate_category',
   'address',
   'occupation',
+  'held_panch_sarpanch',
 ] as const;
 
 /** Label of the NOTA row on every contested ballot. */
@@ -132,6 +133,7 @@ export function parseCandidateSheet(
         candidateCategory: row.cells.candidate_category ?? null,
         address: row.cells.address ?? null,
         occupation: row.cells.occupation ?? null,
+        heldPanchSarpanch: row.cells.held_panch_sarpanch ?? null,
       },
       row.rowNumber,
       issues,
@@ -275,8 +277,8 @@ export async function replaceWardCandidates(
     await conn.execute(
       `INSERT INTO candidate (ward_id, ballot_position, name_hindi, party_id, gender,
                               dob, age_stated, education, mobile, candidate_category, address,
-                              occupation, is_nota)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+                              occupation, held_panch_sarpanch, is_nota)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [
         wardId,
         r.position,
@@ -290,6 +292,7 @@ export async function replaceWardCandidates(
         r.details.candidateCategory,
         r.details.address,
         r.details.occupation,
+        r.details.heldPanchSarpanch,
       ],
     );
   }

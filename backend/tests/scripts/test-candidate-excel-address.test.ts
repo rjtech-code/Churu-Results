@@ -48,6 +48,7 @@ describe('test candidate Excel: address and occupation', () => {
           candidateCategory: r.candidate_category,
           address: r.address,
           occupation: r.occupation,
+          heldPanchSarpanch: r.held_panch_sarpanch,
         },
         1,
         issues,

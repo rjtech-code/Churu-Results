@@ -1,6 +1,11 @@
 // English text of every master-data issue: exactly the Part 2 CLI report wording.
 import { AGE_REFERENCE_DATE } from '../../config/election.js';
-import { EDUCATION_NAMES_EN, MAX_AGE, MIN_AGE } from './candidate-details.js';
+import {
+  EDUCATION_NAMES_EN,
+  MAX_AGE,
+  MIN_AGE,
+  PANCH_SARPANCH_INPUTS,
+} from './candidate-details.js';
 import type { Issue, IssueBody, WardRef } from './issues.js';
 
 /** "PS ward 3 of CHURU PANCHAYAT SAMITI (ward id 12)" / "ZP ward 3 (ward id 40)". */
@@ -42,6 +47,8 @@ export function issueTextEn(issue: IssueBody): string {
       return `"mobile" must be a 10-digit mobile number starting with 6-9, got "${issue.value}"`;
     case 'CANDIDATE_CATEGORY_INVALID':
       return `"candidate_category" must be GEN, SC, ST or OBC (or the Hindi name), got "${issue.value}"`;
+    case 'PANCH_SARPANCH_INVALID':
+      return `"held_panch_sarpanch" must be ${PANCH_SARPANCH_INPUTS}, got "${issue.value}"`;
     case 'DETAIL_TOO_LONG':
       return `"${issue.column}" must be at most ${issue.max} characters`;
     case 'PARTY_UNKNOWN':

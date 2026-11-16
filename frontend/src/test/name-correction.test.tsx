@@ -7,15 +7,11 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NameChange, RoWardDetail } from '../api/adminTypes';
+import { NO_CANDIDATE_DETAILS } from '../api/adminTypes';
+import type { CandidateDetails, NameChange, RoWardDetail } from '../api/adminTypes';
 import { ApiError } from '../api/api';
 import { messageFor } from '../api/errors';
-import {
-  changedFields,
-  nameFormProblem,
-  normalizeName,
-  valueText,
-} from '../components/NameCorrectionDialog';
+import { changedFields, nameFormProblem, normalizeName, valueText } from '../components/NameCorrectionDialog';
 import { NameChangesPage } from '../pages/admin/NameChangesPage';
 import { RoCandidateWardPage } from '../pages/candidates/RoCandidateWardPage';
 
@@ -27,15 +23,7 @@ vi.mock('../api/api', async (importOriginal) => ({
 }));
 vi.mock('../auth/AuthContext', () => ({ useRole: () => auth.role }));
 
-const DETAILS = {
-  dob: null,
-  ageStated: null,
-  education: null,
-  mobile: null,
-  candidateCategory: null,
-  address: null,
-  occupation: null,
-};
+const DETAILS: CandidateDetails = { ...NO_CANDIDATE_DETAILS };
 
 function ward(locked: boolean, renamed = false): RoWardDetail {
   return {
@@ -332,6 +320,7 @@ describe('every editable field, and the frozen ones', () => {
     candidateCategory: null,
     address: null,
     occupation: null,
+    heldPanchSarpanch: null,
   };
   const PARTIES = [{ id: 1, shortName: 'BJP', nameHindi: 'भारतीय जनता पार्टी' }];
 
@@ -348,14 +337,16 @@ describe('every editable field, and the frozen ones', () => {
     expect(changedFields(FORM, { ...FORM, mobile: '9876543210' })).toEqual(['MOBILE']);
     expect(changedFields(FORM, { ...FORM, address: 'वार्ड 4, चूरू' })).toEqual(['ADDRESS']);
     expect(changedFields(FORM, { ...FORM, occupation: 'कृषि' })).toEqual(['OCCUPATION']);
-    expect(changedFields(FORM, { ...FORM, gender: 'F', mobile: '9876543210' })).toEqual([
-      'GENDER',
-      'MOBILE',
-    ]);
+    expect(changedFields(FORM, { ...FORM, heldPanchSarpanch: 'YES' })).toEqual(['HELD_PANCH_SARPANCH']);
+    expect(changedFields(FORM, { ...FORM, gender: 'F', mobile: '9876543210' })).toEqual(['GENDER', 'MOBILE']);
   });
 
   it('valueText names the party and the empty values', () => {
     expect(valueText('PARTY', FORM, PARTIES)).toBe('निर्दलीय');
+    // Not recorded shows as "—", never as नहीं.
+    expect(valueText('HELD_PANCH_SARPANCH', FORM, PARTIES)).toBe('—');
+    expect(valueText('HELD_PANCH_SARPANCH', { ...FORM, heldPanchSarpanch: 'YES' }, PARTIES)).toBe('हाँ');
+    expect(valueText('HELD_PANCH_SARPANCH', { ...FORM, heldPanchSarpanch: 'NO' }, PARTIES)).toBe('नहीं');
     expect(valueText('PARTY', { ...FORM, partyId: 1 }, PARTIES)).toBe('BJP');
     expect(valueText('GENDER', { ...FORM, gender: 'F' }, PARTIES)).toBe('महिला');
     expect(valueText('MOBILE', FORM, PARTIES)).toBe('—');

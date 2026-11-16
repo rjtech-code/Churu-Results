@@ -47,6 +47,19 @@ export const EDUCATION_EN: Readonly<Record<Education, string>> = {
   PROFESSIONAL: 'Professional',
 };
 
+/**
+ * Prarup-7 column (च): has this candidate held the post of Panch or Sarpanch before? Two values and
+ * nothing else; null (the detail missing) means NOT RECORDED, and the form leaves the cell blank.
+ */
+export const HELD_PANCH_SARPANCH = ['YES', 'NO'] as const;
+export type HeldPanchSarpanch = (typeof HELD_PANCH_SARPANCH)[number];
+
+/** How it is printed and shown everywhere (Prarup-7, the lists, the history). */
+export const HELD_PANCH_SARPANCH_HI: Readonly<Record<HeldPanchSarpanch, string>> = {
+  YES: 'हाँ',
+  NO: 'नहीं',
+};
+
 /** The candidate's own social category (not the ward's reservation). */
 export const CANDIDATE_CATEGORIES = ['GEN', 'SC', 'ST', 'OBC'] as const;
 export type CandidateCategory = (typeof CANDIDATE_CATEGORIES)[number];
@@ -77,6 +90,8 @@ export interface CandidateDetails {
   /** Free text (Hindi allowed), normalized. */
   address: string | null;
   occupation: string | null;
+  /** null = not recorded (Prarup-7 column (च) stays blank). */
+  heldPanchSarpanch: HeldPanchSarpanch | null;
 }
 
 export const NO_DETAILS: CandidateDetails = {
@@ -87,6 +102,7 @@ export const NO_DETAILS: CandidateDetails = {
   candidateCategory: null,
   address: null,
   occupation: null,
+  heldPanchSarpanch: null,
 };
 
 /**
@@ -94,7 +110,7 @@ export const NO_DETAILS: CandidateDetails = {
  * shared by every read of the details so a new detail is added in one place.
  */
 export const DETAIL_COLUMNS_SQL = `DATE_FORMAT(c.dob, '%Y-%m-%d') AS dob, c.age_stated, c.education,
-            c.mobile, c.candidate_category, c.address, c.occupation`;
+            c.mobile, c.candidate_category, c.address, c.occupation, c.held_panch_sarpanch`;
 
 // "Sr. Secondary", "sr secondary", "SR_SECONDARY" and "उच्च माध्यमिक" all match.
 const educationKey = (text: string) =>
@@ -126,6 +142,29 @@ export function parseCandidateCategory(raw: string): CandidateCategory | null {
   return CATEGORY_BY_KEY.get(educationKey(raw)) ?? null;
 }
 
+/**
+ * हाँ / नहीं, and the spellings an officer may type instead ("हां" with anusvara, Yes/No, Y/N) —
+ * nothing else. An unknown value is null, which every caller reports as an error naming the value:
+ * this detail is never guessed, because a wrong हाँ/नहीं is a wrong official return.
+ */
+const PANCH_SARPANCH_BY_KEY = new Map<string, HeldPanchSarpanch>([
+  ['हाँ', 'YES'],
+  ['हां', 'YES'],
+  ['yes', 'YES'],
+  ['y', 'YES'],
+  ['नहीं', 'NO'],
+  ['नही', 'NO'],
+  ['no', 'NO'],
+  ['n', 'NO'],
+]);
+
+export function parseHeldPanchSarpanch(raw: string): HeldPanchSarpanch | null {
+  return PANCH_SARPANCH_BY_KEY.get(educationKey(raw)) ?? null;
+}
+
+/** The accepted spellings, for the import's error message and the sample file's note. */
+export const PANCH_SARPANCH_INPUTS = [...PANCH_SARPANCH_BY_KEY.keys()].join(', ');
+
 export interface RawDetails {
   dob: string | number | null;
   age: string | number | null;
@@ -134,6 +173,7 @@ export interface RawDetails {
   candidateCategory: string | number | null;
   address: string | number | null;
   occupation: string | number | null;
+  heldPanchSarpanch: string | number | null;
 }
 
 type TextDetail = 'address' | 'occupation';
@@ -206,6 +246,14 @@ export function checkDetails(
         rowNumber,
       );
   }
+  if (raw.heldPanchSarpanch !== null) {
+    out.heldPanchSarpanch = parseHeldPanchSarpanch(String(raw.heldPanchSarpanch));
+    if (out.heldPanchSarpanch === null)
+      issues.error(
+        { code: 'PANCH_SARPANCH_INVALID', value: String(raw.heldPanchSarpanch) },
+        rowNumber,
+      );
+  }
   out.address = checkText(raw.address, 'address', rowNumber, issues);
   out.occupation = checkText(raw.occupation, 'occupation', rowNumber, issues);
   return issues.errors.length === before ? out : null;
@@ -220,6 +268,7 @@ export interface FormDetails {
   candidateCategory?: string | null | undefined;
   address?: string | null | undefined;
   occupation?: string | null | undefined;
+  heldPanchSarpanch?: string | null | undefined;
 }
 
 const blank = (v: string | null | undefined) =>
@@ -233,6 +282,7 @@ export const formDetails = (f: FormDetails): RawDetails => ({
   candidateCategory: blank(f.candidateCategory),
   address: blank(f.address),
   occupation: blank(f.occupation),
+  heldPanchSarpanch: blank(f.heldPanchSarpanch),
 });
 
 export const sameDetails = (a: CandidateDetails, b: CandidateDetails): boolean =>
@@ -242,7 +292,8 @@ export const sameDetails = (a: CandidateDetails, b: CandidateDetails): boolean =
   a.mobile === b.mobile &&
   a.candidateCategory === b.candidateCategory &&
   a.address === b.address &&
-  a.occupation === b.occupation;
+  a.occupation === b.occupation &&
+  a.heldPanchSarpanch === b.heldPanchSarpanch;
 
 /** For the audit log: never the whole mobile number. */
 export const detailsForAudit = (d: CandidateDetails) => ({
@@ -253,6 +304,7 @@ export const detailsForAudit = (d: CandidateDetails) => ({
   candidate_category: d.candidateCategory,
   address: d.address,
   occupation: d.occupation,
+  held_panch_sarpanch: d.heldPanchSarpanch,
 });
 
 /** mysql2 returns VARCHAR and DATE_FORMAT values as strings; anything else is no value. */
@@ -271,5 +323,9 @@ export function detailsFromRow(r: RowDataPacket): CandidateDetails {
         : (String(r.candidate_category) as CandidateCategory),
     address: textOrNull(r.address),
     occupation: textOrNull(r.occupation),
+    heldPanchSarpanch:
+      r.held_panch_sarpanch === null || r.held_panch_sarpanch === undefined
+        ? null
+        : (String(r.held_panch_sarpanch) as HeldPanchSarpanch),
   };
 }

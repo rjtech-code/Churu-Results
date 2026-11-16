@@ -75,8 +75,8 @@ export interface Particulars {
   education: Cell;
   age: Cell;
   occupation: Cell;
-  /** (च) "क्या पूर्व में पंच या सरपंच का पद धारित किया है": always blank (not in the system). */
-  heldPanchSarpanch: null;
+  /** (च) "क्या पूर्व में पंच या सरपंच का पद धारित किया है": हाँ / नहीं, null = not recorded (blank). */
+  heldPanchSarpanch: Cell;
 }
 
 export interface Prarup7Row {

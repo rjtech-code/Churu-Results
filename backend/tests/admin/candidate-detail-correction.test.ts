@@ -1,6 +1,7 @@
 // "विवरण सुधारें" (Nov 2026): after the ballot lock the ward's own RO may correct EVERY candidate
 // detail — name, party, gender, category, date of birth / age, education, mobile, address,
-// occupation — with the same machinery as the old name-only correction (reason, own password,
+// occupation, "previously held the post of Panch/Sarpanch" — with the same machinery as the old
+// name-only correction (reason, own password,
 // compare-and-set, one transaction, append-only history, audit row).
 // The ballot order, adding / removing a candidate and NOTA stay frozen (candidate-name.test.ts).
 import type { Express } from 'express';
@@ -50,7 +51,7 @@ async function candidateRow(id: number): Promise<RowDataPacket> {
   const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT name_hindi, party_id, gender, candidate_category,
             DATE_FORMAT(dob, '%Y-%m-%d') AS dob, age_stated, education, mobile, address, occupation,
-            ballot_position, is_nota
+            held_panch_sarpanch, ballot_position, is_nota
        FROM candidate WHERE id = ?`,
     [id],
   );
@@ -80,6 +81,7 @@ describe('every editable detail', () => {
     ['MOBILE', { mobile: '9876543210' }, 'mobile', '9876543210', '9876543210'],
     ['ADDRESS', { address: 'वार्ड 4, चूरू' }, 'address', 'वार्ड 4, चूरू', 'वार्ड 4, चूरू'],
     ['OCCUPATION', { occupation: 'कृषि' }, 'occupation', 'कृषि', 'कृषि'],
+    ['HELD_PANCH_SARPANCH', { heldPanchSarpanch: 'हाँ' }, 'held_panch_sarpanch', 'YES', 'हाँ'],
   ];
 
   for (const [field, patch, column, stored, text] of CASES) {
@@ -158,6 +160,7 @@ describe('every editable detail', () => {
       [{ mobile: '12345' }, 'MOBILE_INVALID'],
       [{ address: 'क'.repeat(301) }, 'ADDRESS_TOO_LONG'],
       [{ occupation: 'क'.repeat(101) }, 'OCCUPATION_TOO_LONG'],
+      [{ heldPanchSarpanch: 'शायद' }, 'PANCH_SARPANCH_INVALID'],
     ];
     for (const [patch, code] of bad) {
       const res = await ro.post(path(w.psW1, w.c.A), body(patch));
@@ -197,7 +200,11 @@ describe('party change', () => {
     const res = await ro.post(path(w.psW1, w.c.A), body({ partyId: w.p1 }));
     expect(res.status).toBe(409);
     expect(codeOf(res)).toBe('PARTY_CONFIRM_REQUIRED');
-    expect(res.body).toMatchObject({ oldParty: 'निर्दलीय', newParty: 'P1', countingStarted: false });
+    expect(res.body).toMatchObject({
+      oldParty: 'निर्दलीय',
+      newParty: 'P1',
+      countingStarted: false,
+    });
     expect((await candidateRow(w.c.A)).party_id).toBeNull();
     expect(await history()).toHaveLength(0);
   });
@@ -245,7 +252,10 @@ describe('party change', () => {
     const warn = await ro.post(path(w.psW1, w.c.A), body({ partyId: w.p2 }));
     expect(warn.status).toBe(409);
     expect(warn.body).toMatchObject({ countingStarted: true });
-    const ok = await ro.post(path(w.psW1, w.c.A), body({ partyId: w.p2, confirmPartyChange: true }));
+    const ok = await ro.post(
+      path(w.psW1, w.c.A),
+      body({ partyId: w.p2, confirmPartyChange: true }),
+    );
     expect(ok.status).toBe(200);
     expect(Number((await candidateRow(w.c.A)).party_id)).toBe(w.p2);
   });
@@ -313,10 +323,9 @@ describe('history shows the field (RO, DM page and CSV)', () => {
     expect(fields).toContainEqual(['GENDER', 'लिंग']);
     // Newest first: both rows share the timestamp, so the last one written (MOBILE) comes first.
     const byField = new Map(
-      (changesOf(own.body) as { field: string; oldValue: unknown; newValue: unknown }[]).map((c) => [
-        c.field,
-        c,
-      ]),
+      (changesOf(own.body) as { field: string; oldValue: unknown; newValue: unknown }[]).map(
+        (c) => [c.field, c],
+      ),
     );
     expect(byField.get('GENDER')).toMatchObject({ oldValue: 'पुरुष', newValue: 'महिला' });
     expect(byField.get('MOBILE')).toMatchObject({ oldValue: null, newValue: '9876543210' });
