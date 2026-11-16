@@ -69,6 +69,9 @@ function Row({
         <span className="tv-name" data-clamp={winner ? undefined : '2'}>
           {winner && <span className="tv-check">✓ </span>}
           {name}
+          {/* In words, never colour alone: who won, or who is ahead while counting runs. */}
+          {winner && <span className="tv-tag tv-tag-winner">विजयी</span>}
+          {leader && <span className="tv-tag tv-tag-leader">आगे</span>}
         </span>
         <span className="tv-party">{partyShort(party)}</span>
       </span>
@@ -143,7 +146,7 @@ export function WardCardView({ card, changed }: { card: WardCard; changed: boole
         <>
           {lead !== null && <p className="tv-lead">{lead}</p>}
           <p className="tv-small">
-            बूथ {boothProgress(card.boothsEntered, card.boothsTotal)} · डाक मत:{' '}
+            बूथ {boothProgress(card.boothsEntered, card.boothsTotal)} · डाक मतपत्र:{' '}
             {card.postalEntered ? 'दर्ज' : 'बाकी'} · नोटा {fmt(card.notaVotes)}
           </p>
         </>

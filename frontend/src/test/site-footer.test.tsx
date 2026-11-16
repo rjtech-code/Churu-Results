@@ -9,16 +9,15 @@ describe('site footer', () => {
   it('defaults to Hindi — the language of the operator pages', () => {
     render(<SiteFooter />);
     const footer = screen.getByRole('contentinfo');
-    expect(footer.textContent).toBe('चूरू ज़िला · पंचायत आम चुनाव 2026 · Code Churuइस प्रणाली के बारे में');
-    expect(within(footer).getByText('Code Churu').className).toBe('obs-footer-gold');
+    // The visible line carries no credit (DEO, Nov 2026); the About panel still does.
+    expect(footer.textContent).toBe('चूरू ज़िला · पंचायत आम चुनाव 2026इस प्रणाली के बारे में');
+    expect(within(footer).queryByText('Code Churu')).toBeNull();
   });
 
   it('follows the observer dashboard into English', () => {
     render(<SiteFooter lang="en" />);
     const footer = screen.getByRole('contentinfo');
-    expect(footer.textContent).toBe(
-      'Churu District · Panchayat General Elections 2026 · Code ChuruAbout this system',
-    );
+    expect(footer.textContent).toBe('Churu District · Panchayat General Elections 2026About this system');
   });
 
   it('is hidden in print and is not fixed or sticky, so it cannot overlap a form', () => {

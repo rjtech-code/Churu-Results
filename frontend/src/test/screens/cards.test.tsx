@@ -63,7 +63,10 @@ describe('ward card', () => {
     expect(rows[0]?.textContent).toContain('1,23,456');
     expect(rows[1]?.textContent).toContain('निर्दलीय');
     expect(root.textContent).toContain('आगे 1,00,000 मत');
-    expect(root.textContent).toContain('बूथ 3 / 5 · डाक मत: बाकी · नोटा 1,234');
+    // The leader is named in words on their own row, not by boldness alone.
+    expect(within(rows[0] as HTMLElement).getByText('आगे')).toBeTruthy();
+    expect(within(rows[1] as HTMLElement).queryByText('आगे')).toBeNull();
+    expect(root.textContent).toContain('बूथ 3 / 5 · डाक मतपत्र: बाकी · नोटा 1,234');
     expect(root.textContent).not.toMatch(/राउंड/);
     expect(winnerRows(root)).toHaveLength(0);
   });
@@ -72,13 +75,14 @@ describe('ward card', () => {
     const root = show(card('COUNTING', { topTied: true, margin: 0 }));
     expect(root.querySelector('.tv-lead')?.textContent).toBe('बराबर');
     expect(root.textContent).not.toContain('आगे');
+    expect(screen.queryByText('आगे')).toBeNull();
   });
 
   it('READY_TO_DECLARE: badge "घोषणा बाकी", still a lead (no winner yet)', () => {
     const root = show(card('READY_TO_DECLARE', { boothsEntered: 5, postalEntered: true }));
     expect(screen.getByText('घोषणा बाकी')).toBeTruthy();
     expect(root.textContent).toContain('आगे 1,00,000 मत');
-    expect(root.textContent).toContain('बूथ 5 / 5 · डाक मत: दर्ज');
+    expect(root.textContent).toContain('बूथ 5 / 5 · डाक मतपत्र: दर्ज');
     expect(winnerRows(root)).toHaveLength(0);
   });
 
@@ -89,15 +93,17 @@ describe('ward card', () => {
     expect(winnerRows(root)).toHaveLength(0);
   });
 
-  it('DECLARED: the winner row is bold/bordered, starts with "✓" and has no inner badge; "अंतर X मत"', () => {
+  it('DECLARED: badge "घोषित", the winner row is bold, starts with "✓" and says विजयी; "अंतर X मत"', () => {
     const root = show(card('DECLARED', { winner: { candidateId: 11, name: 'सुरेश कुमार', party: BJP } }));
     const rows = winnerRows(root);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.getAttribute('data-candidate-id')).toBe('11');
     expect(rows[0]?.querySelector('.tv-name')?.textContent.startsWith('✓ ')).toBe(true);
-    expect(within(rows[0] as HTMLElement).queryByText('विजयी')).toBeNull(); // the card badge says it
-    expect(rows[0]?.querySelector('.tv-badge, .tv-winner-mark')).toBeNull();
-    expect(screen.getAllByText('विजयी')).toHaveLength(1); // only the card badge
+    // The ward's own status is in words on the badge; विजयी belongs to the candidate.
+    expect(screen.getByText('घोषित')).toBeTruthy();
+    expect(within(rows[0] as HTMLElement).getByText('विजयी')).toBeTruthy();
+    expect(screen.getAllByText('विजयी')).toHaveLength(1); // the winner's row only
+    expect(rows[0]?.querySelector('.tv-badge')).toBeNull();
     expect(root.textContent).toContain('अंतर 1,00,000 मत');
   });
 
@@ -111,7 +117,8 @@ describe('ward card', () => {
         winner: { candidateId: 22, name: 'गोपाल राम', party: null },
       }),
     );
-    expect(screen.getAllByText('विजयी (लॉटरी)')).toHaveLength(1); // the card badge only
+    expect(screen.getAllByText('घोषित (लॉटरी)')).toHaveLength(1); // the card badge
+    expect(screen.getAllByText('विजयी')).toHaveLength(1); // the lottery winner's row
     const rows = winnerRows(root);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.getAttribute('data-candidate-id')).toBe('22');
@@ -134,7 +141,7 @@ describe('ward card', () => {
     expect(root.textContent).toContain('हरि राम');
     expect(root.textContent).toContain('BJP');
     expect(root.textContent.split('निर्विरोध निर्वाचित')).toHaveLength(2); // shown exactly once (the badge)
-    expect(root.querySelector('.tv-row-winner .tv-name')?.textContent).toBe('✓ हरि राम');
+    expect(root.querySelector('.tv-row-winner .tv-name')?.textContent).toBe('✓ हरि रामविजयी');
     expect(root.querySelector('.tv-row-winner .tv-party')?.textContent).toBe('BJP');
     expect(root.querySelector('.tv-votes')).toBeNull();
     expect(root.textContent.replace('वार्ड 7', '')).not.toMatch(/\d/);

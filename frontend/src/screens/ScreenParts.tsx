@@ -7,44 +7,31 @@ import type { RecentItem, Summary } from './types';
 
 export const SCREEN_NAMES = { 1: 'स्क्रीन 1', 2: 'स्क्रीन 2', 3: 'ज़िला परिषद' } as const;
 
-/** Copies of the chip row needed so one half of the track is always wider than the strip. */
-function scopeRepeats(count: number): number {
-  return Math.max(1, Math.ceil(6 / Math.max(1, count)));
-}
-
 /**
- * "इस स्क्रीन पर": the PS (or ZP) of this screen, scrolling slowly. CSS-only loop: the track holds
- * the chip row twice and moves by exactly half its width, so the end meets the start seamlessly.
+ * "इस स्क्रीन पर": the PS (or ZP) of this screen. It stands still (DEO, Nov 2026 — a moving strip is
+ * hard to read across a hall) and wraps onto a second line when the names do not fit on one, so no
+ * name is ever cut off.
  */
 export function ScopeStrip({ names }: { names: readonly string[] }) {
   if (names.length === 0) return <div className="tv-scope" aria-hidden="true" />;
-  const row = Array.from({ length: scopeRepeats(names.length) }, () => names).flat();
-  const half = (copy: number) =>
-    row.map((n, i) => (
-      <span key={`${String(copy)}-${String(i)}`} className="tv-scope-chip">
-        {n}
-      </span>
-    ));
   return (
     <div className="tv-scope" data-testid="scope-strip">
       <span className="tv-scope-label">इस स्क्रीन पर</span>
-      {/* data-clamp: clipped on purpose (the chips scroll through it), see e2e/layout-check.ts */}
-      <div className="tv-scope-window" data-clamp>
-        <div className="tv-scope-track" style={{ animationDuration: `${String(row.length * 4)}s` }}>
-          <span className="tv-scope-half">{half(0)}</span>
-          <span className="tv-scope-half" aria-hidden="true">
-            {half(1)}
+      <div className="tv-scope-window">
+        {names.map((n) => (
+          <span key={n} className="tv-scope-chip">
+            {n}
           </span>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
 
 /**
- * "इस स्क्रीन पर" on the PS screens: the same chips as ScopeStrip, but static buttons. A click jumps to
- * the first page of that PS; the PS on show is marked (▸, underline, light chip). If the names do not
- * fit, the row scrolls sideways inside itself and keeps the marked PS in view.
+ * "इस स्क्रीन पर" on the PS screens: the same chips as ScopeStrip, but static buttons. A click jumps
+ * to the first page of that PS; the PS on show is marked (▸, underline, light chip). The row never
+ * scrolls: names that do not fit on one line wrap onto the next.
  */
 export function PsStrip({
   groups,
@@ -55,21 +42,11 @@ export function PsStrip({
   current: string | null;
   onPick: (page: number) => void;
 }) {
-  const row = useRef<HTMLDivElement | null>(null);
-  useLayoutEffect(() => {
-    const el = row.current;
-    const on = el?.querySelector<HTMLElement>('[aria-current="true"]');
-    if (!el || !on) return;
-    if (on.offsetLeft < el.scrollLeft) el.scrollLeft = on.offsetLeft;
-    else if (on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)
-      el.scrollLeft = on.offsetLeft + on.offsetWidth - el.clientWidth;
-  }, [current]);
   if (groups.length === 0) return <div className="tv-scope" aria-hidden="true" />;
   return (
     <nav className="tv-scope" data-testid="ps-strip" aria-label="इस स्क्रीन पर">
       <span className="tv-scope-label">इस स्क्रीन पर</span>
-      {/* data-clamp: may scroll sideways on purpose when the names do not fit, see e2e/layout-check.ts */}
-      <div className="tv-scope-window tv-scope-static" data-clamp ref={row}>
+      <div className="tv-scope-window tv-scope-static">
         {groups.map((g) => {
           const on = g.key === current;
           return (

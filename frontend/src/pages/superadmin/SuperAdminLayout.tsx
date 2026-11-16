@@ -9,6 +9,7 @@ import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { homePath } from '../../auth/home';
 import { RequireRole } from '../../components/RequireRole';
+import { LoginPage } from '../LoginPage';
 import { SiteFooter } from '../../components/SiteFooter';
 import '../../styles/superadmin.css';
 
@@ -64,11 +65,15 @@ function Shell() {
   );
 }
 
-/** SUPER_ADMIN-only pages under the Super Admin shell. */
+/**
+ * SUPER_ADMIN-only pages under the Super Admin shell. A visitor who is not logged in gets the Super
+ * Admin login itself here — the panel has no address of its own to advertise, and /superadmin shows
+ * nothing but that login (same credentials, same rate limit, lockout and audit as before).
+ */
 export function RequireSuperAdmin() {
   const { user } = useAuth();
   if (user === undefined) return <p className="loading">लोड हो रहा है…</p>;
-  if (user === null) return <Navigate to="/login" replace />;
+  if (user === null) return <LoginPage superAdmin />;
   if (user.role !== 'SUPER_ADMIN') return <Navigate to={homePath(user.role)} replace />;
   return <Shell />;
 }

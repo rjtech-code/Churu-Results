@@ -52,8 +52,9 @@ export function SiteFooter({ lang = 'hi' }: { lang?: Lang } = {}) {
   return (
     <>
       <footer className="obs-footer no-print">
+        {/* The Code Churu credit lives in the About panel only (DEO, Nov 2026). */}
         <span>
-          {t('title')} · {t('footerElection')} · <span className="obs-footer-gold">Code Churu</span>
+          {t('title')} · {t('footerElection')}
         </span>
         <button
           type="button"

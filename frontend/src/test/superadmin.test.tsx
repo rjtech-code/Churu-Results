@@ -28,14 +28,16 @@ beforeAll(() => {
   }
 });
 
-describe('Super Admin login link', () => {
-  it('the normal login has a small "Super Admin" link; the Super Admin login links back', () => {
+describe('Super Admin login is not advertised', () => {
+  it('the normal login offers NO way to it; the Super Admin login links back', () => {
     const { unmount } = render(
       <MemoryRouter>
         <LoginCard />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: 'Super Admin' }).getAttribute('href')).toBe('/superadmin/login');
+    // Nothing on the main login names the setup panel or points at it (DEO, Nov 2026).
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByText(/Super Admin/i)).toBeNull();
     unmount();
     render(
       <MemoryRouter>

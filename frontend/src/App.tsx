@@ -70,7 +70,8 @@ export const router = createBrowserRouter([
     element: <Root />,
     children: [
       { path: '/login', element: <LoginPage /> },
-      { path: '/superadmin/login', element: <LoginPage superAdmin /> },
+      // One address for the setup panel: /superadmin shows the login until someone is signed in.
+      { path: '/superadmin/login', element: <Navigate to="/superadmin" replace /> },
       { path: '/', element: <Home /> },
       {
         element: <RequireRole roles={['PS_RO', 'ZP_RO']} />,

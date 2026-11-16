@@ -25,12 +25,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    // A lost session anywhere: forget everything and go to the login page with the reason.
+    // A lost session anywhere: forget everything and go to the login page with the reason. The two
+    // pages that ARE a login stay where they are — /superadmin shows the Super Admin login itself,
+    // and sending a visitor from there to /login would advertise the panel's address for nothing.
     setSessionLostHandler((code) => {
       setUser(null);
       const message = ERROR_MESSAGES[code];
       setNotice(typeof message === 'string' ? message : null);
-      void navigate('/login', { replace: true });
+      const here = window.location.pathname;
+      if (here !== '/login' && here !== '/superadmin') void navigate('/login', { replace: true });
     });
     return () => {
       setSessionLostHandler(null);

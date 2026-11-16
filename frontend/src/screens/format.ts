@@ -13,14 +13,18 @@ export function istClock(iso: string): string {
   return m?.[1] ?? '—';
 }
 
-/** Status badge text on the TV cards (every status the public API can send). */
+/**
+ * Status badge text on the TV cards (every status the public API can send). This says what is
+ * happening to the WARD; who is winning or leading is said on the candidate's own row
+ * (विजयी / आगे in WardCardView), so the two are never confused.
+ */
 export const STATUS_LABEL: Record<PublicStatus, string> = {
   NOT_STARTED: 'शुरू नहीं',
   COUNTING: 'मतगणना जारी',
   READY_TO_DECLARE: 'घोषणा बाकी',
   TIE_NEEDS_LOTTERY: 'बराबर — लॉटरी बाकी',
-  DECLARED: 'विजयी',
-  TIE_RESOLVED: 'विजयी (लॉटरी)',
+  DECLARED: 'घोषित',
+  TIE_RESOLVED: 'घोषित (लॉटरी)',
   UNOPPOSED: 'निर्विरोध निर्वाचित',
   NO_CANDIDATES: 'उम्मीदवार सूची बाकी',
   UNAVAILABLE: 'उपलब्ध नहीं',
@@ -80,9 +84,12 @@ export function tickerText(r: RecentItem): string {
   const p = r.leaderOrWinner;
   const who = p === null ? null : `${p.name} (${partyShort(p.party)})`;
   const label = STATUS_LABEL[r.status];
+  // In the ticker the person is the news, so a decided ward names them as विजयी; the ward's own
+  // status word (घोषित) is what the card badge carries.
+  const decided = r.status === 'TIE_RESOLVED' ? 'विजयी (लॉटरी)' : r.status === 'DECLARED' ? 'विजयी' : label;
   let what = label;
   if (who !== null && (r.status === 'DECLARED' || r.status === 'TIE_RESOLVED' || r.status === 'UNOPPOSED')) {
-    what = `${label}: ${who}`;
+    what = `${decided}: ${who}`;
   } else if (who !== null && (r.status === 'COUNTING' || r.status === 'READY_TO_DECLARE')) {
     what = `${label} — आगे: ${who}`;
   }

@@ -9,7 +9,7 @@ import { LOGIN_TEXTS as T } from './loginTexts';
 import { PasswordInput } from './PasswordInput';
 import { homePath } from '../../auth/home';
 
-/** superAdmin: the same login, titled for the Super Admin setup panel (/superadmin/login). */
+/** superAdmin: the same login, titled for the Super Admin setup panel (shown at /superadmin). */
 export function LoginCard({ superAdmin = false }: { superAdmin?: boolean }) {
   const { login, notice } = useAuth();
   const navigate = useNavigate();
@@ -87,11 +87,13 @@ export function LoginCard({ superAdmin = false }: { superAdmin?: boolean }) {
           {busy ? T.submitBusy : T.submit}
         </button>
       </form>
-      <p className="login-other">
-        <Link to={superAdmin ? '/login' : '/superadmin/login'}>
-          {superAdmin ? T.normalLink : T.superLink}
-        </Link>
-      </p>
+      {/* The Super Admin panel is never advertised here (DEO, Nov 2026): the main login offers no
+          link to it. The Super Admin page keeps its way back to the normal login. */}
+      {superAdmin && (
+        <p className="login-other">
+          <Link to="/login">{T.normalLink}</Link>
+        </p>
+      )}
     </section>
   );
 }

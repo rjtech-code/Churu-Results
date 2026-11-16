@@ -163,7 +163,8 @@ html.hide-cursor * {
   display: flex;
   align-items: center;
   gap: 16px;
-  overflow: hidden;
+  /* Never clipped: the chips stand still and wrap, so no name is cut off. */
+  overflow: visible;
 }
 .tv-scope-label {
   flex: none;
@@ -172,25 +173,14 @@ html.hide-cursor * {
   opacity: 0.85;
   white-space: nowrap;
 }
+/* A still row that wraps onto a second line when the names do not fit (DEO, Nov 2026). */
 .tv-scope-window {
   flex: 1 1 0;
   min-width: 0;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
-}
-.tv-scope-track {
   display: flex;
-  width: max-content;
-  animation-name: tv-scope-scroll;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  will-change: transform;
-}
-.tv-scope-half {
-  display: flex;
-  gap: 12px;
-  padding-right: 12px; /* same as the gap, so the seam between the halves looks like any other gap */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 .tv-scope-chip {
   flex: none;
@@ -203,19 +193,7 @@ html.hide-cursor * {
   border: 1px solid rgba(255, 255, 255, 0.28);
   white-space: nowrap;
 }
-/* PS screens: the same chips, static and clickable (buttons); scrolls sideways inside only if needed */
-.tv-scope-static {
-  display: flex;
-  gap: 12px;
-  position: relative; /* offsetLeft of the chips is measured from here */
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-.tv-scope-static::-webkit-scrollbar {
-  display: none;
-}
+/* PS screens: the same chips, clickable (buttons). Also still, also wrapping. */
 button.tv-scope-chip {
   margin: 0;
   font-family: inherit;
@@ -232,14 +210,6 @@ button.tv-scope-chip-on {
 .tv-scope-chip:focus-visible {
   outline: 3px solid #ffd400;
   outline-offset: -3px;
-}
-@keyframes tv-scope-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
 }
 .tv-progress {
   font-size: 26px;
@@ -509,6 +479,26 @@ button.tv-scope-chip-on {
 .tv-row-leader .tv-name,
 .tv-row-winner .tv-name {
   font-weight: 700;
+}
+/* विजयी / आगे beside the name: the word carries the meaning, the colour only repeats it. */
+.tv-tag {
+  display: inline-block;
+  margin-inline-start: 10px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tv-tag-winner {
+  background: var(--tv-winner-ink);
+  color: var(--tv-winner-bg);
+}
+.tv-tag-leader {
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid currentColor;
 }
 .tv-row-winner {
   background: var(--tv-winner-bg);

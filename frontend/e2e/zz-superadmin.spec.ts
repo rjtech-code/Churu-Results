@@ -36,9 +36,19 @@ test('Super Admin panel: every state at 1366x768 and 360px', async ({ page }) =>
   const { superAdmin } = world().users;
   const password = world().password;
 
-  // Login through the small "Super Admin" link.
+  // The main login must not advertise the setup panel at all (DEO, Nov 2026).
   await page.goto('/login');
-  await page.getByRole('link', { name: 'Super Admin' }).click();
+  await expect(page.getByRole('link', { name: 'Super Admin' })).toHaveCount(0);
+  await expect(page.getByText(/Super Admin/i)).toHaveCount(0);
+
+  // The panel lives at one address: /superadmin shows a plain login until someone is signed in.
+  await page.goto('/superadmin');
+  await expect(page.getByRole('heading', { name: 'Super Admin Login' })).toBeVisible();
+  await expect(page.getByTestId('sa-lock')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'मुख्य मेनू' })).toHaveCount(0);
+  // The old address still lands there.
+  await page.goto('/superadmin/login');
+  await expect(page).toHaveURL(/\/superadmin$/);
   await expect(page.getByRole('heading', { name: 'Super Admin Login' })).toBeVisible();
   await shoot(page, '00-login');
   await page.getByLabel('यूज़रनेम').fill(superAdmin);

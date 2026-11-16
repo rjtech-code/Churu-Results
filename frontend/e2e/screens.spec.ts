@@ -135,10 +135,13 @@ test('cards: NOT_STARTED no names; declared winner; corrected; unopposed; lotter
   const declared = cardOf(page, s.declaredWardNo);
   await expect(declared.locator('.tv-row-winner')).toHaveCount(1);
   await expect(declared.locator('.tv-row-winner')).toContainText('सुरेश कुमार');
-  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText('✓ सुरेश कुमार');
+  // The name, then विजयी in words on the winner's own row (DEO, Nov 2026).
+  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText('✓ सुरेश कुमारविजयी');
+  await expect(declared.locator('.tv-row-winner .tv-tag-winner')).toHaveText('विजयी');
   await expect(declared.locator('.tv-row-winner .tv-party')).toHaveText('BJP'); // its own line
   await expect(declared.locator('.tv-row-winner .tv-badge')).toHaveCount(0); // no badge inside the row
-  await expect(declared.locator('.tv-badge-status')).toHaveText('विजयी');
+  // The badge says what happened to the WARD.
+  await expect(declared.locator('.tv-badge-status')).toHaveText('घोषित');
   await expect(declared).toContainText('अंतर 100 मत');
   // the winner's full name is visible: the name box is not cut
   const cut = await declared
@@ -161,7 +164,8 @@ test('cards: NOT_STARTED no names; declared winner; corrected; unopposed; lotter
     String(s.lottery.winnerId),
   );
   await expect(lottery.locator('.tv-row-winner .tv-name')).toContainText('✓ गोपाल राम');
-  await expect(lottery.locator('.tv-badge-status')).toHaveText('विजयी (लॉटरी)');
+  await expect(lottery.locator('.tv-row-winner .tv-tag-winner')).toHaveText('विजयी');
+  await expect(lottery.locator('.tv-badge-status')).toHaveText('घोषित (लॉटरी)');
   await expect(lottery.locator(`.tv-row[data-candidate-id="${s.lottery.loserId}"]`)).not.toHaveClass(
     /tv-row-winner/,
   );
