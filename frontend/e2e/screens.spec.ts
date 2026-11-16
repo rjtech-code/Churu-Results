@@ -136,7 +136,7 @@ test('cards: NOT_STARTED no names; declared winner; corrected; unopposed; lotter
   await expect(declared.locator('.tv-row-winner')).toHaveCount(1);
   await expect(declared.locator('.tv-row-winner')).toContainText('सुरेश कुमार');
   // The name, then विजयी in words on the winner's own row (DEO, Nov 2026).
-  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText('✓ सुरेश कुमारविजयी');
+  await expect(declared.locator('.tv-row-winner .tv-name')).toHaveText('✓ सुरेश कुमार\u00A0विजयी');
   await expect(declared.locator('.tv-row-winner .tv-tag-winner')).toHaveText('विजयी');
   await expect(declared.locator('.tv-row-winner .tv-party')).toHaveText('BJP'); // its own line
   await expect(declared.locator('.tv-row-winner .tv-badge')).toHaveCount(0); // no badge inside the row

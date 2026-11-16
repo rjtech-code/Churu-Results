@@ -66,12 +66,15 @@ function Row({
     <li className={classes.join(' ')} data-candidate-id={candidateId}>
       <PartyBar colour={colourOf(party?.shortName ?? null)} />
       <span className="tv-row-text">
-        <span className="tv-name" data-clamp={winner ? undefined : '2'}>
+        {/* The winner's and the leader's names are never clamped: the label rides at the end of the
+            name, so cutting the name would cut the word that carries the meaning. */}
+        <span className="tv-name" data-clamp={winner || leader ? undefined : '2'}>
           {winner && <span className="tv-check">✓ </span>}
           {name}
-          {/* In words, never colour alone: who won, or who is ahead while counting runs. */}
-          {winner && <span className="tv-tag tv-tag-winner">विजयी</span>}
-          {leader && <span className="tv-tag tv-tag-leader">आगे</span>}
+          {/* In words, never colour alone. The no-break space ties the label to the last word, so it
+              never sits alone on a line of its own. */}
+          {winner && <span className="tv-tag tv-tag-winner">{'\u00A0'}विजयी</span>}
+          {leader && <span className="tv-tag tv-tag-leader">{'\u00A0'}आगे</span>}
         </span>
         <span className="tv-party">{partyShort(party)}</span>
       </span>

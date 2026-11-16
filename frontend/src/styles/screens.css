@@ -476,29 +476,51 @@ button.tv-scope-chip-on {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* The name itself is the strong element on the row that matters. */
 .tv-row-leader .tv-name,
 .tv-row-winner .tv-name {
-  font-weight: 700;
+  font-weight: 800;
+  font-size: calc(var(--fs-body) * 1.04);
+  letter-spacing: -0.005em;
 }
-/* विजयी / आगे beside the name: the word carries the meaning, the colour only repeats it. */
+/*
+ * विजयी / आगे: small, light and letter-spaced AFTER the name, behind a hairline — no filled pill, so
+ * the name and the vote number stay the loud things on the row. The word carries the meaning; the
+ * weight and the colour only repeat it (विजयी darker and a shade heavier than आगे).
+ */
 .tv-tag {
-  display: inline-block;
-  margin-inline-start: 10px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: var(--fs-meta);
-  font-weight: 700;
-  line-height: 1.5;
-  vertical-align: middle;
   white-space: nowrap;
+  font-size: calc(var(--fs-meta) * 0.95);
+  /* Devanagari conjuncts stay whole: just enough tracking to read as a label, not as a word. */
+  letter-spacing: 0.05em;
+  vertical-align: baseline;
+}
+/* The hairline keeps clear air on both sides, so it never reads as a danda after the name. */
+.tv-tag::before {
+  content: '';
+  display: inline-block;
+  width: 1.5px;
+  height: 0.72em;
+  margin: 0 0.62em;
+  vertical-align: -0.04em;
+  background: currentColor;
+  opacity: 0.32;
 }
 .tv-tag-winner {
-  background: var(--tv-winner-ink);
-  color: var(--tv-winner-bg);
+  font-weight: 700;
+  color: var(--tv-winner-ink);
+  opacity: 0.92;
 }
+/* आगे: the same shape, one step quieter — still readable across a hall. */
 .tv-tag-leader {
-  background: rgba(0, 0, 0, 0.1);
-  border: 1px solid currentColor;
+  font-weight: 600;
+  opacity: 0.68;
+}
+/* The number stays the most prominent thing on the row. */
+.tv-row-leader .tv-votes,
+.tv-row-winner .tv-votes {
+  font-size: calc(var(--fs-body) * 1.1);
+  font-weight: 800;
 }
 .tv-row-winner {
   background: var(--tv-winner-bg);
