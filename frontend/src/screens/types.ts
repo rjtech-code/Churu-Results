@@ -77,12 +77,16 @@ export interface Versioned {
 
 export interface PsScreenData extends Versioned {
   panchayatSamitis: PsBlock[];
+  /** The Super Admin switched this screen off: no results are sent at all. */
+  off?: boolean;
 }
 
 export interface ZpScreenData extends Versioned {
   zp: { summary: Summary; wards: WardCard[] };
   partySeats: SeatRow[];
   psPartySeats: SeatRow[];
+  /** The Super Admin switched this screen off: no results are sent at all. */
+  off?: boolean;
 }
 
 export interface RecentItem {
@@ -122,6 +126,8 @@ export type ScreenNo = 1 | 2 | 3;
 export interface ScreenBundle {
   version: number;
   generatedAt: string;
+  /** This screen is switched off: it holds no results, and the TV shows the off message. */
+  off: boolean;
   ps: PsScreenData | null;
   zp: ZpScreenData | null;
   recent: RecentItem[];

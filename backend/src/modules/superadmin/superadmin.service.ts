@@ -14,6 +14,20 @@ import { maskEmail } from '../../services/mailer.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { decodeXlsxUpload } from '../../services/master-data/upload.js';
 import { writeAudit } from '../../services/setup/audit.js';
+import {
+  SCREEN_NUMBERS,
+  readScreensOff,
+  writeScreenPower,
+} from '../../services/setup/screen-power.js';
+import type { ScreenNumber } from '../../services/setup/screen-power.js';
+
+/** One public screen in the panel's header strip. */
+export interface ScreenPowerRow {
+  screen: ScreenNumber;
+  on: boolean;
+  /** The last ON/OFF switch of this screen, from the audit log; null when it was never switched. */
+  lastChange: { at: string; byName: string } | null;
+}
 import type { AuditActor } from '../../services/setup/audit.js';
 import { createBackup, latestBackup } from '../../services/setup/backup.js';
 import {
@@ -163,6 +177,7 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
     `SELECT COUNT(*) AS n FROM users WHERE role IN ('PS_RO', 'ZP_RO') AND is_active = 1`,
   );
   const backup = config.setup === undefined ? null : await latestBackup(config.setup.backupDir);
+  const screens = await screenPowerRows(pool);
   const nothingToClear = Object.values(testData).every((n) => n === 0);
   const noCountingData = Object.values(countingData).every((n) => n === 0);
   const blocked = (extra: string | null) =>
@@ -172,6 +187,7 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
   const masterReason = blocked(null);
   return {
     countingLocked: locked,
+    screens,
     confirmedUntil: confirmedUntil(req),
     counts: {
       panchayatSamitis: ps.length,
@@ -467,6 +483,62 @@ export async function backupNow(config: AppConfig, pool: Pool, label: string): P
 }
 
 // ---------------------------------------------------------------- counting lock
+
+/**
+ * Turns ONE public screen on or off (Super Admin only; the route enforces the role). The other two
+ * screens are untouched. The snapshot service notices the setting within its poll, so the TV follows
+ * on its own — nobody walks to it, and the screen's key session stays valid.
+ */
+/** The three screens with their state and the last switch (who and when), newest audit row wins. */
+export async function screenPowerRows(pool: Pool): Promise<ScreenPowerRow[]> {
+  const off = await readScreensOff(pool);
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT a.new_value, a.created_at, COALESCE(u.full_name, u.username) AS by_name
+       FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.action IN ('SCREEN_TURNED_ON', 'SCREEN_TURNED_OFF')
+      ORDER BY a.id DESC
+      LIMIT 60`,
+  );
+  const lastOf = (screen: ScreenNumber) => {
+    for (const r of rows) {
+      const value = r.new_value as { screen?: unknown } | null;
+      if (value !== null && value.screen === screen) {
+        return { at: (r.created_at as Date).toISOString(), byName: String(r.by_name) };
+      }
+    }
+    return null;
+  };
+  return SCREEN_NUMBERS.map((screen) => ({
+    screen,
+    on: !off.includes(screen),
+    lastChange: lastOf(screen),
+  }));
+}
+
+export async function setScreenPower(
+  pool: Pool,
+  who: Actor,
+  screen: ScreenNumber,
+  on: boolean,
+): Promise<ScreenNumber[]> {
+  return withMasterDataWrite(pool, async (conn) => {
+    const before = await readScreensOff(conn);
+    if (before.includes(screen) === !on) throw new ApiError(409, 'NO_CHANGE');
+    const after = await writeScreenPower(conn, screen, on);
+    await writeAudit(
+      conn,
+      {
+        action: on ? 'SCREEN_TURNED_ON' : 'SCREEN_TURNED_OFF',
+        entity: 'app_settings',
+        entityId: null,
+        oldValue: { screen, screens_off: before },
+        newValue: { screen, screens_off: after },
+      },
+      auditActor(who),
+    );
+    return after;
+  });
+}
 
 export async function setCountingLock(pool: Pool, who: Actor, on: boolean): Promise<void> {
   await withMasterDataWrite(pool, async (conn) => {

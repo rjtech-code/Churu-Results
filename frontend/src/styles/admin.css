@@ -474,3 +474,17 @@ fieldset.choice .radio {
     font-size: 1.3rem;
   }
 }
+
+/* The screen's ON/OFF state beside its name (read-only; the switch is in the Super Admin panel). */
+.sk-screen-state {
+  margin-inline-start: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sk-screen-on {
+  color: #1d6b43;
+}
+.sk-screen-off {
+  color: #5a6676;
+}

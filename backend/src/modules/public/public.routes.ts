@@ -114,6 +114,11 @@ export function publicRouter(
         return;
       }
       const head = { version: s.version, generatedAt: s.generatedAt };
+      // Switched off: the screen is told so, and NOT ONE result leaves the server for it.
+      if (s.screensOff.includes(parsed.data)) {
+        res.json({ ...head, off: true });
+        return;
+      }
       if (parsed.data === '3') res.json({ ...head, ...s.screens['3'] });
       else res.json({ ...head, panchayatSamitis: s.screens[parsed.data] });
     }),
@@ -128,9 +133,14 @@ export function publicRouter(
         badRequest(res, parsed.error.issues);
         return;
       }
+      const head = { version: s.version, generatedAt: s.generatedAt };
+      // A list asked for by a screen that is off comes back empty, with the same "off" flag.
+      if (parsed.data.screen !== undefined && s.screensOff.includes(parsed.data.screen)) {
+        res.json({ ...head, off: true, items: [] });
+        return;
+      }
       res.json({
-        version: s.version,
-        generatedAt: s.generatedAt,
+        ...head,
         items: (parsed.data.screen === undefined
           ? pick(s)
           : pick(s).filter(onScreen(s, parsed.data.screen))

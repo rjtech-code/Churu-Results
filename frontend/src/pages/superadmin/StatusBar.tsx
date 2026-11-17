@@ -1,11 +1,12 @@
-// The top of the panel: the Counting Lock, then what is in the system right now. The lock is a
-// full-width band of its own — glyph, the word ON / OFF and what it means, never colour alone — so
-// its state cannot be missed on any screen.
+// The top of the panel: the Counting Lock, the three public screens, then what is in the system
+// right now. The lock is a full-width band of its own — glyph, the word ON / OFF and what it means,
+// never colour alone — so its state cannot be missed on any screen; the screens read the same way.
 import { useState } from 'react';
 import { api } from '../../api/api';
 import { fmt } from '../../api/superadminTypes';
 import type { Overview } from '../../api/superadminTypes';
 import { ConfirmDialog } from './parts';
+import { ScreenPower } from './ScreenPower';
 
 /**
  * The system's state at a glance: geography first, then what the election data holds. `span` keeps
@@ -52,9 +53,7 @@ export function StatusBar({ ov, onChanged }: { ov: Overview; onChanged: () => vo
           <p className="sa-lock-label">Counting Lock</p>
           <p className="sa-lock-state">{locked ? '🔒 ON' : '🔓 OFF'}</p>
           <p className="sa-lock-text">
-            {locked
-              ? 'Reset और booth बदलाव बंद हैं'
-              : 'Counting day से पहले ON करें — फिर कोई reset नहीं हो सकेगा'}
+            {locked ? 'Reset और booth बदलाव बंद हैं' : 'Counting day से पहले ON करें — फिर कोई reset नहीं हो सकेगा'}
           </p>
         </div>
         <button
@@ -67,6 +66,7 @@ export function StatusBar({ ov, onChanged }: { ov: Overview; onChanged: () => vo
           {locked ? 'Lock OFF करें' : 'Lock ON करें'}
         </button>
       </div>
+      <ScreenPower screens={ov.screens} onChanged={onChanged} />
       {stateGroups(ov).map((group) => (
         <div className="sa-count-group" key={group.title}>
           <h3 className="sa-count-group-title">{group.title}</h3>
@@ -88,8 +88,7 @@ export function StatusBar({ ov, onChanged }: { ov: Overview; onChanged: () => vo
               <p>Lock OFF होते ही test data reset, master data और booth बदलाव फिर से हो सकेंगे।</p>
             ) : (
               <p>
-                Lock ON होने के बाद reset, master data और booth बदलाव किसी से नहीं होंगे। Counting पहले जैसी
-                चलेगी।
+                Lock ON होने के बाद reset, master data और booth बदलाव किसी से नहीं होंगे। Counting पहले जैसी चलेगी।
               </p>
             )
           }

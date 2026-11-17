@@ -772,6 +772,34 @@ button.tv-scope-chip-on {
   font-weight: 400;
 }
 
+/* Switched off from the Super Admin panel: the screen's own surface, calm and readable across a
+   hall. Not an error — no red, no icons shouting, nothing blinking. */
+.tv-off {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  text-align: center;
+  padding: 0 64px;
+}
+.tv-off-title {
+  margin: 0;
+  font-size: 84px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--tv-header);
+}
+.tv-off-note {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--tv-muted);
+}
+
 /* The screen key popup (KeyPrompt). Outside the 1920x1080 stage on purpose: it is sized to the real
    window, so it is large on a TV across the room and still fits a phone (16px side gutter). */
 .screen-lock {

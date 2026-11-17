@@ -1591,3 +1591,128 @@ dialog.dialog:has(.sa-dialog)::backdrop {
     display: none !important;
   }
 }
+
+/* ---------------------------------------------------------------- public screens (ON / OFF)
+   Read from a metre away: the name, then the word चालू / बंद with a glyph beside it (never the
+   colour alone), then who changed it last. One row per screen, side by side on a wide panel. */
+.sa-screens {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Devanagari: the group-title tracking is meant for Latin labels and pulls conjuncts apart. */
+.sa-screens-title {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-size: 13px;
+}
+
+.sa-screens-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sa-screens-note {
+  margin: 0;
+  max-width: 78ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--obs-ink-soft);
+}
+
+.sa-screen-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sa-screen {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: var(--obs-radius);
+  border: 1px solid var(--obs-line);
+  background: var(--obs-paper);
+  box-shadow: var(--obs-shadow-1);
+}
+
+.sa-screen .sa-btn {
+  flex: none;
+  min-width: 118px;
+}
+
+.sa-screen p {
+  margin: 0;
+}
+
+.sa-screen-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sa-screen-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--obs-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* The one thing that must be readable from a metre: the word, with its glyph. */
+.sa-screen-state {
+  font-family: var(--obs-serif);
+  font-size: 32px;
+  line-height: 1.2;
+  margin: 3px 0 4px;
+}
+
+.sa-screen-last {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--obs-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* On: the muted gold of the panel's own accents. Off: a quiet slate, never an alarm colour — a
+   screen that is off on purpose is not a fault. */
+.sa-screen-on {
+  border-left: 5px solid var(--obs-gold);
+}
+
+.sa-screen-on .sa-screen-state {
+  color: var(--obs-ink);
+}
+
+/* Off: a sunken card with a dashed edge — unmistakably a different state at a glance, and still
+   calm (a screen that is off on purpose is not a fault, so no alarm colour anywhere). */
+.sa-screen-off {
+  background: var(--obs-ivory-2);
+  border-style: dashed;
+  border-left: 5px dashed var(--obs-ink-soft);
+  box-shadow: none;
+}
+
+.sa-screen-off .sa-screen-name,
+.sa-screen-off .sa-screen-last {
+  color: var(--obs-ink-soft);
+}
+
+.sa-screen-off .sa-screen-state {
+  color: var(--obs-navy);
+  opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+  .sa-screen-list {
+    grid-template-columns: 1fr;
+  }
+  .sa-screen {
+    gap: 12px;
+  }
+}

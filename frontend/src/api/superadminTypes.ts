@@ -53,8 +53,17 @@ export interface Task {
   reason: string | null;
 }
 
+/** One public TV screen in the panel: its state and who last switched it. */
+export interface ScreenPowerRow {
+  screen: '1' | '2' | '3';
+  on: boolean;
+  lastChange: { at: string; byName: string } | null;
+}
+
 export interface Overview {
   countingLocked: boolean;
+  /** The three public screens, on or off (Super Admin only control). */
+  screens: ScreenPowerRow[];
   /** Until when no password is needed (epoch ms), or null. */
   confirmedUntil: number | null;
   counts: MasterDataDeletes & {

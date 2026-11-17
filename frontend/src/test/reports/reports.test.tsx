@@ -139,9 +139,7 @@ describe('DM reports home', () => {
     expect(screen.getByTestId('section-nota').textContent).toContain('1,23,456');
     expect(screen.getByTestId('section-turnout').textContent).toContain('डेटा उपलब्ध नहीं');
     expect(screen.getByTestId('section-lottery').textContent).toContain('कोई वार्ड लॉटरी से तय नहीं हुआ');
-    expect(screen.getByRole('link', { name: 'चूरू · वार्ड 5' }).getAttribute('href')).toBe(
-      '/reports/wards/5',
-    );
+    expect(screen.getByRole('link', { name: 'चूरू · वार्ड 5' }).getAttribute('href')).toBe('/reports/wards/5');
     expect(within(screen.getByTestId('section-women')).getByText('सीमा देवी')).toBeTruthy();
     // CSV links per section, for the chosen scope
     expect(
@@ -299,10 +297,12 @@ describe('ward report', () => {
     expect(within(cands).getByText('महिला')).toBeTruthy();
     expect(within(screen.getByTestId('ward-booths')).getAllByText('150')).toHaveLength(2);
     expect(screen.getByTestId('ward-declarations').textContent).toContain('आरओ: पर्ची निकाली');
-    // The ward page's buttons, in order: printing, and the final-result check memo (the official
-    // PDF forms are links the server offers separately).
+    // The ward page's buttons, in order: printing, the BLANK प्ररूप–7 (offered whatever the ward's
+    // status) and the final-result check memo. The filled official PDFs are offered separately,
+    // only for a ward that has them.
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
       'प्रिंट करें',
+      'प्ररूप-7 खाली',
       'चेक मीमो (Excel)',
     ]);
   });

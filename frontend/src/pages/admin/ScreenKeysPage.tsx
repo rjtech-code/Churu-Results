@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SubmitEvent } from 'react';
 import { SCREEN_KEY_STATUS_HINDI } from '../../api/adminTypes';
-import type { ScreenKey } from '../../api/adminTypes';
+import type { ScreenKey, ScreenPowerRow } from '../../api/adminTypes';
 import { api } from '../../api/api';
 import { PageIntro, Section } from '../../components/AdminParts';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
@@ -76,10 +76,27 @@ interface Confirm {
   key: ScreenKey;
 }
 
+/**
+ * Whether that screen is switched on, READ-ONLY. The switch itself lives in the Super Admin panel
+ * (one place only); this page just says what the hall is seeing right now.
+ */
+function ScreenState({ screens, no }: { screens: readonly ScreenPowerRow[]; no: number }) {
+  const state = screens.find((s) => s.screen === String(no));
+  if (state === undefined) return null;
+  return (
+    <span
+      className={`sk-screen-state ${state.on ? 'sk-screen-on' : 'sk-screen-off'}`}
+      data-testid={`screen-state-${String(no)}`}
+    >
+      <span aria-hidden="true">{state.on ? '●' : '○'}</span> {state.on ? 'चालू' : 'बंद'}
+    </span>
+  );
+}
+
 /** DM: "स्क्रीन सुरक्षा (Screen Keys)" — who may open the three public TV screens. */
 export function ScreenKeysPage() {
   const { data, error, reload } = useApiData(
-    () => api<{ keys: ScreenKey[] }>('GET', '/api/admin/screen-keys'),
+    () => api<{ keys: ScreenKey[]; screens: ScreenPowerRow[] }>('GET', '/api/admin/screen-keys'),
     [],
   );
   const [done, setDone] = useState<string | null>(null);
@@ -121,7 +138,10 @@ export function ScreenKeysPage() {
         <ul className="sk-urls" data-testid="screen-urls">
           {SCREENS.map((s) => (
             <li key={s.no} className="sk-url">
-              <span className="sk-url-name">{s.name}</span>
+              <span className="sk-url-name">
+                {s.name}
+                <ScreenState screens={data?.screens ?? []} no={s.no} />
+              </span>
               <code className="sk-url-text">{screenUrl(s.no)}</code>
               <span className="sk-actions">
                 <CopyButton text={screenUrl(s.no)} label="URL कॉपी करें" />
@@ -134,6 +154,9 @@ export function ScreenKeysPage() {
         </ul>
         <p className="page-hint">
           "देखें" दबाने पर यह स्क्रीन इसी browser में बिना key के खुलेगी (केवल आपके लिए, 8 घंटे तक)।
+        </p>
+        <p className="page-hint">
+          स्क्रीन चालू / बंद करना Super Admin पैनल से होता है; यहाँ केवल मौजूदा स्थिति दिखती है।
         </p>
       </Section>
 

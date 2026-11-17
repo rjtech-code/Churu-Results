@@ -254,13 +254,17 @@ export class LiveFeed {
     const recent = pick<ListData<RecentItem>>(2, null);
     const winners = this.screen === 3 ? pick<ListData<WinnerItem>>(3, null) : null;
     const head = (screen ?? meta ?? fresh[0]) as { version: number; generatedAt?: string };
+    // Switched off: the server sends no results for this screen, and nothing older is kept either —
+    // a hall must never be left looking at frozen numbers.
+    const off = screen?.off === true;
     const next: ScreenBundle = {
       version: fresh[0]?.version ?? 0,
       generatedAt: head.generatedAt ?? prev?.generatedAt ?? '',
-      ps: this.screen === 3 ? null : ((screen as PsScreenData | null) ?? prev?.ps ?? null),
-      zp: this.screen === 3 ? ((screen as ZpScreenData | null) ?? prev?.zp ?? null) : null,
-      recent: recent?.items ?? prev?.recent ?? [],
-      winners: winners?.items ?? prev?.winners ?? [],
+      off,
+      ps: off || this.screen === 3 ? null : ((screen as PsScreenData | null) ?? prev?.ps ?? null),
+      zp: off ? null : this.screen === 3 ? ((screen as ZpScreenData | null) ?? prev?.zp ?? null) : null,
+      recent: off ? [] : (recent?.items ?? prev?.recent ?? []),
+      winners: off ? [] : (winners?.items ?? prev?.winners ?? []),
     };
     // A 200 to our If-None-Match means the server has a different version than we show: new data
     // (not necessarily a higher number: the counter restarts with the server).

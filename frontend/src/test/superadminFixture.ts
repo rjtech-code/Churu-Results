@@ -3,6 +3,11 @@ import type { Overview } from '../api/superadminTypes';
 
 export const OV: Overview = {
   countingLocked: false,
+  screens: [
+    { screen: '1', on: true, lastChange: null },
+    { screen: '2', on: true, lastChange: null },
+    { screen: '3', on: true, lastChange: null },
+  ],
   confirmedUntil: null,
   counts: {
     panchayatSamitis: 13,

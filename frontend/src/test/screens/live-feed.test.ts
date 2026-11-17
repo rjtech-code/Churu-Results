@@ -233,6 +233,7 @@ describe('changedWards', () => {
     const b = (v: number): ScreenBundle => ({
       version: 1,
       generatedAt: '',
+      off: false,
       ps: {
         version: 1,
         generatedAt: '',

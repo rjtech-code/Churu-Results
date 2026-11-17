@@ -18,6 +18,8 @@ import { ResultInputError, computeWardResult } from './result.js';
 import type { WardResult } from './result.js';
 import { SCREEN_LAYOUT_KEY, validateScreenLayout } from './screen-layout.js';
 import type { ScreenLayout } from './screen-layout.js';
+import { SCREEN_POWER_KEY, readScreensOff } from './setup/screen-power.js';
+import type { ScreenNumber } from './setup/screen-power.js';
 import {
   istIso,
   leaderOrWinner,
@@ -82,6 +84,8 @@ export interface PublicSnapshotData {
   recent: RecentItem[];
   /** All declarations incl. corrections, newest first. */
   winners: WinnerItem[];
+  /** Screens the Super Admin has switched off; their endpoints answer "off" and send no results. */
+  screensOff: ScreenNumber[];
 }
 
 function deepFreeze<T>(value: T): T {
@@ -120,6 +124,8 @@ export async function buildPublicSnapshot(
       'SELECT setting_value FROM app_settings WHERE setting_key = ?',
       [SCREEN_LAYOUT_KEY],
     );
+    // Which screens the Super Admin has switched off (no row = all three on).
+    const screensOff = await readScreensOff(conn);
     const [changed] = await conn.execute<RowDataPacket[]>(
       `SELECT ward_id, MAX(t) AS changed_at FROM (
          SELECT ward_id, entered_at AS t FROM booth_entry
@@ -136,7 +142,17 @@ export async function buildPublicSnapshot(
     );
     const withCandidates = wards.filter((w) => Number(w.candidates) > 0).map((w) => Number(w.id));
     const inputs = await readWardInputs(conn, withCandidates);
-    return { wards, ps, parties, candidates, layoutRows, changed, declarations, inputs };
+    return {
+      wards,
+      ps,
+      parties,
+      candidates,
+      layoutRows,
+      screensOff,
+      changed,
+      declarations,
+      inputs,
+    };
   });
 
   // Lookups.
@@ -297,6 +313,7 @@ export async function buildPublicSnapshot(
   const screen1 = psBlocks(layout['1']);
   const screen2 = psBlocks(layout['2']);
   return deepFreeze({
+    screensOff: read.screensOff,
     version,
     generatedAt: istIso(new Date()),
     meta: {
@@ -364,7 +381,9 @@ export class PublicSnapshotService {
         void this.pollLayout();
       }, this.config.layoutPollMs);
       this.pollTimer.unref();
-      this.firstBuild = this.runBuild();
+      // Read the settings BEFORE the first build, so the first poll has something to compare with:
+      // otherwise a change made in the first `layoutPollMs` would be swallowed by it.
+      this.firstBuild = this.pollLayout().then(() => this.runBuild());
     }
     return this.firstBuild ?? Promise.resolve();
   }
@@ -432,17 +451,27 @@ export class PublicSnapshotService {
     }
   }
 
+  /**
+   * The settings the screens depend on: the layout, and which screens are switched off. A change to
+   * either rebuilds the snapshot, so a TV learns about it through the live stream it already has,
+   * within one poll (no new channel, nobody touches the TV).
+   */
   private async pollLayout(): Promise<void> {
     try {
       const [rows] = await this.pool.execute<RowDataPacket[]>(
-        'SELECT updated_at FROM app_settings WHERE setting_key = ?',
-        [SCREEN_LAYOUT_KEY],
+        'SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (?, ?)',
+        [SCREEN_LAYOUT_KEY, SCREEN_POWER_KEY],
       );
-      const stamp = rows[0] === undefined ? 'missing' : toDate(rows[0].updated_at).toISOString();
+      // The VALUES are the stamp: what the snapshot is built from. A row written for the first time
+      // has no updated_at at all, and a value changed back to what it was must still be noticed.
+      const stamp = rows
+        .map((r) => `${String(r.setting_key)}=${String(r.setting_value)}`)
+        .sort()
+        .join('|');
       if (this.layoutStamp !== null && stamp !== this.layoutStamp) this.requestRebuild();
       this.layoutStamp = stamp;
     } catch (err) {
-      this.log('layout poll failed', err);
+      this.log('settings poll failed', err);
     }
   }
 }

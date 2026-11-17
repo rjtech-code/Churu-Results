@@ -92,6 +92,18 @@ function GuardedScreen({ screen }: { screen: ScreenNo }) {
   );
 }
 
+/** The whole screen while it is switched off: the portal's own surface, one line, nothing else. */
+function ScreenOff() {
+  return (
+    <Stage>
+      <div className="tv-off" data-testid="screen-off">
+        <p className="tv-off-title">यह स्क्रीन अस्थायी रूप से बंद है</p>
+        <p className="tv-off-note">चालू होते ही परिणाम अपने आप दिखने लगेंगे</p>
+      </div>
+    </Stage>
+  );
+}
+
 /** Every party short name on this screen, so each party has one colour everywhere on it. */
 function shortNamesOf(bundle: ScreenBundle): string[] {
   const out = new Set<string>();
@@ -130,6 +142,10 @@ function LiveScreen({ screen, onLocked }: { screen: ScreenNo; onLocked: () => vo
   const { index, goTo } = useScreenPager(pages.map((p) => pageDuration(p, intervalS)));
   const page = pages[index];
   const names = bundle === null ? [] : shortNamesOf(bundle);
+
+  // Switched off from the Super Admin panel: the hall sees one calm line and nothing else — no
+  // header, no ticker, no old numbers. It comes back on its own when the screen is switched on.
+  if (bundle?.off === true) return <ScreenOff />;
 
   return (
     <PartyNames.Provider value={names}>

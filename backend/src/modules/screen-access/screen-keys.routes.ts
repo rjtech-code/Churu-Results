@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireRole } from '../../middleware/auth.js';
+import { screenPowerRows } from '../superadmin/superadmin.service.js';
 import { actor, idParam, noStore, parse } from '../admin/http.js';
 import type { ScreenAccess } from './screen-access.js';
 import {
@@ -38,7 +39,12 @@ export function screenKeysRouter(access: ScreenAccess): Router {
   router.get('/', async (req, res) => {
     parse(noQuery, req.query);
     noStore(res);
-    res.json({ keys: await listScreenKeys(pool, secrets.vaultKey) });
+    // `screens` is READ-ONLY here: the DM sees whether each screen is on, and the Super Admin panel
+    // is the only place that can switch it.
+    res.json({
+      keys: await listScreenKeys(pool, secrets.vaultKey),
+      screens: await screenPowerRows(pool),
+    });
   });
 
   router.post('/create', async (req, res) => {

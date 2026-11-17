@@ -17,6 +17,7 @@ import {
   wardsForBooths,
 } from '../../services/setup/booths.js';
 import { SAMPLE_NAMES, sampleFile } from '../../services/setup/samples.js';
+import { isScreenNumber } from '../../services/setup/screen-power.js';
 import type { SampleName } from '../../services/setup/samples.js';
 import { actor, busyAsConflict, idParam, noStore, parse, password } from '../admin/http.js';
 import { parseBoothNo } from '../../services/booth-no.js';
@@ -32,6 +33,7 @@ import {
   resetDmPassword,
   resetTestData,
   setCountingLock,
+  setScreenPower,
   setDmEmail,
   unlockDm,
 } from './superadmin.service.js';
@@ -91,6 +93,7 @@ const boothAddBody = z
 const boothDeleteBody = z
   .object({ password: optionalPassword, confirmText: z.string().max(10) })
   .strict();
+const screenPowerBody = z.object({ on: z.boolean() }).strict();
 const lockBody = z.discriminatedUnion('on', [
   z.object({ on: z.literal(true) }).strict(),
   z
@@ -205,6 +208,17 @@ export function superAdminRouter(pool: Pool, config: AppConfig): Router {
     if (!body.on) await confirmDanger(pool, req, who, body.password);
     await busyAsConflict(() => setCountingLock(pool, who, body.on));
     res.json({ ok: true, countingLocked: body.on });
+  });
+
+  // ---- the three public screens: ON / OFF (quick and reversible, so a plain confirm in the panel)
+  router.post('/screens/:screenNo', async (req, res) => {
+    const screenNo = req.params.screenNo;
+    if (!isScreenNumber(screenNo)) throw new ApiError(404, 'NOT_FOUND');
+    const body = parse(screenPowerBody, req.body);
+    const screensOff = await busyAsConflict(() =>
+      setScreenPower(pool, actor(req), screenNo, body.on),
+    );
+    res.json({ ok: true, screensOff });
   });
 
   // ---- sample files

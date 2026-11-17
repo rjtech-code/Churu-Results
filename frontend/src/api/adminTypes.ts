@@ -401,6 +401,13 @@ export interface ScreenKey {
   /** Screens of this key seen in the last 5 minutes. */
   activeScreens: number;
 }
+/** One public screen's ON/OFF state, as the DM's page shows it (read-only there). */
+export interface ScreenPowerRow {
+  screen: '1' | '2' | '3';
+  on: boolean;
+  lastChange: { at: string; byName: string } | null;
+}
+
 export const SCREEN_KEY_STATUS_HINDI: Record<ScreenKeyStatus, string> = {
   ACTIVE: 'सक्रिय',
   REVOKED: 'रद्द',
