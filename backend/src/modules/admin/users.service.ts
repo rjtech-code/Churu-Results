@@ -17,6 +17,7 @@ import {
   setAccountActive,
 } from '../../services/master-data/accounts.js';
 import type { Role } from '../../services/master-data/accounts.js';
+import { LOCK_MINUTES } from '../auth/auth.service.js';
 import { hashPassword, generatePassword } from '../../services/master-data/passwords.js';
 import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
@@ -131,7 +132,11 @@ async function seatPs(conn: Pool | PoolConnection, seat: Seat) {
 }
 
 /** Locks and reads one RO account. The DM / Super Admin account (or an unknown id) is never managed here. */
-async function lockRoAccount(conn: PoolConnection, userId: number): Promise<AccountRow> {
+async function lockAccountRow(
+  conn: PoolConnection,
+  userId: number,
+  roles: readonly Role[],
+): Promise<AccountRow> {
   const [rows] = await conn.execute<RowDataPacket[]>(
     `SELECT ${ACCOUNT_COLUMNS} FROM users WHERE id = ? FOR UPDATE`,
     [userId],
@@ -139,9 +144,13 @@ async function lockRoAccount(conn: PoolConnection, userId: number): Promise<Acco
   const row = rows[0];
   if (!row) throw new ApiError(404, 'NOT_FOUND');
   const account = toAccount(row);
-  if (account.role !== 'PS_RO' && account.role !== 'ZP_RO') throw new ApiError(403, 'FORBIDDEN');
+  if (!roles.includes(account.role)) throw new ApiError(403, 'FORBIDDEN');
   return account;
 }
+
+/** Account writes (replace, disable, password): the RO seats only. */
+const lockRoAccount = (conn: PoolConnection, userId: number): Promise<AccountRow> =>
+  lockAccountRow(conn, userId, ['PS_RO', 'ZP_RO']);
 
 /** Ends every open session of a user (password reset, disable, replace). */
 async function endSessions(conn: PoolConnection, userId: number): Promise<void> {
@@ -545,6 +554,45 @@ export async function setRoActive(
 }
 
 /** "लॉक खोलें": clears a login lockout; the password is unchanged. */
+/** Who the DM may unlock: the counting logins, never a Super Admin or an observer. */
+export const UNLOCKABLE_ROLES: readonly Role[] = ['PS_RO', 'ZP_RO', 'DM'];
+
+/**
+ * Every counting login that is locked right now, or still carries failed attempts — what the DM's
+ * "RO लॉगिन खोलें" card lists. `lockedSince` is when the lock was set (the lock lasts LOCK_MINUTES),
+ * null when the account is not locked but has failed attempts on it.
+ */
+export async function lockedAccounts(pool: Pool) {
+  const psById = new Map([...(await loadPanchayatSamitis(pool)).values()].map((ps) => [ps.id, ps]));
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT ${ACCOUNT_COLUMNS},
+            locked_until,
+            locked_until - INTERVAL ${String(LOCK_MINUTES)} MINUTE AS locked_since
+       FROM users
+      WHERE role IN ('PS_RO', 'ZP_RO', 'DM')
+        AND is_active = 1
+        AND (failed_login_count > 0 OR (locked_until IS NOT NULL AND locked_until > NOW(3)))
+      ORDER BY (locked_until IS NOT NULL AND locked_until > NOW(3)) DESC, username`,
+  );
+  return rows.map((r) => {
+    const a = toAccount(r);
+    const until = r.locked_until instanceof Date ? r.locked_until : null;
+    const since = r.locked_since instanceof Date ? r.locked_since : null;
+    return {
+      id: a.id,
+      username: a.username,
+      fullName: a.fullName,
+      role: a.role,
+      psId: a.psId,
+      locked: a.lockedNow,
+      failedLogins: a.failedLogins,
+      psName: a.psId === null ? null : (psById.get(a.psId)?.name_hindi ?? null),
+      lockedSince: a.lockedNow && since !== null ? since.toISOString() : null,
+      lockedUntil: a.lockedNow && until !== null ? until.toISOString() : null,
+    };
+  });
+}
+
 export async function unlockAccount(
   pool: Pool,
   who: Actor,
@@ -552,7 +600,9 @@ export async function unlockAccount(
   body: { password: string },
 ): Promise<void> {
   await inUserWrite(pool, who, body.password, async (conn) => {
-    const account = await lockRoAccount(conn, userId);
+    // The counting logins: the RO seats and the DM's own account (a locked DM cannot clear itself,
+    // so the Super Admin panel keeps its own DM unlock for that case).
+    const account = await lockAccountRow(conn, userId, UNLOCKABLE_ROLES);
     const [rows] = await conn.execute<RowDataPacket[]>(
       'SELECT locked_until FROM users WHERE id = ?',
       [account.id],

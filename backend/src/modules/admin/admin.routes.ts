@@ -75,6 +75,7 @@ import {
   replaceAccount,
   setAccountPhone,
   setRoActive,
+  lockedAccounts,
   unlockAccount,
   suggestPassword,
   updateCredentials,
@@ -410,6 +411,11 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     parse(emptyBody, req.body ?? {});
     await setRoActive(pool, actor(req), id(req, 'userId'), true);
     res.json({ ok: true });
+  });
+  // The counting logins that are locked right now ("RO लॉगिन खोलें"). Read only.
+  router.get('/users/locked', async (_req, res) => {
+    noStore(res);
+    res.json({ accounts: await lockedAccounts(pool) });
   });
   router.post('/users/:userId/unlock', async (req, res) => {
     await unlockAccount(pool, actor(req), id(req, 'userId'), parse(passwordOnly, req.body));

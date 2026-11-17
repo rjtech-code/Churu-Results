@@ -225,11 +225,14 @@ describe('DM RO management', () => {
       (await dm.post(`/api/admin/users/${w.users.ro2}/disable`, { password: PASSWORD })).status,
     ).toBe(400);
 
-    for (const path of ['disable', 'view-password', 'update-credentials', 'unlock']) {
+    // The DM's own account is not MANAGED here: it cannot be disabled, read or renamed from the RO
+    // tools. (Clearing its failed-login count is a different thing and is allowed — "RO लॉगिन
+    // खोलें", locked-logins.test.ts.)
+    for (const path of ['disable', 'view-password', 'update-credentials']) {
       const res = await dm.post(`/api/admin/users/${w.users.dm}/${path}`, {
         ...(path === 'update-credentials' ? { username: 'dm_renamed' } : {}),
-        // disable and view-password take no password; update-credentials and unlock still do.
-        ...(path === 'update-credentials' || path === 'unlock' ? { password: PASSWORD } : {}),
+        // disable and view-password take no password; update-credentials still does.
+        ...(path === 'update-credentials' ? { password: PASSWORD } : {}),
       });
       expect([path, res.status]).toEqual([path, 403]);
     }

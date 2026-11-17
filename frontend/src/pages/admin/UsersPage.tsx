@@ -5,6 +5,7 @@ import { api } from '../../api/api';
 import { OneTimePassword, PageIntro } from '../../components/AdminParts';
 import { CredentialsDialog } from '../../components/CredentialsDialog';
 import { ErrorBox, SuccessBox } from '../../components/ErrorBox';
+import { LockedLogins } from '../../components/LockedLogins';
 import { formatDateTime } from '../../components/format';
 import { useApiData } from '../../components/useApiData';
 import { RoExportButtons } from './RoExportButtons';
@@ -33,6 +34,7 @@ export function UsersPage() {
       </div>
       <ErrorBox error={error} />
       <SuccessBox text={done} />
+      <LockedLogins />
       {credentials && (
         <OneTimePassword
           username={credentials.username}

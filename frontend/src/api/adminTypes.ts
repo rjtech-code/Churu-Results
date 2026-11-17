@@ -401,6 +401,20 @@ export interface ScreenKey {
   /** Screens of this key seen in the last 5 minutes. */
   activeScreens: number;
 }
+/** A counting login that is locked right now (or still carries failed attempts). */
+export interface LockedAccount {
+  id: number;
+  username: string;
+  fullName: string | null;
+  role: 'PS_RO' | 'ZP_RO' | 'DM';
+  psName: string | null;
+  locked: boolean;
+  failedLogins: number;
+  /** When the lock was set / when it ends (ISO); null when the account is not locked. */
+  lockedSince: string | null;
+  lockedUntil: string | null;
+}
+
 /** One public screen's ON/OFF state, as the DM's page shows it (read-only there). */
 export interface ScreenPowerRow {
   screen: '1' | '2' | '3';

@@ -488,3 +488,78 @@ fieldset.choice .radio {
 .sk-screen-off {
   color: #5a6676;
 }
+
+/* "RO लॉगिन खोलें": the counting logins that are locked right now. Shown on the DM's RO सूची page,
+   above the seats — on counting day this is the thing being looked for, so it comes first. */
+.locked-logins {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid #d7ddea;
+  border-radius: 10px;
+  background: #fff;
+}
+.locked-head h3 {
+  margin: 0 0 2px;
+  font-size: 17px;
+}
+.locked-head .page-hint {
+  margin: 0 0 10px;
+}
+.locked-none {
+  margin: 0;
+  font-size: 14px;
+  color: #3b4657;
+}
+.locked-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.locked-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid #e3e7ef;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+/* Locked right now: amber, and the word says it too (never the colour alone). */
+.locked-now {
+  border-color: #d8b25f;
+  background: #fdf7e8;
+}
+.locked-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.locked-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.locked-role {
+  font-size: 12.5px;
+  color: #5a6676;
+  overflow-wrap: anywhere;
+}
+.locked-state {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.locked-row .btn {
+  flex: none;
+}
+@media (max-width: 640px) {
+  .locked-row {
+    flex-wrap: wrap;
+  }
+  .locked-state {
+    white-space: normal;
+  }
+}
