@@ -4,7 +4,7 @@
 // confirmation naming the screen, never a typed word or a password.
 import { useState } from 'react';
 import { api } from '../../api/api';
-import type { ScreenPowerRow } from '../../api/superadminTypes';
+import type { ScreenLockout, ScreenPowerRow } from '../../api/superadminTypes';
 import { ConfirmDialog } from './parts';
 
 /** The names the officers use, the same as on the DM's "स्क्रीन सुरक्षा" page. */
@@ -28,11 +28,83 @@ function when(iso: string): string {
   return `${at.toLocaleDateString('hi-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${time}`;
 }
 
+/** The name of a locked-out counter ("none" = the popup was used without saying which screen). */
+const lockoutName = (screen: string): string => SCREEN_NAMES[screen] ?? 'स्क्रीन (कौन-सी, यह TV ने नहीं बताया)';
+
+/**
+ * The key-popup lockout: after repeated wrong keys that screen cannot be unlocked for a while. It
+ * is shown ONLY while one is in effect — with the screen and the time it ends — and the button to
+ * clear it appears with it. When nothing is locked out the panel says so, and offers nothing.
+ */
+function Lockouts({ lockouts, onChanged }: { lockouts: readonly ScreenLockout[]; onChanged: () => void }) {
+  const [ask, setAsk] = useState(false);
+  if (lockouts.length === 0) {
+    return (
+      <p className="sa-lockout-none" data-testid="sa-lockout-none">
+        ✔ किसी स्क्रीन पर key लॉक नहीं है।
+      </p>
+    );
+  }
+  return (
+    <div className="sa-lockout" data-testid="sa-lockout">
+      <div className="sa-lockout-text">
+        <p className="sa-lockout-title">
+          <span aria-hidden="true">⚠</span> गलत key बार-बार डालने से लॉक:
+        </p>
+        <ul className="sa-lockout-list">
+          {lockouts.map((l) => (
+            <li key={l.screen}>
+              {lockoutName(l.screen)} — {when(l.until)} तक
+            </li>
+          ))}
+        </ul>
+        <p className="sa-lockout-note">
+          इतनी देर उस स्क्रीन पर सही key भी नहीं चलेगी। नीचे का बटन सिर्फ़ यह लॉक हटाता है — key वही रहती है, और चल रही
+          स्क्रीनों पर कोई असर नहीं पड़ता।
+        </p>
+      </div>
+      <button
+        type="button"
+        className="btn btn-primary sa-btn"
+        onClick={() => {
+          setAsk(true);
+        }}
+      >
+        key लॉक हटाएँ
+      </button>
+      {ask && (
+        <ConfirmDialog
+          title="key लॉक हटाएँ"
+          summary={
+            <p>
+              गलत key की गिनती मिट जाएगी, जिससे स्क्रीन पर तुरंत सही key डाली जा सकेगी। key नहीं बदलेगी, रद्द नहीं होगी,
+              और किसी चलती स्क्रीन पर कुछ नहीं बदलेगा।
+            </p>
+          }
+          confirmLabel="लॉक हटाएँ"
+          askPassword={false}
+          workingText="लॉक हटाया जा रहा है…"
+          run={async () => {
+            await api('POST', '/api/superadmin/screens/clear-lockout', {});
+            return { title: 'key लॉक हटा दिया गया', lines: ['अब स्क्रीन पर सही key डाली जा सकती है।'] };
+          }}
+          onClose={(changed) => {
+            setAsk(false);
+            if (changed) onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function ScreenPower({
   screens,
+  lockouts,
   onChanged,
 }: {
   screens: readonly ScreenPowerRow[];
+  lockouts: readonly ScreenLockout[];
   onChanged: () => void;
 }) {
   const [ask, setAsk] = useState<ScreenPowerRow | null>(null);
@@ -74,6 +146,7 @@ export function ScreenPower({
           </li>
         ))}
       </ul>
+      <Lockouts lockouts={lockouts} onChanged={onChanged} />
       {ask !== null && (
         <ConfirmDialog
           title={`${SCREEN_NAMES[ask.screen] ?? ask.screen}: ${ask.on ? 'बंद करें' : 'चालू करें'}`}

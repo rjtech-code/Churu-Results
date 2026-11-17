@@ -372,7 +372,10 @@ describe('brute force: per-IP limit and lockout', () => {
     const [rows] = await pool.execute<RowDataPacket[]>(
       "SELECT new_value, ip FROM audit_log WHERE action = 'SCREEN_UNLOCK_LOCKED_OUT'",
     );
-    expect(rows[0]?.new_value).toEqual({ failures: 3, windowMinutes: 1, screen: 'none' });
+    // `until` says when the lockout ends — the panel reads it to show what is locked right now.
+    expect(rows[0]?.new_value).toMatchObject({ failures: 3, windowMinutes: 1, screen: 'none' });
+    const until = (rows[0]?.new_value as { until: string }).until;
+    expect(Date.parse(until)).toBeGreaterThan(Date.now());
     expect(rows[0]?.ip).toBeTruthy();
     // Same IP: the unlocked TV keeps working, and staff can still log in.
     expect((await get(h.app, '/api/public/meta', tv)).status).toBe(200);
@@ -682,5 +685,38 @@ describe('brute force: one TV cannot lock out the others', () => {
     expect((await unlock(h.app, key.key, { screen: '3' })).status).toBe(200);
     // A fourth attempt from the same IP is refused whatever screen it claims to be.
     expect((await unlock(h.app, key.key, { screen: '1' })).status).toBe(429);
+  });
+});
+
+/**
+ * The Super Admin's escape hatch, end to end: a screen locked out by wrong keys can be unlocked the
+ * moment the lockout is cleared from the panel — no waiting out the window, and no key re-issued.
+ */
+describe('clearing the lockout lets the screen unlock at once', () => {
+  it('locked out, cleared from the panel, the right key works immediately', async () => {
+    h.stop();
+    h = harness({ unlockFailureLimit: { limit: 3, windowMs: 15 * 60_000 } });
+    await h.snapshots.start();
+    const key = await createKeyDirect(pool, dmId);
+    await createUser(pool, { username: 'sa_lock_x', role: 'SUPER_ADMIN', password: PASSWORD });
+
+    for (let i = 0; i < 3; i++) {
+      expect((await unlock(h.app, 'WRNG-WRNG-WRNG', { screen: '1' })).status).toBe(401);
+    }
+    expect((await unlock(h.app, key.key, { screen: '1' })).status).toBe(429);
+
+    const sa = request.agent(h.app);
+    expect((await login(sa, 'sa_lock_x', PASSWORD)).status).toBe(200);
+    const csrf = await csrfToken(sa);
+    const cleared = await sa
+      .post('/api/superadmin/screens/clear-lockout')
+      .set('X-CSRF-Token', csrf)
+      .send({});
+    expect(cleared.status).toBe(200);
+
+    // Immediately usable again — and the key itself was never touched.
+    const res = await unlock(h.app, key.key, { screen: '1' });
+    expect(res.status).toBe(200);
+    expect(screenCookieOf(res)).toBeTruthy();
   });
 });

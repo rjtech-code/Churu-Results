@@ -371,10 +371,40 @@ export async function openPreviewSession(
 }
 
 /** One audit row when an IP is locked out of the key popup (not one per failed attempt). */
+/** A lockout the panel should show: which screen's counter is full, and until when. */
+export interface UnlockLockout {
+  screen: string;
+  until: string;
+}
+
+/**
+ * The key-popup lockouts in effect right now, from the audit rows the lockouts themselves write
+ * (one per counter per window). A row whose `until` has passed is simply over.
+ */
+export async function readUnlockLockouts(pool: Pool): Promise<UnlockLockout[]> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT new_value FROM audit_log
+      WHERE action = 'SCREEN_UNLOCK_LOCKED_OUT' AND created_at > NOW(3) - INTERVAL 2 HOUR
+      ORDER BY id DESC LIMIT 50`,
+  );
+  const now = Date.now();
+  const latest = new Map<string, string>();
+  for (const r of rows) {
+    const value = r.new_value as { screen?: unknown; until?: unknown } | null;
+    if (value === null || typeof value.until !== 'string') continue;
+    const screen = typeof value.screen === 'string' ? value.screen : 'none';
+    if (Date.parse(value.until) <= now || latest.has(screen)) continue;
+    latest.set(screen, value.until);
+  }
+  return [...latest]
+    .map(([screen, until]) => ({ screen, until }))
+    .sort((a, b) => a.screen.localeCompare(b.screen));
+}
+
 export async function auditUnlockLockout(
   pool: Pool,
   ip: string | null,
-  info: { failures: number; windowMinutes: number; screen: string },
+  info: { failures: number; windowMinutes: number; screen: string; until: string },
 ): Promise<void> {
   await writeAudit(pool, {
     userId: null,

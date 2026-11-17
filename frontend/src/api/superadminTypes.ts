@@ -60,10 +60,18 @@ export interface ScreenPowerRow {
   lastChange: { at: string; byName: string } | null;
 }
 
+/** A key-popup lockout in effect: that screen cannot be unlocked until `until`. */
+export interface ScreenLockout {
+  screen: string;
+  until: string;
+}
+
 export interface Overview {
   countingLocked: boolean;
   /** The three public screens, on or off (Super Admin only control). */
   screens: ScreenPowerRow[];
+  /** Key-popup attempt lockouts in effect right now (usually none). */
+  screenLockouts: ScreenLockout[];
   /** Until when no password is needed (epoch ms), or null. */
   confirmedUntil: number | null;
   counts: MasterDataDeletes & {

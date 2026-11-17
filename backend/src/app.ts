@@ -159,7 +159,7 @@ export function createApp({
   app.use('/api/admin/screen-keys', screenKeysRouter(screenAccess));
   app.use('/api/admin', adminRouter(pool, config));
   app.use('/api/candidates', candidatesRouter(pool, config));
-  app.use('/api/superadmin', superAdminRouter(pool, config));
+  app.use('/api/superadmin', superAdminRouter(pool, config, screenAccess));
   app.use('/api/observer', observerRouter(pool));
   app.use(
     '/api/profile',

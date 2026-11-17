@@ -1716,3 +1716,62 @@ dialog.dialog:has(.sa-dialog)::backdrop {
     gap: 12px;
   }
 }
+
+/* The key-popup lockout: shown only while one is in effect. Amber, because something is blocked
+   right now and the officer may want to act — never red: nothing is lost and nothing is broken. */
+.sa-lockout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--obs-radius);
+  border: 1px solid var(--obs-amber);
+  background: var(--obs-amber-soft);
+}
+
+.sa-lockout p,
+.sa-lockout ul {
+  margin: 0;
+}
+
+.sa-lockout-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sa-lockout-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--obs-amber);
+}
+
+.sa-lockout-list {
+  margin: 4px 0 0;
+  padding-inline-start: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sa-lockout-note {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--obs-ink-soft);
+}
+
+.sa-lockout .sa-btn {
+  flex: none;
+}
+
+.sa-lockout-none {
+  margin: 0;
+  font-size: 13px;
+  color: var(--obs-ink-soft);
+}
+
+@media (max-width: 700px) {
+  .sa-lockout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

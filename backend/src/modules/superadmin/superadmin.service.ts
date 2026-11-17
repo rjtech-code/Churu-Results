@@ -20,6 +20,8 @@ import {
   writeScreenPower,
 } from '../../services/setup/screen-power.js';
 import type { ScreenNumber } from '../../services/setup/screen-power.js';
+import { readUnlockLockouts } from '../screen-access/screen-keys.service.js';
+import type { ScreenAccess } from '../screen-access/screen-access.js';
 
 /** One public screen in the panel's header strip. */
 export interface ScreenPowerRow {
@@ -178,6 +180,7 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
   );
   const backup = config.setup === undefined ? null : await latestBackup(config.setup.backupDir);
   const screens = await screenPowerRows(pool);
+  const screenLockouts = await readUnlockLockouts(pool);
   const nothingToClear = Object.values(testData).every((n) => n === 0);
   const noCountingData = Object.values(countingData).every((n) => n === 0);
   const blocked = (extra: string | null) =>
@@ -188,6 +191,7 @@ export async function overview(pool: Pool, config: AppConfig, req: Request) {
   return {
     countingLocked: locked,
     screens,
+    screenLockouts,
     confirmedUntil: confirmedUntil(req),
     counts: {
       panchayatSamitis: ps.length,
@@ -513,6 +517,33 @@ export async function screenPowerRows(pool: Pool): Promise<ScreenPowerRow[]> {
     on: !off.includes(screen),
     lastChange: lastOf(screen),
   }));
+}
+
+/**
+ * Clears the key popup's attempt lockout so a blocked screen can be unlocked at once instead of
+ * waiting out the window.
+ *
+ * It clears COUNTERS and nothing else: no key is read, changed or revoked, no screen session is
+ * touched, and no TV's picture changes. The audit row keeps which lockouts were in effect when it
+ * was pressed, so the reason for pressing it is on record.
+ */
+export async function clearScreenUnlockLockout(
+  pool: Pool,
+  who: Actor,
+  access: ScreenAccess,
+): Promise<void> {
+  const cleared = await readUnlockLockouts(pool);
+  await access.clearUnlockLockouts();
+  await writeAudit(
+    pool,
+    {
+      action: 'SCREEN_UNLOCK_LOCKOUT_CLEARED',
+      entity: 'screen_key',
+      entityId: null,
+      newValue: { cleared: cleared.map((l) => ({ screen: l.screen, until: l.until })) },
+    },
+    auditActor(who),
+  );
 }
 
 export async function setScreenPower(

@@ -66,7 +66,7 @@ export function StatusBar({ ov, onChanged }: { ov: Overview; onChanged: () => vo
           {locked ? 'Lock OFF करें' : 'Lock ON करें'}
         </button>
       </div>
-      <ScreenPower screens={ov.screens} onChanged={onChanged} />
+      <ScreenPower screens={ov.screens} lockouts={ov.screenLockouts} onChanged={onChanged} />
       {stateGroups(ov).map((group) => (
         <div className="sa-count-group" key={group.title}>
           <h3 className="sa-count-group-title">{group.title}</h3>

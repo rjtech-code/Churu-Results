@@ -18,6 +18,7 @@ import {
 } from '../../services/setup/booths.js';
 import { SAMPLE_NAMES, sampleFile } from '../../services/setup/samples.js';
 import { isScreenNumber } from '../../services/setup/screen-power.js';
+import type { ScreenAccess } from '../screen-access/screen-access.js';
 import type { SampleName } from '../../services/setup/samples.js';
 import { actor, busyAsConflict, idParam, noStore, parse, password } from '../admin/http.js';
 import { parseBoothNo } from '../../services/booth-no.js';
@@ -32,6 +33,7 @@ import {
   resetCountingData,
   resetDmPassword,
   resetTestData,
+  clearScreenUnlockLockout,
   setCountingLock,
   setScreenPower,
   setDmEmail,
@@ -93,6 +95,7 @@ const boothAddBody = z
 const boothDeleteBody = z
   .object({ password: optionalPassword, confirmText: z.string().max(10) })
   .strict();
+const noBody = z.object({}).strict();
 const screenPowerBody = z.object({ on: z.boolean() }).strict();
 const lockBody = z.discriminatedUnion('on', [
   z.object({ on: z.literal(true) }).strict(),
@@ -103,7 +106,11 @@ const lockBody = z.discriminatedUnion('on', [
 const psQuery = z.object({ psId: idParam }).strict();
 const noQuery = z.object({}).strict();
 
-export function superAdminRouter(pool: Pool, config: AppConfig): Router {
+export function superAdminRouter(
+  pool: Pool,
+  config: AppConfig,
+  screenAccess: ScreenAccess,
+): Router {
   const router = Router();
   router.use(requireRole('SUPER_ADMIN'));
   // Only after the role check: the large upload bodies are read only for the Super Admin.
@@ -211,6 +218,13 @@ export function superAdminRouter(pool: Pool, config: AppConfig): Router {
   });
 
   // ---- the three public screens: ON / OFF (quick and reversible, so a plain confirm in the panel)
+  // Before /screens/:screenNo, which would otherwise read "clear-lockout" as a screen number.
+  router.post('/screens/clear-lockout', async (req, res) => {
+    parse(noBody, req.body);
+    await clearScreenUnlockLockout(pool, actor(req), screenAccess);
+    res.json({ ok: true });
+  });
+
   router.post('/screens/:screenNo', async (req, res) => {
     const screenNo = req.params.screenNo;
     if (!isScreenNumber(screenNo)) throw new ApiError(404, 'NOT_FOUND');

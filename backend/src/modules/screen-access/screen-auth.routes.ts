@@ -14,7 +14,7 @@
 // never logged: errors here are logged without the request body.
 import express, { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { MemoryStore, ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import type { ScreenAccess } from './screen-access.js';
 import { auditUnlockLockout, unlockWithKey } from './screen-keys.service.js';
@@ -80,6 +80,7 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
           failures,
           windowMinutes,
           screen: screenOf(req),
+          until: new Date(resetAt).toISOString(),
         }).catch(() => {
           console.error('[screen-auth] lockout audit failed');
         });
@@ -91,8 +92,14 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
         .json({ error: 'TOO_MANY_ATTEMPTS', retryAfterSeconds });
     };
 
+  // The counters are made here so the Super Admin panel can clear them (and nothing else).
+  const totalStore = new MemoryStore();
+  const failureStore = new MemoryStore();
+  access.registerUnlockCounters([totalStore, failureStore]);
+
   router.use(
     rateLimit({
+      store: totalStore,
       windowMs: unlockTotalLimit.windowMs,
       limit: unlockTotalLimit.limit,
       standardHeaders: 'draft-8',
@@ -107,6 +114,7 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
   // above still runs before anything is parsed.
   const readBody = express.json({ limit: '1kb' });
   const perScreenFailures = rateLimit({
+    store: failureStore,
     windowMs: unlockFailureLimit.windowMs,
     limit: unlockFailureLimit.limit,
     standardHeaders: false,

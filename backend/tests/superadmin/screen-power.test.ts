@@ -145,3 +145,87 @@ describe('the DM page', () => {
     expect(await readScreensOff(pool)).toEqual(['3']);
   });
 });
+
+/**
+ * The escape hatch: after repeated wrong keys a screen cannot be unlocked for a quarter of an hour,
+ * and on counting day that is exactly when it must come back. The panel clears the ATTEMPT COUNTERS
+ * and nothing else.
+ */
+describe('clearing the key-popup lockout', () => {
+  const lockoutAudit = async (screen: string, minutesAgo: number, lastsMinutes: number) => {
+    await pool.execute(
+      `INSERT INTO audit_log (user_id, action, entity, entity_id, new_value, ip, created_at)
+       VALUES (NULL, 'SCREEN_UNLOCK_LOCKED_OUT', 'screen_key', NULL, ?, '10.0.0.9',
+               NOW(3) - INTERVAL ? MINUTE)`,
+      [
+        JSON.stringify({
+          failures: 10,
+          windowMinutes: 15,
+          screen,
+          until: new Date(Date.now() + (lastsMinutes - minutesAgo) * 60_000).toISOString(),
+        }),
+        minutesAgo,
+      ],
+    );
+  };
+  const overview = async () => {
+    const res = await sa.get('/api/superadmin/overview');
+    expect(res.status).toBe(200);
+    return res.body as { screenLockouts: { screen: string; until: string }[] };
+  };
+
+  it('with nothing locked out the panel has nothing to show', async () => {
+    expect((await overview()).screenLockouts).toEqual([]);
+  });
+
+  it('shows WHICH screen is locked out and until when; an expired one is not shown', async () => {
+    await lockoutAudit('1', 2, 15);
+    await lockoutAudit('3', 30, 15); // over long ago
+    const { screenLockouts } = await overview();
+    expect(screenLockouts.map((l) => l.screen)).toEqual(['1']);
+    expect(Date.parse(screenLockouts[0]?.until ?? '')).toBeGreaterThan(Date.now());
+  });
+
+  it('clears it, audits what was in effect, and touches nothing else', async () => {
+    await lockoutAudit('2', 1, 15);
+    const [keysBefore] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, key_hash, key_enc, revoked_at FROM screen_key ORDER BY id',
+    );
+    const [sessionsBefore] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, token_hash, expires_at FROM screen_session ORDER BY id',
+    );
+
+    expect((await sa.post('/api/superadmin/screens/clear-lockout', {})).status).toBe(200);
+
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT new_value, user_id FROM audit_log
+        WHERE action = 'SCREEN_UNLOCK_LOCKOUT_CLEARED' ORDER BY id`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.new_value).toMatchObject({ cleared: [{ screen: '2' }] });
+    expect(rows[0]?.user_id).toBeTruthy();
+
+    // No key and no session was read, changed or ended.
+    const [keysAfter] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, key_hash, key_enc, revoked_at FROM screen_key ORDER BY id',
+    );
+    const [sessionsAfter] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, token_hash, expires_at FROM screen_session ORDER BY id',
+    );
+    expect(keysAfter).toEqual(keysBefore);
+    expect(sessionsAfter).toEqual(sessionsBefore);
+    // The screens' own ON/OFF state is untouched too.
+    expect(await readScreensOff(pool)).toEqual([]);
+  });
+
+  it('SUPER_ADMIN only: the DM and an RO are refused, and nothing is audited', async () => {
+    const dm = await apiClient(app, 'dm_x4', PASSWORD);
+    expect((await dm.post('/api/superadmin/screens/clear-lockout', {})).status).toBe(403);
+    const ro = await apiClient(app, 'ro_ps1_x1', PASSWORD);
+    expect((await ro.post('/api/superadmin/screens/clear-lockout', {})).status).toBe(403);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      "SELECT id FROM audit_log WHERE action = 'SCREEN_UNLOCK_LOCKOUT_CLEARED'",
+    );
+    expect(rows).toHaveLength(0);
+  });
+});

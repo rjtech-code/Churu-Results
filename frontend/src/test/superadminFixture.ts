@@ -8,6 +8,7 @@ export const OV: Overview = {
     { screen: '2', on: true, lastChange: null },
     { screen: '3', on: true, lastChange: null },
   ],
+  screenLockouts: [],
   confirmedUntil: null,
   counts: {
     panchayatSamitis: 13,
