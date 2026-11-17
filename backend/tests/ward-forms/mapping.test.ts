@@ -2,7 +2,7 @@
 // anything the system does not have, never a guess.
 import { describe, expect, it } from 'vitest';
 import { mapPart2 } from '../../src/services/ward-forms/map-part2.js';
-import { mapPrarup7 } from '../../src/services/ward-forms/map-prarup7.js';
+import { mapBlankPrarup7, mapPrarup7 } from '../../src/services/ward-forms/map-prarup7.js';
 import { PART2 } from '../../src/services/ward-forms/templates/part2.template.js';
 import { RULE_NUMBER_BLANK } from '../../src/services/ward-forms/templates/prarup7-levels.js';
 import { NOTA_VOTES, PS_BODY, formSource, prarup7For, votesFor } from './source.js';
@@ -260,5 +260,76 @@ describe('Prarup-7 levels: one template, Zila Parishad and Panchayat Samiti word
       null,
       null,
     ]);
+  });
+});
+
+/**
+ * The BLANK प्ररूप–7: the same sheet with every counting RESULT left empty. These tests name each
+ * cell, so what is printed and what is left to the pen can be checked against the officers' list.
+ */
+describe('the blank प्ररूप–7', () => {
+  const src = () =>
+    formSource({
+      candidates: 3,
+      electionDate: '2026-11-20',
+      reservation: 'सामान्य महिला',
+      details: [{ address: 'ग्राम साण्डन', occupation: 'कृषि', heldPanchSarpanch: 'YES' }, {}, {}],
+    });
+
+  it('keeps every fixed fact exactly as the filled form prints it', () => {
+    const filled = mapPrarup7(src(), T, 'ताराचन्द मीणा (RTS)');
+    const blank = mapBlankPrarup7(src(), T, 'ताराचन्द मीणा (RTS)');
+    // Headings' values, ward, body, date, place, the RO's name, the ward number and reservation.
+    expect(blank.header).toEqual(filled.header);
+    expect([blank.place, blank.date, blank.roName]).toEqual([
+      filled.place,
+      filled.date,
+      filled.roName,
+    ]);
+    expect([blank.wardNo, blank.reservation, blank.wardNoPadded]).toEqual([
+      filled.wardNo,
+      filled.reservation,
+      filled.wardNoPadded,
+    ]);
+    // The ballot: the same candidates in the same order, with the same particulars.
+    expect(blank.rows.map((r) => r.contested)).toEqual(filled.rows.map((r) => r.contested));
+    expect(blank.rows.map((r) => r.particulars)).toEqual(filled.rows.map((r) => r.particulars));
+    // The NOTA row is part of the ballot, so it is printed too.
+    expect(blank.rows).toHaveLength(4);
+    expect(blank.rows.at(-1)?.contested).toContain('नोटा');
+    // The declaration's own line ("कार्यालय का नाम सदस्य, …") is template text, not a result.
+    expect(blank.declaration.office).toBe(filled.declaration.office);
+  });
+
+  it('blanks every counting result and nothing else', () => {
+    const blank = mapBlankPrarup7(src(), T, 'ताराचन्द मीणा (RTS)');
+    // Column 5: each candidate's votes, and the NOTA votes.
+    expect(blank.rows.map((r) => r.votes)).toEqual([null, null, null, null]);
+    // Column 6: rejected postal ballots.
+    expect(blank.rejected).toBeNull();
+    // The declaration: who was elected, their address, gender and category.
+    expect(blank.declaration.nameAndAddress).toEqual([]);
+    expect([blank.declaration.gender, blank.declaration.category]).toEqual([null, null]);
+  });
+
+  it('is always a contested ballot: column 2 (uncontested) is the form\'s "—", never a name', () => {
+    const blank = mapBlankPrarup7(formSource({ unopposed: true }), T);
+    expect(blank.contested).toBe(true);
+    expect(blank.rows.every((r) => r.uncontested === null)).toBe(true);
+    // The one candidate is printed in column 3 with the NOTA row under them, votes empty.
+    expect(blank.rows).toHaveLength(2);
+    expect(blank.rows.map((r) => r.votes)).toEqual([null, null]);
+  });
+
+  it('needs no result at all: a ward with no counting still maps', () => {
+    const blank = mapBlankPrarup7(formSource({ declared: false, candidates: 2 }), PS);
+    expect(blank.rows.map((r) => r.votes)).toEqual([null, null, null]);
+    expect(blank.declaration.nameAndAddress).toEqual([]);
+  });
+
+  it('the filled form is untouched by any of this', () => {
+    const filled = mapPrarup7(src(), T, 'ताराचन्द मीणा (RTS)');
+    expect(filled.rows.map((r) => r.votes)).toEqual(['1000', '950', '900', '7']);
+    expect(filled.declaration.nameAndAddress.length).toBeGreaterThan(0);
   });
 });

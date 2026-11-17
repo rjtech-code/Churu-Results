@@ -20,7 +20,7 @@ import {
   mapBoothPart2,
   mapPart2,
 } from '../../services/ward-forms/map-part2.js';
-import { mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
+import { mapBlankPrarup7, mapPrarup7 } from '../../services/ward-forms/map-prarup7.js';
 import { renderPart2 } from '../../services/ward-forms/render-part2.js';
 import { renderPart2Xlsx } from '../../services/ward-forms/render-part2.xlsx.js';
 import { renderPrarup7 } from '../../services/ward-forms/render-prarup7.js';
@@ -135,6 +135,48 @@ function download(pool: Pool, form: WardFormName): RequestHandler {
         format: 'pdf',
         ward_id: wardId,
         declaration_version: src.result.declaration?.version ?? null,
+      },
+    });
+  };
+}
+
+/**
+ * GET /:wardId/prarup7-blank.pdf — the same प्ररूप–7 sheet with the counting results left empty, to
+ * print and fill in by hand.
+ *
+ * Offered for ANY ward the user may read, whatever its status: blank forms are printed before there
+ * are results, so the filled form's "declared only" rule must not apply. The permissions, the audit
+ * row and the one-page rule are the filled form's; a ballot too long for the page is refused the
+ * same way it is refused there.
+ */
+function prarup7BlankDownload(pool: Pool): RequestHandler {
+  return async (req, res) => {
+    const wardId = await allowedWard(pool, req);
+    const user = req.user;
+    if (!user) throw new ApiError(401, 'UNAUTHENTICATED');
+    const src = await readFormSource(pool, wardId);
+    const kind = src.ward.kind;
+    if (src.candidates.length > WARD_FORMS.prarup7.capacity(kind)) {
+      throw new ApiError(REFUSAL_STATUS, 'TOO_MANY_CANDIDATES');
+    }
+    const t = PRARUP7_TEMPLATES[kind];
+    let body: Buffer;
+    try {
+      body = await renderPrarup7(mapBlankPrarup7(src, t, roNameFor(user)), t);
+    } catch (err) {
+      if (err instanceof FormDoesNotFitError) throw new ApiError(409, 'FORM_DOES_NOT_FIT');
+      throw err;
+    }
+    await sendExport(pool, req, res, {
+      body,
+      contentType: PDF,
+      fileName: `${WARD_FORMS.prarup7.fileStem}_Blank_${kind}-ward-${String(src.ward.wardNo)}_${String(wardId)}.pdf`,
+      wardId,
+      details: {
+        section: `${WARD_FORMS.prarup7.auditSection}-blank`,
+        format: 'pdf',
+        ward_id: wardId,
+        candidates: src.candidates.length,
       },
     });
   };
@@ -303,6 +345,7 @@ export function wardFormsRouter(pool: Pool): Router {
   router.get('/booths/:boothId/:ballotFor/prarup14-blank.pdf', boothBlankDownload(pool, 'pdf'));
   router.get('/booths/:boothId/:ballotFor/prarup14-blank.xlsx', boothBlankDownload(pool, 'xlsx'));
   router.get('/:wardId', availability(pool));
+  router.get('/:wardId/prarup7-blank.pdf', prarup7BlankDownload(pool));
   for (const form of WARD_FORM_NAMES) router.get(`/:wardId/${form}.pdf`, download(pool, form));
   router.get('/:wardId/check-memo.xlsx', checkMemoDownload(pool));
   return router;

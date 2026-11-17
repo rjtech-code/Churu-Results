@@ -34,6 +34,7 @@ async function as(user: keyof typeof USERS): Promise<Agent> {
 }
 const part2 = (wardId: number) => `/api/ward-forms/${String(wardId)}/part2.pdf`;
 const prarup7 = (wardId: number) => `/api/ward-forms/${String(wardId)}/prarup7.pdf`;
+const blank7 = (wardId: number) => `/api/ward-forms/${String(wardId)}/prarup7-blank.pdf`;
 
 describe('access', () => {
   it('logged out: 401', async () => {
@@ -161,6 +162,51 @@ describe('Prarup-7 of a PS ward', () => {
       userId: fw.w.users.ro1,
       entityId: fw.w.psW1,
       newValue: { section: 'ward-form-prarup7', ward_id: fw.w.psW1, declaration_version: 1 },
+    });
+  });
+});
+
+/**
+ * The blank प्ररूप–7 is printed BEFORE there are results, so it is offered whatever the ward's
+ * status. Everything else about it — who may download it, the audit row, the one-page rule — is the
+ * filled form's, and the filled form keeps its own rules untouched.
+ */
+describe('the blank प्ररूप–7', () => {
+  it('any status: declared, counted-not-declared, and a ward with no counting at all', async () => {
+    const ro1 = await as('ro1');
+    for (const wardId of [fw.w.psW1, fw.w.psW4, fw.w.psW3]) {
+      const res = await getForm(ro1, blank7(wardId));
+      expect(res.status, `ward ${String(wardId)}`).toBe(200);
+      expect(res.headers['content-type']).toBe('application/pdf');
+      expect(pageCount(res.body as Buffer)).toBe(1);
+    }
+    // The filled form still refuses the ward that is not declared — nothing about it changed.
+    expect((await getForm(ro1, prarup7(fw.w.psW4))).body).toEqual({ error: 'NOT_DECLARED' });
+  });
+
+  it('the same permissions as the filled form', async () => {
+    expect((await getForm(request.agent(fw.app), blank7(fw.w.psW1))).status).toBe(401);
+    expect((await getForm(await as('ro2'), blank7(fw.w.psW1))).status).toBe(403);
+    expect((await getForm(await as('zp'), blank7(fw.w.psW1))).status).toBe(403);
+    expect((await getForm(await as('ro1'), blank7(fw.w.zW1))).status).toBe(403);
+    expect((await getForm(await as('zp'), blank7(fw.w.zW1))).status).toBe(200);
+    expect((await getForm(await as('dm'), blank7(fw.w.psW1))).status).toBe(200);
+  });
+
+  it('its own file name and audit row, and it never touches the declaration version', async () => {
+    const before = (await exportAudits(pool)).length;
+    const res = await getForm(await as('dm'), blank7(fw.w.zW1));
+    expect(res.status).toBe(200);
+    expect(res.headers['content-disposition']).toBe(
+      `attachment; filename="Prarup-7_Blank_ZP-ward-1_${String(fw.w.zW1)}.pdf"`,
+    );
+    const audits = await exportAudits(pool);
+    expect(audits).toHaveLength(before + 1);
+    expect(audits.at(-1)).toMatchObject({ entity: 'ward', entityId: fw.w.zW1 });
+    expect(audits.at(-1)?.newValue).toMatchObject({
+      section: 'ward-form-prarup7-blank',
+      format: 'pdf',
+      ward_id: fw.w.zW1,
     });
   });
 });

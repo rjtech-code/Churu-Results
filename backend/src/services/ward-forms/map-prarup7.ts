@@ -39,23 +39,24 @@ function particulars(c: FormCandidate, t: Prarup7Template): Particulars {
   };
 }
 
+/** `votes` is the counting result, or null on the blank form (the cell is left to be written in). */
 function candidateRow(
-  src: FormSource,
   c: FormCandidate,
   t: Prarup7Template,
   contested: boolean,
+  votes: Cell,
 ): Prarup7Row {
   const label = candidateLabel(c, t);
   return {
     uncontested: contested ? null : label,
     contested: contested ? label : null,
     particulars: particulars(c, t),
-    votes: contested ? String(votesOf(src.result, c.id)) : null,
+    votes,
   };
 }
 
 /** The NOTA row: its number after the candidates, dashes in (क)-(ङ) as printed. */
-function notaRow(src: FormSource, t: Prarup7Template): Prarup7Row {
+function notaRow(src: FormSource, t: Prarup7Template, votes: Cell): Prarup7Row {
   const none = t.text.none;
   return {
     uncontested: null,
@@ -71,7 +72,7 @@ function notaRow(src: FormSource, t: Prarup7Template): Prarup7Row {
       occupation: none,
       heldPanchSarpanch: null,
     },
-    votes: String(src.result.notaVotes),
+    votes,
   };
 }
 
@@ -100,17 +101,16 @@ function nameOrBlank(name: string | null | undefined): Cell {
 }
 
 /**
- * `roName`: the downloading RO's own full name (users.full_name). The route passes null for a DM
- * download (that line stays blank, as before).
+ * Everything on the form that is NOT a counting result: the printed headings' values (the body, the
+ * ward count, the Panchayat Samitis, the district, the election date), the ward number and its
+ * reservation, स्थान / दिनांक and the Returning Officer's name. The filled form and the blank form
+ * print these identically — they are known before a single vote is counted.
  */
-export function mapPrarup7(
+function formFacts(
   src: FormSource,
   t: Prarup7Template,
-  roName: string | null = null,
-): Prarup7Data {
-  const contested = src.result.status !== 'UNOPPOSED';
-  const rows = src.candidates.map((c) => candidateRow(src, c, t, contested));
-  const rejected = src.result.rejectedPostal;
+  roName: string | null,
+): Omit<Prarup7Data, 'contested' | 'rows' | 'rejected' | 'declaration'> {
   const date = src.electionDate === null ? null : t.formats.date(src.electionDate);
   return {
     header: {
@@ -125,10 +125,62 @@ export function mapPrarup7(
     roName: nameOrBlank(roName),
     wardNo: String(src.ward.wardNo),
     reservation: src.ward.reservation === null ? null : t.formats.bracketed(src.ward.reservation),
-    contested,
-    rows: contested ? [...rows, notaRow(src, t)] : rows,
-    rejected: contested && rejected !== null ? String(rejected) : null,
     wardNoPadded: String(src.ward.wardNo).padStart(t.wardNoDigits, '0'),
+  };
+}
+
+/**
+ * `roName`: the downloading RO's own full name (users.full_name). The route passes null for a DM
+ * download (that line stays blank, as before).
+ */
+export function mapPrarup7(
+  src: FormSource,
+  t: Prarup7Template,
+  roName: string | null = null,
+): Prarup7Data {
+  const contested = src.result.status !== 'UNOPPOSED';
+  const rows = src.candidates.map((c) =>
+    candidateRow(c, t, contested, contested ? String(votesOf(src.result, c.id)) : null),
+  );
+  const rejected = src.result.rejectedPostal;
+  return {
+    ...formFacts(src, t, roName),
+    contested,
+    rows: contested ? [...rows, notaRow(src, t, String(src.result.notaVotes))] : rows,
+    rejected: contested && rejected !== null ? String(rejected) : null,
     declaration: declaration(src, t),
+  };
+}
+
+/**
+ * The BLANK प्ररूप–7: the SAME sheet, printed before the result exists, for the officers to fill in
+ * by hand. Everything fixed is printed — the headings and rule numbers, the ward and body details,
+ * the candidates in ballot order with their particulars, the NOTA row, the declaration's own table
+ * and the Returning Officer's block — and every cell that is a counting RESULT is left empty:
+ * each candidate's votes, the NOTA votes, the rejected postal ballots, and the elected member's
+ * name, address, gender and category in the declaration.
+ *
+ * It is always laid out as a contested ballot (names in column 3, a NOTA row): what the ward turns
+ * out to be is a result, and this form is printed before there is one.
+ */
+export function mapBlankPrarup7(
+  src: FormSource,
+  t: Prarup7Template,
+  roName: string | null = null,
+): Prarup7Data {
+  const rows = src.candidates.map((c) => candidateRow(c, t, true, null));
+  return {
+    ...formFacts(src, t, roName),
+    contested: true,
+    rows: [...rows, notaRow(src, t, null)],
+    rejected: null,
+    // The declaration's heading, its column heads and its numbers are the template's; only the
+    // elected member's own cells are empty here.
+    declaration: {
+      office: t.text.declarationOffice.replace(PLACEHOLDER.name, src.body.name),
+      nameAndAddress: [],
+      gender: null,
+      category: null,
+    },
   };
 }

@@ -10,13 +10,14 @@ const FORMS: readonly { form: WardFormName; label: string; fallbackName: string 
 ];
 
 /**
- * The official forms of a declared ward as PDF (Part-II, Prarup-7), beside the "चेक मीमो (Excel)" —
- * the final-result check memo, which is offered for EVERY ward the user may read (it exists to
- * check the counting as it stands, declared or not). A refusal at download time is shown in Hindi.
+ * The official forms of a declared ward as PDF (Part-II, Prarup-7), beside two downloads that are
+ * offered for EVERY ward the user may read, declared or not: the "चेक मीमो (Excel)" (it exists to
+ * check the counting as it stands) and the BLANK प्ररूप–7 (printed before there are results, filled
+ * in by hand). A refusal at download time is shown in Hindi.
  */
 export function WardFormDownloads({ wardId }: { wardId: number }) {
   const { data } = useApiData(() => api<WardFormsInfo>('GET', `/api/ward-forms/${String(wardId)}`), [wardId]);
-  const [busy, setBusy] = useState<WardFormName | 'check-memo' | null>(null);
+  const [busy, setBusy] = useState<WardFormName | 'check-memo' | 'prarup7-blank' | null>(null);
   const [error, setError] = useState<unknown>(null);
   const offered = FORMS.filter((f) => data?.forms[f.form].available === true);
 
@@ -44,6 +45,18 @@ export function WardFormDownloads({ wardId }: { wardId: number }) {
     }
   };
 
+  const downloadBlankPrarup7 = async () => {
+    setBusy('prarup7-blank');
+    setError(null);
+    try {
+      await downloadFile(`/api/ward-forms/${String(wardId)}/prarup7-blank.pdf`, 'Prarup-7_Blank.pdf');
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="ward-forms no-print" data-testid="ward-forms">
       <div className="actions">
@@ -60,6 +73,16 @@ export function WardFormDownloads({ wardId }: { wardId: number }) {
             {busy === f.form ? 'बन रहा है…' : f.label}
           </button>
         ))}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy !== null}
+          onClick={() => {
+            void downloadBlankPrarup7();
+          }}
+        >
+          {busy === 'prarup7-blank' ? 'बन रहा है…' : 'प्ररूप-7 खाली'}
+        </button>
         <button
           type="button"
           className="btn btn-secondary"

@@ -50,6 +50,22 @@ describe('चेक मीमो (Excel)', () => {
     expect(screen.queryByRole('button', { name: /Download Part 2/ })).toBeNull();
   });
 
+  it('the BLANK प्ररूप–7 stands beside them, and is offered whatever the ward status', async () => {
+    show(true);
+    expect(await screen.findByRole('button', { name: 'प्ररूप-7 खाली' })).toBeTruthy();
+    show(false);
+    // No official form yet, but the blank one is for exactly that moment.
+    expect((await screen.findAllByRole('button', { name: 'प्ररूप-7 खाली' })).length).toBeGreaterThan(0);
+  });
+
+  it('downloads the blank प्ररूप–7 as its own file', async () => {
+    show(true);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'प्ररूप-7 खाली' }));
+    await waitFor(() => {
+      expect(downloadMock).toHaveBeenCalledWith('/api/ward-forms/42/prarup7-blank.pdf', 'Prarup-7_Blank.pdf');
+    });
+  });
+
   it('downloads the ward’s check memo as .xlsx', async () => {
     show(true);
     await userEvent.setup().click(await screen.findByRole('button', { name: 'चेक मीमो (Excel)' }));
