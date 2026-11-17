@@ -55,6 +55,10 @@ function text(w: Prarup7Level): Prarup7Template['text'] {
     header: w.header.map((h) => ({ ...h, label: labels[h.value] })),
     columns: columns(w),
     columnNumbers: ['1', '2', '3', '4', '5', '6', '7', '8'],
+    // Column 7, when the ward was decided by lot: who it fell to, and who conducted it. The column
+    // head already says "लॉट का … परिणाम", so the labels stay short — it is a narrow column.
+    lotWinner: 'निर्वाचित:',
+    lotConductedBy: 'संचालन:',
     notaName: 'नोटा',
     notaNote: '(इनमें से कोई नहीं)',
     none: '—',

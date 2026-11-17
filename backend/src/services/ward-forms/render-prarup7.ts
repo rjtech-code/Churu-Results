@@ -80,7 +80,11 @@ function resultHead({ t, s }: Ctx): GridCell[] {
   ];
 }
 
-function resultRow(row: number, r: Prarup7Row, { s }: Ctx): GridCell[] {
+/**
+ * `lotPerRow`: column 7 is one empty cell per row, as on the printed form. A ward decided by lot
+ * gets ONE cell for the whole ward instead (wardCells), so the sentence has the width to be read.
+ */
+function resultRow(row: number, r: Prarup7Row, { s }: Ctx, lotPerRow: boolean): GridCell[] {
   const p = r.particulars;
   const left = { align: 'left' as const };
   const centred = [p.category, p.education, p.age, p.occupation, p.heldPanchSarpanch];
@@ -89,12 +93,12 @@ function resultRow(row: number, r: Prarup7Row, { s }: Ctx): GridCell[] {
     textCell(row, COL.particulars, p.address, s('cell'), left),
     ...centred.map((v, i) => textCell(row, COL.particulars + 1 + i, v, s('cell'))),
     textCell(row, COL.votes, r.votes, s('cell')),
-    textCell(row, COL.lot, null, s('cell')),
+    ...(lotPerRow ? [textCell(row, COL.lot, null, s('cell'))] : []),
     textCell(row, COL.remarks, null, s('cell')),
   ];
 }
 
-/** Columns 1, 2 and 6 are one cell for the whole ward. */
+/** Columns 1, 2 and 6 are one cell for the whole ward — and column 7 too, when there was a lot. */
 function wardCells(d: Prarup7Data, { t, s }: Ctx): GridCell[] {
   const rowSpan = d.rows.length;
   const uncontested = d.contested
@@ -115,6 +119,18 @@ function wardCells(d: Prarup7Data, { t, s }: Ctx): GridCell[] {
       align: d.contested ? 'center' : 'left',
     }),
     textCell(FIRST_BODY_ROW, COL.rejected, d.rejected, s('cell'), { rowSpan }),
+    // Each recorded part on its own paragraph, so the three do not read as one run of text.
+    ...(d.lot.length === 0
+      ? []
+      : [
+          {
+            row: FIRST_BODY_ROW,
+            col: COL.lot,
+            rowSpan,
+            align: 'left' as const,
+            paragraphs: d.lot.map((text) => ({ text, style: s('cell') })),
+          },
+        ]),
   ];
 }
 
@@ -122,7 +138,7 @@ function resultTable(d: Prarup7Data, c: Ctx): GridSpec {
   const cells = [
     ...resultHead(c),
     ...wardCells(d, c),
-    ...d.rows.flatMap((r, i) => resultRow(FIRST_BODY_ROW + i, r, c)),
+    ...d.rows.flatMap((r, i) => resultRow(FIRST_BODY_ROW + i, r, c, d.lot.length === 0)),
   ];
   return tableGrid(c.t.table, c.page.width, c.step, FIRST_BODY_ROW + d.rows.length, cells);
 }

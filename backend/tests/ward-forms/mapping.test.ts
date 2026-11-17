@@ -333,3 +333,62 @@ describe('the blank प्ररूप–7', () => {
     expect(filled.declaration.nameAndAddress.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Column 7, "नियम 51 के अधीन लॉट का यदि कोई हो, परिणाम": a ward decided by lot carries the record
+ * the RO made with the declaration; every other ward leaves it empty, as "यदि कोई हो" says.
+ */
+describe('column 7: the lot result', () => {
+  const LOTTERY = {
+    conductedBy: 'श्री रामलाल, रिटर्निंग अधिकारी',
+    note: 'दोनों के सामने पर्ची निकाली गई',
+  };
+  const byLot = (kind: 'PS' | 'ZP') =>
+    formSource({ kind, candidates: 2, tieResolved: true, lottery: LOTTERY });
+
+  it.each(['PS', 'ZP'] as const)(
+    '%s: names who the lot fell to, who conducted it, and the note',
+    (kind) => {
+      const t = kind === 'PS' ? PS : T;
+      const d = mapPrarup7(byLot(kind), t, 'ताराचन्द मीणा (RTS)');
+      const lot = d.lot.join(' ');
+      // The winner is the DECLARATION's winner, not a recount.
+      const winner = byLot(kind).candidates.find(
+        (c) => c.id === byLot(kind).result.winnerCandidateId,
+      );
+      expect(winner).toBeDefined();
+      expect(lot).toContain('निर्वाचित:');
+      expect(lot).toContain(winner?.nameHindi ?? '—');
+      expect(lot).toContain(LOTTERY.conductedBy);
+      expect(lot).toContain(LOTTERY.note);
+    },
+  );
+
+  it('a ward declared normally prints nothing there', () => {
+    expect(mapPrarup7(formSource({ candidates: 3 }), T).lot).toEqual([]);
+    expect(mapPrarup7(formSource({ kind: 'PS', unopposed: true }), PS).lot).toEqual([]);
+  });
+
+  it('the blank form leaves it to the pen, even for a ward that WAS decided by lot', () => {
+    expect(mapBlankPrarup7(byLot('PS'), PS).lot).toEqual([]);
+  });
+
+  it('a stored lot with empty words still prints the winner, and never an empty cell with labels', () => {
+    const d = mapPrarup7(
+      formSource({ candidates: 2, tieResolved: true, lottery: { conductedBy: '', note: '' } }),
+      T,
+    );
+    expect(d.lot).toHaveLength(1);
+    expect(d.lot[0]).toContain('निर्वाचित:');
+  });
+
+  it('nothing else on the form moves: the other cells are what they were without a lot', () => {
+    const withLot = mapPrarup7(byLot('ZP'), T, 'नाम');
+    const plain = mapPrarup7(formSource({ candidates: 2, tieResolved: true }), T, 'नाम');
+    expect(plain.lot).toEqual([]);
+    expect(withLot.rows).toEqual(plain.rows);
+    expect(withLot.rejected).toBe(plain.rejected);
+    expect(withLot.declaration).toEqual(plain.declaration);
+    expect(withLot.header).toEqual(plain.header);
+  });
+});

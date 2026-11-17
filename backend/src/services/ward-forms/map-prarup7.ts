@@ -110,7 +110,7 @@ function formFacts(
   src: FormSource,
   t: Prarup7Template,
   roName: string | null,
-): Omit<Prarup7Data, 'contested' | 'rows' | 'rejected' | 'declaration'> {
+): Omit<Prarup7Data, 'contested' | 'rows' | 'rejected' | 'declaration' | 'lot'> {
   const date = src.electionDate === null ? null : t.formats.date(src.electionDate);
   return {
     header: {
@@ -127,6 +127,24 @@ function formFacts(
     reservation: src.ward.reservation === null ? null : t.formats.bracketed(src.ward.reservation),
     wardNoPadded: String(src.ward.wardNo).padStart(t.wardNoDigits, '0'),
   };
+}
+
+/**
+ * Column 7 "नियम 51 के अधीन लॉट का यदि कोई हो, परिणाम": filled ONLY for a ward whose tie was
+ * resolved by lot, from what the RO recorded with that declaration — who the lot fell to, who
+ * conducted it, and their note. Every other ward leaves the column empty, as the form expects
+ * ("यदि कोई हो"). Nothing here is recomputed: the winner is the declaration's winner.
+ */
+function lotResult(src: FormSource, t: Prarup7Template): string[] {
+  if (src.lottery === null) return [];
+  const winner = src.candidates.find((c) => c.id === src.result.winnerCandidateId);
+  return [
+    winner === undefined ? null : t.formats.labelled(t.text.lotWinner, winner.nameHindi),
+    src.lottery.conductedBy === ''
+      ? null
+      : t.formats.labelled(t.text.lotConductedBy, src.lottery.conductedBy),
+    src.lottery.note === '' ? null : src.lottery.note,
+  ].filter((line): line is string => line !== null);
 }
 
 /**
@@ -148,6 +166,7 @@ export function mapPrarup7(
     contested,
     rows: contested ? [...rows, notaRow(src, t, String(src.result.notaVotes))] : rows,
     rejected: contested && rejected !== null ? String(rejected) : null,
+    lot: lotResult(src, t),
     declaration: declaration(src, t),
   };
 }
@@ -174,6 +193,8 @@ export function mapBlankPrarup7(
     contested: true,
     rows: [...rows, notaRow(src, t, null)],
     rejected: null,
+    // The lot is a result too: the blank sheet leaves column 7 to the pen.
+    lot: [],
     // The declaration's heading, its column heads and its numbers are the template's; only the
     // elected member's own cells are empty here.
     declaration: {

@@ -35,6 +35,11 @@ export interface FormSource {
   candidates: FormCandidate[];
   /** From the result engine: votes, winner and status. Never recomputed here. */
   result: WardResult;
+  /**
+   * ward_declarations.lottery_details of the SAME (newest) declaration the result comes from, as the
+   * RO recorded it when a tie was resolved; null for every other ward. Prarup-7 column 7.
+   */
+  lottery: { conductedBy: string; note: string } | null;
 }
 
 // ---------------------------------------------------------------- Part-II
@@ -113,6 +118,11 @@ export interface Prarup7Data {
   rows: Prarup7Row[];
   /** Column 6, once for the ward. */
   rejected: Cell;
+  /**
+   * Column 7 "नियम 51 के अधीन लॉट का … परिणाम": the recorded lot, one line per part (who it fell to,
+   * who conducted it, their note). Empty for every ward that was not decided by lot.
+   */
+  lot: string[];
   /** Ward number as printed in the declaration ("05"). */
   wardNoPadded: string;
   declaration: Prarup7Declaration;

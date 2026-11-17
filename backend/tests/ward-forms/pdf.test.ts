@@ -105,3 +105,30 @@ describe('Part-II PDF', () => {
     expect(pageCount(pdf)).toBe(1);
   });
 });
+
+describe('a ward decided by lot', () => {
+  const LOT = {
+    conductedBy: 'श्री रामलाल, रिटर्निंग अधिकारी',
+    note: 'दोनों के सामने पर्ची निकाली गई',
+  };
+
+  it.each(['PS', 'ZP'] as const)(
+    '%s: still one page, with a full ballot and long details',
+    async () => {
+      const pdf = await prarup7({
+        candidates: PRARUP7_MAX_CANDIDATES - 1,
+        tieResolved: true,
+        lottery: LOT,
+        details: Array.from({ length: PRARUP7_MAX_CANDIDATES - 1 }, () => FULL),
+      });
+      expect(isPdf(pdf)).toBe(true);
+      // The same page count the identical ward gets without a recorded lot: column 7 adds no page.
+      const without = await prarup7({
+        candidates: PRARUP7_MAX_CANDIDATES - 1,
+        tieResolved: true,
+        details: Array.from({ length: PRARUP7_MAX_CANDIDATES - 1 }, () => FULL),
+      });
+      expect(pageCount(pdf)).toBe(pageCount(without));
+    },
+  );
+});

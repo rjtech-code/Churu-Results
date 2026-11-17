@@ -24,6 +24,10 @@ export interface SourceOptions {
   unopposed?: boolean;
   /** false: counted but not declared. */
   declared?: boolean;
+  /** ward_declarations.lottery_details, as a tie-resolved ward stores it. */
+  lottery?: { conductedBy: string; note: string } | null;
+  /** Equal votes at the top, decided by lot: the declaration's status is TIE_RESOLVED. */
+  tieResolved?: boolean;
   rejected?: number | null;
   reservation?: string | null;
   electionDate?: string | null;
@@ -57,9 +61,15 @@ function engineInput(n: number, o: SourceOptions): WardResultInput {
       : [
           {
             boothId: 1,
-            sheetTotal: ids.reduce((s, id) => s + votesFor(id), NOTA_VOTES),
+            sheetTotal: ids.reduce(
+              (s, id) => s + (o.tieResolved === true ? votesFor(1) : votesFor(id)),
+              NOTA_VOTES,
+            ),
             votes: [
-              ...ids.map((id) => ({ candidateId: id, votes: votesFor(id) })),
+              ...ids.map((id) => ({
+                candidateId: id,
+                votes: o.tieResolved === true ? votesFor(1) : votesFor(id),
+              })),
               { candidateId: notaId, votes: NOTA_VOTES },
             ],
           },
@@ -75,14 +85,14 @@ function engineInput(n: number, o: SourceOptions): WardResultInput {
   };
 }
 
-function declaredResult(input: WardResultInput, declare: boolean) {
+function declaredResult(input: WardResultInput, declare: boolean, byLot = false) {
   const counted = computeWardResult(input);
   if (!declare || counted.leader === null || counted.status === 'UNOPPOSED') return counted;
   return computeWardResult({
     ...input,
     latestDeclaration: {
       version: 1,
-      status: 'DECLARED',
+      status: byLot ? 'TIE_RESOLVED' : 'DECLARED',
       winnerCandidateId: counted.leader.candidateId,
       margin: counted.margin ?? 0,
       snapshot: buildDeclarationSnapshot(counted),
@@ -109,7 +119,8 @@ export function formSource(o: SourceOptions = {}): FormSource {
     panchayatSamitis: kind === 'ZP' ? (o.panchayatSamitis ?? ['बीदासर', 'सुजानगढ़']) : [],
     electionDate: o.electionDate ?? null,
     candidates,
-    result: declaredResult(input, o.declared !== false),
+    result: declaredResult(input, o.declared !== false, o.tieResolved === true),
+    lottery: o.lottery ?? null,
   };
 }
 

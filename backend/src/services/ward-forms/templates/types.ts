@@ -160,6 +160,9 @@ export interface Prarup7Template extends PageTemplate {
       remarks: string;
     };
     columnNumbers: readonly string[];
+    /** Column 7's two labels, used only when the ward was decided by lot. */
+    lotWinner: string;
+    lotConductedBy: string;
     notaName: string;
     notaNote: string;
     /** Printed where the form shows a dash ("none"). */

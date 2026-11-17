@@ -117,6 +117,30 @@ function computeOrUnavailable(input: WardResultInput): WardResult {
 }
 
 /** 404 for an unknown ward; 409 RESULT_UNAVAILABLE when the engine refuses the ward's data. */
+/**
+ * The lot as the RO recorded it when the tie was resolved, from the NEWEST declaration — the same
+ * row the result engine reads its winner and margin from. Read, never recomputed; the column is
+ * empty unless that declaration carries one (the schema allows it exactly for TIE_RESOLVED).
+ */
+async function readLotteryDetails(
+  conn: PoolConnection,
+  wardId: number,
+): Promise<FormSource['lottery']> {
+  const [rows] = await conn.execute<RowDataPacket[]>(
+    `SELECT d.lottery_details FROM ward_declarations d
+      WHERE d.ward_id = ?
+        AND d.version = (SELECT MAX(d2.version) FROM ward_declarations d2 WHERE d2.ward_id = d.ward_id)`,
+    [wardId],
+  );
+  const stored = rows[0]?.lottery_details as
+    { conductedBy?: unknown; note?: unknown } | null | undefined;
+  if (stored === null || stored === undefined) return null;
+  return {
+    conductedBy: typeof stored.conductedBy === 'string' ? stored.conductedBy : '',
+    note: typeof stored.note === 'string' ? stored.note : '',
+  };
+}
+
 export async function readFormSource(pool: Pool, wardId: number): Promise<FormSource> {
   const read = await withReadOnlySnapshot(pool, async (conn) => {
     const ward = await readFormWard(conn, wardId);
@@ -130,10 +154,11 @@ export async function readFormSource(pool: Pool, wardId: number): Promise<FormSo
       panchayatSamitis: ward.kind === 'ZP' ? await readPsNames(conn, ward.id) : [],
       body: await readBody(conn, ward),
       electionDate: await readElectionDate(conn),
+      lottery: await readLotteryDetails(conn, wardId),
     };
   });
   const result = computeOrUnavailable(read.input);
-  const { ward, candidates, panchayatSamitis, body, electionDate } = read;
+  const { ward, candidates, panchayatSamitis, body, electionDate, lottery } = read;
   return {
     ward: { id: ward.id, kind: ward.kind, wardNo: ward.wardNo, reservation: ward.reservation },
     district: ward.district,
@@ -142,6 +167,8 @@ export async function readFormSource(pool: Pool, wardId: number): Promise<FormSo
     electionDate,
     candidates,
     result,
+    // Only a declaration that resolved a tie has it, and only that declaration's own words.
+    lottery: result.declaration?.status === 'TIE_RESOLVED' ? lottery : null,
   };
 }
 
