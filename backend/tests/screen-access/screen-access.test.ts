@@ -372,7 +372,7 @@ describe('brute force: per-IP limit and lockout', () => {
     const [rows] = await pool.execute<RowDataPacket[]>(
       "SELECT new_value, ip FROM audit_log WHERE action = 'SCREEN_UNLOCK_LOCKED_OUT'",
     );
-    expect(rows[0]?.new_value).toEqual({ failures: 3, windowMinutes: 1 });
+    expect(rows[0]?.new_value).toEqual({ failures: 3, windowMinutes: 1, screen: 'none' });
     expect(rows[0]?.ip).toBeTruthy();
     // Same IP: the unlocked TV keeps working, and staff can still log in.
     expect((await get(h.app, '/api/public/meta', tv)).status).toBe(200);
@@ -626,5 +626,61 @@ describe('the dashboard origin check still protects the DM routes', () => {
       .send({ label: 'x', expiresAt: null });
     expect([missingCsrf.status, missingCsrf.body]).toEqual([403, { error: 'CSRF_FAILED' }]);
     expect(await n('SELECT COUNT(*) AS n FROM screen_key')).toBe(0);
+  });
+});
+
+/**
+ * The venue has ONE public IP for every TV, so the failure counter is per IP AND per screen: the
+ * staff mistyping at one TV must never stop another screen from being unlocked.
+ */
+describe('brute force: one TV cannot lock out the others', () => {
+  it('screen 1 locked out; screens 2 and 3 still unlock with the right key', async () => {
+    h.stop();
+    h = harness({ unlockFailureLimit: { limit: 3, windowMs: 60_000 } });
+    await h.snapshots.start();
+    const key = await createKeyDirect(pool, dmId);
+
+    for (let i = 0; i < 3; i++) {
+      expect((await unlock(h.app, 'WRNG-WRNG-WRNG', { screen: '1' })).status).toBe(401);
+    }
+    // Screen 1 is locked out, with the right key too.
+    const locked = await unlock(h.app, key.key, { screen: '1' });
+    expect([locked.status, (locked.body as { error: string }).error]).toEqual([
+      429,
+      'TOO_MANY_ATTEMPTS',
+    ]);
+
+    // The other two screens are untouched — same IP, same moment.
+    for (const screen of ['2', '3']) {
+      const res = await unlock(h.app, key.key, { screen });
+      expect([screen, res.status]).toEqual([screen, 200]);
+      expect(screenCookieOf(res)).toBeTruthy();
+    }
+    // And a wrong key on screen 2 still counts only against screen 2.
+    expect((await unlock(h.app, 'WRNG-WRNG-WRNG', { screen: '2' })).status).toBe(401);
+    expect((await unlock(h.app, key.key, { screen: '2' })).status).toBe(200);
+
+    // The audit row names the screen whose counter locked out.
+    await waitFor(async () =>
+      (await n("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'SCREEN_UNLOCK_LOCKED_OUT'")) ===
+      1
+        ? true
+        : undefined,
+    );
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      "SELECT new_value FROM audit_log WHERE action = 'SCREEN_UNLOCK_LOCKED_OUT'",
+    );
+    expect(rows[0]?.new_value).toMatchObject({ failures: 3, screen: '1' });
+  });
+
+  it('the per-IP flood cap still counts every screen together', async () => {
+    h.stop();
+    h = harness({ unlockTotalLimit: { limit: 3, windowMs: 60_000 } });
+    const key = await createKeyDirect(pool, dmId);
+    expect((await unlock(h.app, key.key, { screen: '1' })).status).toBe(200);
+    expect((await unlock(h.app, key.key, { screen: '2' })).status).toBe(200);
+    expect((await unlock(h.app, key.key, { screen: '3' })).status).toBe(200);
+    // A fourth attempt from the same IP is refused whatever screen it claims to be.
+    expect((await unlock(h.app, key.key, { screen: '1' })).status).toBe(429);
   });
 });

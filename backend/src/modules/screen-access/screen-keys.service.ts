@@ -374,7 +374,7 @@ export async function openPreviewSession(
 export async function auditUnlockLockout(
   pool: Pool,
   ip: string | null,
-  info: { failures: number; windowMinutes: number },
+  info: { failures: number; windowMinutes: number; screen: string },
 ): Promise<void> {
   await writeAudit(pool, {
     userId: null,

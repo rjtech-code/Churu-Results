@@ -4,15 +4,17 @@
 // Without a session there is no CSRF token, so instead: the request must carry our own Origin
 // header (browsers always send it on a POST fetch), and the body must be JSON (express.json only).
 //
-// Brute force: two per-IP limiters of their own (separate counters from login, /api and /api/public):
+// Brute force: two limiters of their own (separate counters from login, /api and /api/public):
 // - failed attempts: SCREEN_ACCESS_DEFAULTS.unlockFailureLimit (10 per 15 min), then 429 until the
 //   window ends. Correct keys are not counted. The first refusal of a window writes ONE audit row.
-// - all attempts: unlockTotalLimit (100 per 15 min).
+//   Counted per IP AND per SCREEN: at the venue every TV shares one public IP, so a counter per IP
+//   alone would let mistyping at one TV lock the other two out of unlocking (Nov 2026).
+// - all attempts: unlockTotalLimit (100 per 15 min), per IP — a flood is a flood whatever it says.
 // Every wrong key (unknown, revoked, expired, malformed) gets the same 401 WRONG_KEY. The key is
 // never logged: errors here are logged without the request body.
 import express, { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import type { ScreenAccess } from './screen-access.js';
 import { auditUnlockLockout, unlockWithKey } from './screen-keys.service.js';
@@ -45,11 +47,28 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
     next();
   });
 
-  // Audit the lockout once per IP per window (not on every refused request).
+  /**
+   * The counter this request belongs to: the client's IP, and the screen it says it is. The screen
+   * is only a label the TV sends, so it can never WIDEN anyone's allowance — the total limiter below
+   * still counts every attempt from the IP together.
+   */
+  const screenOf = (req: Request): string => {
+    const body: unknown = req.body;
+    const screen =
+      typeof body === 'object' && body !== null && 'screen' in body
+        ? (body as { screen?: unknown }).screen
+        : null;
+    return screen === '1' || screen === '2' || screen === '3' ? screen : 'none';
+  };
+  const failureKey = (req: Request): string =>
+    `${ipKeyGenerator(req.ip ?? 'unknown')}|${screenOf(req)}`;
+
+  // Audit the lockout once per counter per window (not on every refused request).
   const auditedUntil = new Map<string, number>();
   const tooMany =
-    (windowMinutes: number, failures: number | null) => (req: Request, res: Response) => {
-      const ip = req.ip ?? 'unknown';
+    (windowMinutes: number, failures: number | null, keyOf: (req: Request) => string) =>
+    (req: Request, res: Response) => {
+      const ip = keyOf(req);
       const now = Date.now();
       // express-rate-limit puts its counter on req.rateLimit (requestPropertyName default).
       const info = (req as Request & { rateLimit?: { resetTime?: Date } }).rateLimit;
@@ -57,11 +76,13 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
       if (failures !== null && (auditedUntil.get(ip) ?? 0) <= now) {
         auditedUntil.set(ip, resetAt);
         for (const [k, until] of auditedUntil) if (until <= now) auditedUntil.delete(k);
-        void auditUnlockLockout(access.pool, req.ip ?? null, { failures, windowMinutes }).catch(
-          () => {
-            console.error('[screen-auth] lockout audit failed');
-          },
-        );
+        void auditUnlockLockout(access.pool, req.ip ?? null, {
+          failures,
+          windowMinutes,
+          screen: screenOf(req),
+        }).catch(() => {
+          console.error('[screen-auth] lockout audit failed');
+        });
       }
       const retryAfterSeconds = Math.max(1, Math.ceil((resetAt - now) / 1000));
       noStore(res)
@@ -76,21 +97,30 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
       limit: unlockTotalLimit.limit,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
-      handler: tooMany(Math.round(unlockTotalLimit.windowMs / 60_000), null),
-    }),
-  );
-  router.use(
-    rateLimit({
-      windowMs: unlockFailureLimit.windowMs,
-      limit: unlockFailureLimit.limit,
-      standardHeaders: false,
-      legacyHeaders: false,
-      skipSuccessfulRequests: true,
-      handler: tooMany(Math.round(unlockFailureLimit.windowMs / 60_000), unlockFailureLimit.limit),
+      handler: tooMany(Math.round(unlockTotalLimit.windowMs / 60_000), null, (req) =>
+        ipKeyGenerator(req.ip ?? 'unknown'),
+      ),
     }),
   );
 
-  router.post('/unlock', express.json({ limit: '1kb' }), async (req, res) => {
+  // The body is read from here on (the failure counter needs the screen); the per-IP flood limiter
+  // above still runs before anything is parsed.
+  const readBody = express.json({ limit: '1kb' });
+  const perScreenFailures = rateLimit({
+    windowMs: unlockFailureLimit.windowMs,
+    limit: unlockFailureLimit.limit,
+    standardHeaders: false,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    keyGenerator: failureKey,
+    handler: tooMany(
+      Math.round(unlockFailureLimit.windowMs / 60_000),
+      unlockFailureLimit.limit,
+      failureKey,
+    ),
+  });
+
+  router.post('/unlock', readBody, perScreenFailures, async (req, res) => {
     const parsed = unlockBody.safeParse(req.body ?? {});
     if (!parsed.success) {
       noStore(res).status(400).json({ error: 'VALIDATION_FAILED' });
