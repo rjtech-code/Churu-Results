@@ -560,6 +560,9 @@ describe("a PS RO's जिला परिषद ward memo", () => {
     // The sum adds up the printed booth row alone — the ward's postal row is not in the formula.
     const boothRow = rowWith(ws, '4');
     expect(text(ws, total, 3)).toBe(`=SUM(C${String(boothRow)})`);
+    expect(text(ws, total, 6)).toBe(`=SUM(F${String(boothRow)})`); // TOTAL is still added up
+    // REJECTED PB belongs to the PB row, which this sheet does not carry: never a 0 here.
+    expect(text(ws, total, 7)).toBe('');
     expect(text(ws, total + 1, 1)).toBe(UNDER_TOTAL);
   });
 
@@ -574,6 +577,9 @@ describe("a PS RO's जिला परिषद ward memo", () => {
     expect(rowWith(ws, 'PB VOTES')).toBe(0);
     const total = rowWithA(ws, 'कुल योग — केवल बूथ (डाक मतपत्र शामिल नहीं)');
     expect(total).toBeGreaterThan(0);
+    // 3 candidates here: C D E = candidates, F = NOTA, G = TOTAL, H = REJECTED PB.
+    expect(text(ws, total, 7)).toContain('=SUM(');
+    expect(text(ws, total, 8)).toBe('');
     expect(text(ws, total + 1, 1)).toBe(UNDER_TOTAL);
     // No "x में से y" count when every booth of the ward is there.
     expect(allText(ws).join('\n')).not.toContain('में से');
@@ -620,7 +626,10 @@ describe('the whole-ward sheet is unchanged', () => {
       const ws = await sheetOf(await download(user, w.zp.id));
       expect(boothRowCount(ws), user).toBe(2); // both Panchayat Samitis
       expect(rowWith(ws, 'PB VOTES'), user).toBeGreaterThan(0);
-      expect(rowWith(ws, 'कुल योग'), user).toBeGreaterThan(0);
+      const total = rowWith(ws, 'कुल योग');
+      expect(total, user).toBeGreaterThan(0);
+      // Unchanged: the whole ward's sheet still adds REJECTED PB up (it has a PB row to add).
+      expect(text(ws, total, 7), user).toContain('=SUM(');
       const sheet = allText(ws).join('\n');
       for (const word of ['आंशिक मीमो', 'केवल बूथ', 'शामिल नहीं', NOTICE_ALL_1]) {
         expect(sheet, `${user} / ${word}`).not.toContain(word);

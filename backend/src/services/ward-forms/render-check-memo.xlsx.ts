@@ -330,9 +330,13 @@ export async function renderCheckMemoXlsx(data: CheckMemoData): Promise<Buffer> 
   if (words !== null) ws.mergeCells(totalRow, col.ward, totalRow, col.booth);
   ws.getCell(totalRow, words === null ? col.booth : col.ward).value = words?.total ?? TOTAL_ROW;
   const cells = (c: number) => dataRows.map((r) => `${columnLetter(c)}${String(r)}`).join(',');
+  // REJECTED PB is only ever filled on the PB row, which a PS_RO's sheet does not carry: summing it
+  // there would print a 0 that reads like "no rejected postal ballots". The cell stays EMPTY, the
+  // way an un-entered booth row is empty. (G+H) still adds up, Excel reading the empty cell as 0.
+  const lastSummed = words === null ? col.rejected : col.total;
   // Nothing to add up (no booth row and no PB row): the row stays empty rather than holding SUM().
   if (dataRows.length > 0) {
-    for (let c = col.firstCandidate; c <= col.rejected; c++) {
+    for (let c = col.firstCandidate; c <= lastSummed; c++) {
       ws.getCell(totalRow, c).value = { formula: `SUM(${cells(c)})` };
     }
     ws.getCell(totalRow, col.sum).value = sumFormula(totalRow);
