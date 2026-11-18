@@ -1,5 +1,6 @@
 // Each TV screen gets only its own wards in /recent and /winners (?screen=1|2|3): screen 1 = its PS
-// from the screen layout, screen 2 = its PS, screen 3 = Zila Parishad. Without ?screen: unchanged.
+// from the screen layout, screen 2 = its PS, screen 3 = Zila Parishad. Without ?screen: whatever the
+// browser's own screen sessions cover (Nov 2026) — all three for this harness, one for one TV.
 import type { Pool } from 'mysql2/promise';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestAppPool, createTestMigrationPool, resetData } from '../helpers/db.js';
@@ -111,5 +112,16 @@ describe('per-screen /recent and /winners', () => {
     );
     for (const bad of ['0', '4', 'ZP', ''])
       expect((await getJson(h.app, `/api/public/recent?screen=${bad}`)).status).toBe(400);
+
+    // One TV, one key: its session is the whole of what it may read. A list that names no screen is
+    // narrowed to its own screen, and the other screens' wards are refused outright.
+    const tv1 = h.appFor('1');
+    const own = (await getJson(tv1, '/api/public/recent?limit=50')).body as { items: Item[] };
+    expect(ids(own.items)).toEqual([w.psW1]);
+    expect((await getJson(tv1, '/api/public/recent?limit=50&screen=2')).status).toBe(401);
+    expect((await getJson(tv1, '/api/public/screens/3')).status).toBe(401);
+    expect((await getJson(h.appFor('3'), '/api/public/winners?limit=50')).body).toMatchObject({
+      items: [],
+    });
   });
 });

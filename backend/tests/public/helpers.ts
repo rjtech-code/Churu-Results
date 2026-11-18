@@ -8,7 +8,13 @@ import { SseHub } from '../../src/modules/public/sse.js';
 import { PublicSnapshotService } from '../../src/services/public-snapshot.js';
 import { SCREEN_LAYOUT_KEY } from '../../src/services/screen-layout.js';
 import { testAppConfig } from '../auth/helpers.js';
-import { createDm, createKeyDirect, unlockCookie, withCookie } from '../screen-access/helpers.js';
+import {
+  createKeyDirect,
+  createSuperAdmin,
+  unlockCookie,
+  withCookie,
+} from '../screen-access/helpers.js';
+import type { ScreenNumber } from '../../src/services/setup/screen-power.js';
 
 /** Fast timings for tests (production: 500 ms debounce, 2 s minimum interval, 60 s safety, 15 s heartbeat). */
 export const FAST: Partial<PublicApiConfig> = {
@@ -31,12 +37,23 @@ export async function useWorldLayout(pool: Pool): Promise<void> {
 }
 
 export interface PublicHarness {
-  /** The app as an UNLOCKED TV sees it: every request carries a real screen session cookie. */
+  /**
+   * The app as a browser that has unlocked ALL THREE screens sees it (the key was typed into each
+   * screen's popup, so there are three sessions): every request carries those cookies.
+   */
   app: Express;
-  /** The same app without that cookie (as any browser without the key sees it). */
+  /** The same app without any screen cookie (as a browser without the key sees it). */
   rawApp: Express;
-  /** The screen key behind `app`'s cookie. */
-  screenKey: { id: number; key: string; dmId: number };
+  /** The app as ONE TV sees it: a single session, for that screen only. */
+  appFor: (screen: ScreenNumber) => Express;
+  /**
+   * Types the key into that screen's popup again (as an officer would at the TV) and returns the
+   * app as that newly unlocked TV sees it. Needed after the screen was switched off or on, which
+   * ends that screen's sessions.
+   */
+  unlockAgain: (screen: ScreenNumber) => Promise<Express>;
+  /** The screen key behind `app`'s cookies. */
+  screenKey: { id: number; key: string; superAdminId: number };
   snapshots: PublicSnapshotService;
   hub: SseHub;
   logs: string[];
@@ -45,8 +62,9 @@ export interface PublicHarness {
 
 /**
  * A full app (counting + declare + public) with its own, started snapshot service. The public
- * screens need a screen key since Nov 2026: a DM account and a key are created and unlocked through
- * the real endpoint, and `app` sends that session cookie on every request.
+ * screens need a screen key since Nov 2026: a Super Admin account and a key are created, and the key
+ * is unlocked through the real endpoint ONCE PER SCREEN (a session is for one screen only, Nov 2026),
+ * so `app` can read all three exactly as before. `appFor(screen)` is one TV with one key.
  */
 export async function publicApp(
   pool: Pool,
@@ -66,13 +84,21 @@ export async function publicApp(
     sseHub: hub,
   });
   await snapshots.start();
-  const dmId = await createDm(pool);
-  const key = await createKeyDirect(pool, dmId, { label: 'test harness TV' });
-  const cookie = await unlockCookie(app, key.key);
+  const superAdminId = await createSuperAdmin(pool);
+  const key = await createKeyDirect(pool, superAdminId, { label: 'test harness TV' });
+  // One unlock per screen, through the real popup endpoint: three sessions of the same key.
+  const per = {
+    '1': await unlockCookie(app, key.key, '1'),
+    '2': await unlockCookie(app, key.key, '2'),
+    '3': await unlockCookie(app, key.key, '3'),
+  } as const satisfies Record<ScreenNumber, string>;
   return {
-    app: withCookie(app, cookie),
+    app: withCookie(app, Object.values(per).join('; ')),
     rawApp: app,
-    screenKey: { id: key.id, key: key.key, dmId },
+    appFor: (screen: ScreenNumber) => withCookie(app, per[screen]),
+    unlockAgain: async (screen: ScreenNumber) =>
+      withCookie(app, await unlockCookie(app, key.key, screen)),
+    screenKey: { id: key.id, key: key.key, superAdminId },
     snapshots,
     hub,
     logs,

@@ -1,7 +1,10 @@
 // Screen access keys and screen sessions (DB side). Pure key rules: services/screen-key.ts.
 //
 // Rules:
-// - Only the DM creates, lists, revokes and renews keys (routes: requireRole('DM')).
+// - Only the SUPER_ADMIN creates, lists, revokes and renews keys (routes: requireRole('SUPER_ADMIN')).
+// - A screen session belongs to ONE screen (screen_session.screen): the screen whose popup the key
+//   was typed into. It is never valid for another screen, and a row with no screen (written before
+//   the per-screen migration) is valid for nothing at all.
 // - A typed key is compared in constant time against EVERY non-revoked key (no early exit); an
 //   unknown, revoked or expired key all give the same answer.
 // - A revoke wipes the encrypted copy, deletes the key's screen sessions and (in the route) closes
@@ -12,6 +15,7 @@ import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql
 import { ApiError } from '../../middleware/errors.js';
 import { writeAudit } from '../../services/audit.js';
 import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
+import type { ScreenNumber } from '../../services/setup/screen-power.js';
 import {
   formatScreenKey,
   generateScreenKey,
@@ -283,16 +287,18 @@ export interface NewScreenSession {
 async function insertSession(
   conn: PoolConnection,
   owner: { keyId: number } | { previewUserId: number },
+  screen: ScreenNumber,
   maxAgeMs: number,
 ): Promise<NewScreenSession> {
   const token = newSessionToken();
   const [r] = await conn.execute<ResultSetHeader>(
-    `INSERT INTO screen_session (token_hash, screen_key_id, preview_user_id, expires_at)
-     VALUES (?, ?, ?, NOW(3) + INTERVAL ? SECOND)`,
+    `INSERT INTO screen_session (token_hash, screen_key_id, preview_user_id, screen, expires_at)
+     VALUES (?, ?, ?, ?, NOW(3) + INTERVAL ? SECOND)`,
     [
       createHash('sha256').update(token, 'utf8').digest(),
       'keyId' in owner ? owner.keyId : null,
       'previewUserId' in owner ? owner.previewUserId : null,
+      screen,
       Math.floor(maxAgeMs / 1000),
     ],
   );
@@ -311,7 +317,7 @@ const NOT_A_KEY = '-';
 export async function unlockWithKey(
   pool: Pool,
   typed: string,
-  meta: { ip: string | null; screen: string | null; maxAgeMs: number },
+  meta: { ip: string | null; screen: ScreenNumber; maxAgeMs: number },
   hashSecret: Buffer,
 ): Promise<NewScreenSession | null> {
   const canonical = normalizeScreenKey(typed);
@@ -336,7 +342,7 @@ export async function unlockWithKey(
     );
     const key = ok[0];
     if (key === undefined) return null;
-    const session = await insertSession(conn, { keyId }, meta.maxAgeMs);
+    const session = await insertSession(conn, { keyId }, meta.screen, meta.maxAgeMs);
     await conn.execute('UPDATE screen_key SET last_used_at = NOW(3) WHERE id = ?', [keyId]);
     await writeAudit(conn, {
       userId: null,
@@ -350,24 +356,43 @@ export async function unlockWithKey(
   });
 }
 
-/** The DM's preview from the dashboard: a screen session without a key, tied to the DM account. */
+/**
+ * The Super Admin's preview from the panel: a screen session without a key, tied to that account and
+ * to ONE screen (the one the button sat on), exactly like a session a key opens.
+ */
 export async function openPreviewSession(
   pool: Pool,
   who: Actor,
+  screen: ScreenNumber,
   maxAgeMs: number,
 ): Promise<NewScreenSession> {
   return inTransaction(pool, async (conn) => {
-    const session = await insertSession(conn, { previewUserId: who.user.id }, maxAgeMs);
+    const session = await insertSession(conn, { previewUserId: who.user.id }, screen, maxAgeMs);
     await writeAudit(conn, {
       userId: who.user.id,
       action: 'SCREEN_PREVIEW_OPENED',
       entity: 'screen_session',
       entityId: session.sessionId,
-      newValue: { hours: Math.round(maxAgeMs / 3_600_000) },
+      newValue: { screen, hours: Math.round(maxAgeMs / 3_600_000) },
       ip: who.ip,
     });
     return session;
   });
+}
+
+/**
+ * Ends every session of ONE screen (the other screens' sessions are not touched) and returns how
+ * many there were. Called inside the transaction that switches a screen off or on: withdrawing or
+ * restoring a screen withdraws the access that was typed into it, so the TV asks for its key again.
+ */
+export async function endScreenSessions(
+  conn: PoolConnection,
+  screen: ScreenNumber,
+): Promise<number> {
+  const [del] = await conn.execute<ResultSetHeader>('DELETE FROM screen_session WHERE screen = ?', [
+    screen,
+  ]);
+  return del.affectedRows;
 }
 
 /** One audit row when an IP is locked out of the key popup (not one per failed attempt). */
@@ -416,22 +441,29 @@ export async function auditUnlockLockout(
   });
 }
 
-/** Valid-session condition (key alive, or preview of an active DM), shared by both checks below. */
+/**
+ * Valid-session condition (key alive, or preview of an active Super Admin), shared by both checks
+ * below. `s.screen IS NOT NULL` is part of it: a session written before the per-screen migration has
+ * no screen, and a session that is not FOR a screen may not watch one.
+ */
 const LIVE_SESSION_SQL = `
-  SELECT s.id, s.screen_key_id,
+  SELECT s.id, s.screen_key_id, s.screen,
          UNIX_TIMESTAMP(LEAST(s.expires_at, COALESCE(k.expires_at, s.expires_at))) AS valid_until,
          s.last_seen_at < NOW(3) - INTERVAL 60 SECOND AS stale_seen
     FROM screen_session s
     LEFT JOIN screen_key k ON k.id = s.screen_key_id
     LEFT JOIN users u ON u.id = s.preview_user_id
    WHERE s.expires_at > NOW(3)
+     AND s.screen IS NOT NULL
      AND ((s.screen_key_id IS NOT NULL AND k.revoked_at IS NULL
            AND (k.expires_at IS NULL OR k.expires_at > NOW(3)))
-       OR (s.preview_user_id IS NOT NULL AND u.is_active = 1 AND u.role = 'DM'))`;
+       OR (s.preview_user_id IS NOT NULL AND u.is_active = 1 AND u.role = 'SUPER_ADMIN'))`;
 
 export interface LiveScreenSession {
   sessionId: number;
   keyId: number | null;
+  /** The ONE screen this session may watch. */
+  screen: ScreenNumber;
   /** Epoch ms. */
   validUntil: number;
 }
@@ -461,6 +493,7 @@ export async function findLiveSession(
   return {
     sessionId,
     keyId: r.screen_key_id === null ? null : Number(r.screen_key_id),
+    screen: String(r.screen) as ScreenNumber,
     validUntil: Math.floor(Number(r.valid_until) * 1000),
   };
 }

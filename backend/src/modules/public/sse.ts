@@ -1,16 +1,21 @@
 // Server-Sent Events for the media-room screens. The stream carries ONLY the snapshot version;
 // screens then fetch the data with the normal public GETs. No login session; every stream belongs
 // to a screen session (the screen-access guard runs first and puts it in res.locals.screenSession).
-// A stream whose screen session ends (key revoked or expired, DM preview ended) gets one
-// "event: locked" and is closed, so the TV shows the key popup again.
+// A stream whose screen session ends (key revoked or expired, preview ended, that screen switched
+// ON again) gets one "event: locked" and is closed, so the TV shows the key popup again. A stream of
+// a screen that was just switched OFF gets "event: off" instead: its session has ended too, but the
+// TV must show the calm "बंद है" card, not a key box, until the screen is switched on.
 import type { Request, Response } from 'express';
 import type { PublicSnapshotData, PublicSnapshotService } from '../../services/public-snapshot.js';
+import type { ScreenNumber } from '../../services/setup/screen-power.js';
 
 /** The screen session of a stream (set by the screen-access guard). */
 export interface StreamSession {
   sessionId: number;
-  /** null for a DM preview. */
+  /** null for a Super Admin preview. */
   keyId: number | null;
+  /** The ONE screen this session (and so this stream) belongs to. */
+  screen: ScreenNumber;
   /** Epoch ms when the session (or its key) expires. */
   validUntil: number;
 }
@@ -19,6 +24,7 @@ export interface StreamSession {
 export type SessionCheck = (sessionId: number) => Promise<boolean>;
 
 const LOCKED_EVENT = 'event: locked\ndata: {}\n\n';
+const OFF_EVENT = 'event: off\ndata: {}\n\n';
 
 export class SseHub {
   private readonly clients = new Map<Response, StreamSession | null>();
@@ -38,12 +44,12 @@ export class SseHub {
   }
 
   /** Sends "locked" to the matching streams and closes them. Returns how many were closed. */
-  endWhere(match: (session: StreamSession | null) => boolean): number {
+  endWhere(match: (session: StreamSession | null) => boolean, event = LOCKED_EVENT): number {
     let n = 0;
     for (const [res, session] of this.clients) {
       if (!match(session)) continue;
       this.clients.delete(res);
-      res.write(LOCKED_EVENT);
+      res.write(event);
       res.end();
       n++;
     }
@@ -53,6 +59,21 @@ export class SseHub {
   /** Closes every stream of this key (called right after the key was revoked). */
   endKey(keyId: number): number {
     return this.endWhere((s) => s !== null && s.keyId === keyId);
+  }
+
+  /**
+   * Closes every stream of ONE screen, and only that screen's (called right after a screen was
+   * switched off or on, once its sessions were ended).
+   *
+   * `switchedTo` is what the hall should see next: 'off' = the calm "this screen is off" card, 'on' =
+   * the key box, because the screen is showing results again and its key has to be typed once.
+   * Either way the TV does it by itself, within the second, with nobody at the TV.
+   */
+  endScreen(screen: ScreenNumber, switchedTo: 'off' | 'on'): number {
+    return this.endWhere(
+      (s) => s !== null && s.screen === screen,
+      switchedTo === 'off' ? OFF_EVENT : LOCKED_EVENT,
+    );
   }
 
   private async recheckSessions(): Promise<void> {

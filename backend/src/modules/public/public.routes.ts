@@ -1,13 +1,19 @@
 // /api/public — read-only data for the media-room screens. Mounted BEFORE sessions: no dashboard
 // session is read or created and no cookie is ever set here. Every request (data and the live
-// stream) needs a live SCREEN session (the DM's screen keys, modules/screen-access): without one,
-// 401 SCREEN_LOCKED and no data. Everything is served from the in-memory snapshot.
+// stream) needs a live SCREEN session for the screen it asks about (the Super Admin's screen keys,
+// modules/screen-access): without one, 401 SCREEN_LOCKED and no data. A screen's session is valid
+// for that screen only, so no endpoint here may serve a ward of another screen: a request that names
+// its screen is checked by the guard, and a list that names none is narrowed to the screens this
+// browser actually has sessions for (res.locals.screenScope). Everything is served from the
+// in-memory snapshot.
 import { Router } from 'express';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import type { PublicApiConfig } from '../../config/app-config.js';
 import type { PublicSnapshotData, PublicSnapshotService } from '../../services/public-snapshot.js';
+import { SCREEN_NUMBERS } from '../../services/setup/screen-power.js';
+import type { ScreenNumber } from '../../services/setup/screen-power.js';
 import type { SseHub } from './sse.js';
 
 const screenParam = z.enum(['1', '2', '3']);
@@ -25,6 +31,13 @@ function onScreen(s: PublicSnapshotData, screen: '1' | '2' | '3') {
   const ids = new Set(s.screens[screen].flatMap((b) => b.wards.map((w) => w.wardId)));
   return (item: { kind: 'PS' | 'ZP'; wardId: number }) =>
     item.kind === 'PS' && ids.has(item.wardId);
+}
+
+/** The screens this browser may be served (set by the screen-access guard; never empty). */
+function scopeOf(res: Response): ScreenNumber[] {
+  const scope: unknown = res.locals.screenScope;
+  if (!Array.isArray(scope)) return [];
+  return SCREEN_NUMBERS.filter((n) => (scope as unknown[]).includes(n));
 }
 
 function badRequest(res: Response, issues: z.core.$ZodIssue[]): void {
@@ -139,12 +152,15 @@ export function publicRouter(
         res.json({ ...head, off: true, items: [] });
         return;
       }
+      // Named a screen: the guard has already checked this browser may see that one. Named none:
+      // it gets what its own sessions cover, and nothing from a screen it has no session for.
+      const screens = parsed.data.screen === undefined ? scopeOf(res) : [parsed.data.screen];
+      const allowed = screens.map((n) => onScreen(s, n));
       res.json({
         ...head,
-        items: (parsed.data.screen === undefined
-          ? pick(s)
-          : pick(s).filter(onScreen(s, parsed.data.screen))
-        ).slice(0, parsed.data.limit),
+        items: pick(s)
+          .filter((item) => allowed.some((on) => on(item)))
+          .slice(0, parsed.data.limit),
       });
     });
   router.get(

@@ -4,6 +4,9 @@
 // Without a session there is no CSRF token, so instead: the request must carry our own Origin
 // header (browsers always send it on a POST fetch), and the body must be JSON (express.json only).
 //
+// A key opens the ONE screen it was typed into (screen_session.screen): the cookie it sets is that
+// screen's (churu.screen1/2/3), so screen 1's key never shows screen 2 or 3.
+//
 // Brute force: two limiters of their own (separate counters from login, /api and /api/public):
 // - failed attempts: SCREEN_ACCESS_DEFAULTS.unlockFailureLimit (10 per 15 min), then 429 until the
 //   window ends. Correct keys are not counted. The first refusal of a window writes ONE audit row.
@@ -19,11 +22,12 @@ import { z } from 'zod';
 import type { ScreenAccess } from './screen-access.js';
 import { auditUnlockLockout, unlockWithKey } from './screen-keys.service.js';
 
+// `screen` is REQUIRED: a session is for ONE screen, so the popup must say which one it is. (It is
+// also the per-screen half of the failure counter, as before.)
 const unlockBody = z
   .object({
     key: z.string().max(64),
-    /** Which screen asked (audit only). */
-    screen: z.enum(['1', '2', '3']).optional(),
+    screen: z.enum(['1', '2', '3']),
   })
   .strict();
 
@@ -137,14 +141,14 @@ export function screenAuthRouter(access: ScreenAccess, appOrigin: string): Route
     const session = await unlockWithKey(
       access.pool,
       parsed.data.key,
-      { ip: req.ip ?? null, screen: parsed.data.screen ?? null, maxAgeMs: sessionMaxAgeMs },
+      { ip: req.ip ?? null, screen: parsed.data.screen, maxAgeMs: sessionMaxAgeMs },
       access.secrets.hashSecret,
     );
     if (session === null) {
       noStore(res).status(401).json({ error: 'WRONG_KEY' });
       return;
     }
-    access.setCookie(res, session.token, sessionMaxAgeMs);
+    access.setCookie(res, parsed.data.screen, session.token, sessionMaxAgeMs);
     noStore(res).json({ ok: true });
   });
 
