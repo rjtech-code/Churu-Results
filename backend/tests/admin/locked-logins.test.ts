@@ -31,7 +31,12 @@ let dm: ApiClient;
 beforeAll(() => {
   pool = createTestAppPool();
   migrator = createTestMigrationPool();
-  app = countingApp(pool, { loginRateLimit: { limit: 10_000, windowMs: 60_000 } });
+  app = countingApp(pool, {
+    loginRateLimit: {
+      perUser: { limit: 10_000, windowMs: 60_000 },
+      perIp: { limit: 10_000, windowMs: 60_000 },
+    },
+  });
 });
 afterAll(async () => {
   await pool.end();

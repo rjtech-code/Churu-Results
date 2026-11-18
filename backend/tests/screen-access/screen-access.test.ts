@@ -397,7 +397,12 @@ describe('brute force: per-IP limit and lockout', () => {
     h = harness();
     const app = createApp({
       pool,
-      config: testAppConfig({ loginRateLimit: { limit: 2, windowMs: 60_000 } }),
+      config: testAppConfig({
+        loginRateLimit: {
+          perUser: { limit: 2, windowMs: 60_000 },
+          perIp: { limit: 2, windowMs: 60_000 },
+        },
+      }),
     });
     for (let i = 0; i < 3; i++) await login(request.agent(app), 'nobody', 'wrong-password-x');
     expect((await login(request.agent(app), 'nobody', 'wrong-password-x')).status).toBe(429);

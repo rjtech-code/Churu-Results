@@ -233,6 +233,48 @@ Har password screen par **sirf ek baar** aata hai. Use turant kisi safe jagah no
 - **Ginti ki tareekh 20 Nov 2026:** ye setting nahi hai. Code me fixed hai (`backend/src/config/election.ts`, `COUNTING_DATE`). Report me "Counting date: 20 Nov 2026" dikhna chahiye.
 - **SUPPORT_CONTACT:** ye `frontend/src/pages/superadmin/guideContent.ts` me hai. Naam aur phone milne par code badalna hoga, commit karna hoga, aur step 4 dobara chalana hoga.
 
+## 12b. Rate limits (counting day par badalne ho to)
+
+Poora venue ek hi public IP ke peeche hota hai, isliye **jo limit ek adhikari ko bachati hai wo
+adhikari ke hisaab se ginti hai** (login par username, uske baad user id). Per-IP wali limits sirf
+flood ceiling hain — normal kaam unke paas bhi nahi pahunchta.
+
+| Variable | Default | Kya ginta hai |
+|---|---|---|
+| `LOGIN_LIMIT_PER_USER` | `10` | Ek **username** ki login koshishein, per window |
+| `LOGIN_LIMIT_PER_IP` | `200` | Ek **IP** se sab logins, per window (ceiling) |
+| `LOGIN_WINDOW_MINUTES` | `15` | Dono login limits ka window |
+| `API_LIMIT_PER_USER_PER_MIN` | `300` | Ek **logged-in adhikari** ki dashboard requests/minute |
+| `API_LIMIT_PER_IP_PER_MIN` | `3000` | Ek **IP** se sab dashboard requests/minute (ceiling) |
+| `PUBLIC_RATE_LIMIT_PER_MIN` | `3000` | TV screens (`/api/public`) per IP |
+
+Account lockout (**5 galat password = 15 minute**) in limits se alag hai aur nahi badla. Wo DM ke
+"RO सूची" page par "RO लॉगिन खोलें" card se hatta hai — terminal ki zaroorat nahi.
+
+Badalna ho to (VPS par):
+
+```bash
+cd /opt/churu-results
+cp backend/.env.production backend/.env.production.bak      # pehle backup
+nano backend/.env.production                                 # value badlein, ya nayi line jodein
+grep -E 'LOGIN_LIMIT|API_LIMIT|LOGIN_WINDOW' backend/.env.production   # jaanch lein
+$DC restart app                                              # sirf restart, build nahi
+$DC logs --tail=30 app                                       # "listening" dikhna chahiye
+```
+
+Galat value (jaise `0` ya khaali) par app **shuru hi nahi hoga** aur log me saaf message aayega —
+aise me `.env.production.bak` wapas rakh kar phir se restart karein.
+
+Limit lagi hai ya nahi, ye server log se pata chalta hai (password kabhi log nahi hota):
+
+```bash
+$DC logs --tail=200 app | grep '\[rate-limit\]'
+# [rate-limit] login-per-user limit reached for login:ro_churu on POST /login
+# [rate-limit] api-per-user limit reached for user:42 on GET /counting/wards
+```
+
+Adhikari ki screen par Hindi me dikhta hai: "बहुत अधिक प्रयास, थोड़ी देर बाद फिर प्रयास करें".
+
 ## 13. Aakhri jaanch
 
 - PS RO se login karein → "मेरे वार्ड" me apne wards dikhne chahiye. "जिला परिषद" tab me "आपको सौंपे गए" ZP postal wards dikhne chahiye.

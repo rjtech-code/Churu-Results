@@ -242,7 +242,14 @@ beforeAll(async () => {
   migrator = createTestMigrationPool();
   await resetData(migrator);
   w = await build(pool);
-  app = countingApp(pool);
+  // This file logs in again for every permission check, and the login limit is counted per
+  // USERNAME (counting day: the venue shares one IP), so it is raised for the test app.
+  app = countingApp(pool, {
+    loginRateLimit: {
+      perUser: { limit: 10_000, windowMs: 60_000 },
+      perIp: { limit: 10_000, windowMs: 60_000 },
+    },
+  });
   const ro1 = await declareClient(app, USERS.ro1);
   const ro2 = await declareClient(app, USERS.ro2);
   // PS ward 5: two of three booths entered (the third stays empty), postal with a rejected count.

@@ -5,7 +5,7 @@ import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
-import { loginRateLimit } from '../../middleware/rate-limit.js';
+import { loginUserRateLimit } from '../../middleware/rate-limit.js';
 import { MAX_FULL_NAME_LENGTH } from '../../services/master-data/accounts.js';
 import { normalizeText } from '../../services/master-data/text.js';
 import type { Mailer } from '../../services/mailer.js';
@@ -37,8 +37,9 @@ const passwordBody = z
 export function profileRouter(pool: Pool, config: AppConfig, mailer: Mailer | null): Router {
   const router = Router();
   router.use(requireRole('DM'));
-  // Per-IP limit on sending and checking codes (same limits as login, own counter).
-  const otpLimit = loginRateLimit(config.loginRateLimit);
+  // The DM's own limit on sending and checking codes: the same numbers as login, its own counter,
+  // and counted per DM (these routes are behind requireRole('DM'), so a user is always known).
+  const otpLimit = loginUserRateLimit(config.loginRateLimit.perUser);
 
   router.get('/', async (req, res) => {
     noStore(res);

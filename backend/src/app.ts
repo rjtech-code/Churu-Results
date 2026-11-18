@@ -8,7 +8,7 @@ import { csrfCheck } from './middleware/csrf.js';
 import { currentUser } from './middleware/current-user.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { originCheck } from './middleware/origin.js';
-import { apiRateLimit } from './middleware/rate-limit.js';
+import { apiIpRateLimit, apiUserRateLimit } from './middleware/rate-limit.js';
 import { createSessionStore, sessionMiddleware } from './middleware/session.js';
 import type { SessionStore } from './middleware/session.js';
 import { UPLOAD_PATHS, adminRouter } from './modules/admin/admin.routes.js';
@@ -115,7 +115,7 @@ export function createApp({
   if (config.frontendDist !== null) app.use(frontendStatic(config.frontendDist));
 
   // 4. Generous global per-IP limit on the API.
-  app.use('/api', apiRateLimit(config.apiRateLimit));
+  app.use('/api', apiIpRateLimit(config.apiRateLimit.perIp));
 
   // 5. JSON bodies, max 100 kb. The DM's and the Super Admin's file uploads (base64) are the only
   //    exceptions: their routers parse them themselves, AFTER the role check.
@@ -133,6 +133,10 @@ export function createApp({
 
   // 7. Absolute session lifetime, then re-load the user from the DB (disabled = out at once).
   app.use(currentUser(pool, config));
+
+  // 7b. Each officer's own request budget. After the user is known, so one busy RO can never spend
+  //     another officer's allowance — at the venue they all share one IP.
+  app.use('/api', apiUserRateLimit(config.apiRateLimit.perUser));
 
   // 8. Origin check on state-changing requests.
   app.use(originCheck(config.appOrigin));

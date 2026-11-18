@@ -8,6 +8,18 @@ export interface RateLimitConfig {
   windowMs: number;
 }
 
+/**
+ * A limit that protects one person, plus the flood ceiling for everyone sharing the address. At the
+ * counting venue every officer, every TV and the DM sit behind ONE public IP, so a per-IP limit is
+ * a flood guard only — never the thing that stops an officer working.
+ */
+export interface SharedRateLimitConfig {
+  /** Per username (login) or per logged-in user (the dashboard). */
+  perUser: RateLimitConfig;
+  /** Per IP, for everyone on that address together. */
+  perIp: RateLimitConfig;
+}
+
 /** Everything createApp() needs besides the DB pool. Built from env in server.ts; tests build their own. */
 export interface AppConfig {
   production: boolean;
@@ -18,8 +30,8 @@ export interface AppConfig {
   sessionIdleMs: number;
   sessionAbsoluteMs: number;
   trustProxy: false | 'loopback' | number;
-  loginRateLimit: RateLimitConfig;
-  apiRateLimit: RateLimitConfig;
+  loginRateLimit: SharedRateLimitConfig;
+  apiRateLimit: SharedRateLimitConfig;
   publicApi: PublicApiConfig;
   /** Folder with the built dashboard (index.html), or null to serve the API only. */
   frontendDist: string | null;
@@ -94,8 +106,23 @@ export function defaultPublicApiConfig(overrides: Partial<PublicApiConfig> = {})
   };
 }
 
-export const LOGIN_RATE_LIMIT: RateLimitConfig = { limit: 20, windowMs: 15 * 60_000 };
-export const API_RATE_LIMIT: RateLimitConfig = { limit: 600, windowMs: 60_000 };
+/**
+ * Defaults, all overridable by environment variable (see .env.example and
+ * deploy/RUNBOOK-NEW-DATA.md). Counting-day reasoning:
+ *   login, per username: 10 per 15 min — the account lockout at 5 wrong passwords is the real
+ *     brute-force defence, so this only has to survive an officer's own retries.
+ *   login, per IP: 200 per 15 min — 16 officers logging in and retrying cannot exhaust it.
+ *   dashboard, per user: 300 per minute — a busy RO entering sheets uses 30-60.
+ *   dashboard, per IP: 3000 per minute — about 20 people at the venue, with room to spare.
+ */
+export const LOGIN_RATE_LIMIT: SharedRateLimitConfig = {
+  perUser: { limit: 10, windowMs: 15 * 60_000 },
+  perIp: { limit: 200, windowMs: 15 * 60_000 },
+};
+export const API_RATE_LIMIT: SharedRateLimitConfig = {
+  perUser: { limit: 300, windowMs: 60_000 },
+  perIp: { limit: 3000, windowMs: 60_000 },
+};
 
 export function appConfigFromEnv(env: AppEnv): AppConfig {
   return {
@@ -106,8 +133,14 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
     sessionIdleMs: env.SESSION_IDLE_MINUTES * 60_000,
     sessionAbsoluteMs: env.SESSION_ABSOLUTE_HOURS * 3_600_000,
     trustProxy: env.TRUST_PROXY,
-    loginRateLimit: LOGIN_RATE_LIMIT,
-    apiRateLimit: API_RATE_LIMIT,
+    loginRateLimit: {
+      perUser: { limit: env.LOGIN_LIMIT_PER_USER, windowMs: env.LOGIN_WINDOW_MINUTES * 60_000 },
+      perIp: { limit: env.LOGIN_LIMIT_PER_IP, windowMs: env.LOGIN_WINDOW_MINUTES * 60_000 },
+    },
+    apiRateLimit: {
+      perUser: { limit: env.API_LIMIT_PER_USER_PER_MIN, windowMs: 60_000 },
+      perIp: { limit: env.API_LIMIT_PER_IP_PER_MIN, windowMs: 60_000 },
+    },
     publicApi: defaultPublicApiConfig({
       rateLimit: { limit: env.PUBLIC_RATE_LIMIT_PER_MIN, windowMs: 60_000 },
       sseMaxConnections: env.SSE_MAX_CONNECTIONS,

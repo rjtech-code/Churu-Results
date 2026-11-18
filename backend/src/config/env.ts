@@ -63,6 +63,18 @@ export const appEnvSchema = z.object({
   PUBLIC_MIN_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
   /** Public screens: GET requests per minute per IP (the TVs may share one IP). */
   PUBLIC_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(3000),
+  // Rate limits (counting day: the whole venue is behind ONE public IP, so the limits that protect
+  // an officer are counted per OFFICER; the per-IP ones are flood ceilings, not work limits).
+  /** Login attempts per USERNAME per window. The account lockout (5 wrong = 15 min) is unchanged. */
+  LOGIN_LIMIT_PER_USER: z.coerce.number().int().min(1).max(10_000).default(10),
+  /** Login attempts per IP per window: the venue's whole staff shares it, so it is generous. */
+  LOGIN_LIMIT_PER_IP: z.coerce.number().int().min(1).max(100_000).default(200),
+  /** The window both login limits count in. */
+  LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(120).default(15),
+  /** Dashboard requests per minute per LOGGED-IN user (anonymous ones count per IP). */
+  API_LIMIT_PER_USER_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(300),
+  /** Dashboard requests per minute per IP: the venue's flood ceiling for everyone together. */
+  API_LIMIT_PER_IP_PER_MIN: z.coerce.number().int().min(1).max(1_000_000).default(3000),
   /** Built operator dashboard to serve (relative to the backend folder). Missing folder = API only. */
   FRONTEND_DIST: z.string().trim().min(1).default('../frontend/dist'),
   /** SMTP for the DM profile OTP mail. All five or none; none = profile username/password change off

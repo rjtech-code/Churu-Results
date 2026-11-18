@@ -41,7 +41,10 @@ beforeAll(async () => {
   migrator = createTestMigrationPool();
   backupDir = await mkdtemp(join(tmpdir(), 'churu-backups-export-'));
   app = countingApp(pool, {
-    loginRateLimit: { limit: 10_000, windowMs: 60_000 },
+    loginRateLimit: {
+      perUser: { limit: 10_000, windowMs: 60_000 },
+      perIp: { limit: 10_000, windowMs: 60_000 },
+    },
     setup: {
       backupDir,
       nodeEnv: 'test',
