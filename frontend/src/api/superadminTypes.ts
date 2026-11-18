@@ -60,6 +60,32 @@ export interface ScreenPowerRow {
   lastChange: { at: string; byName: string } | null;
 }
 
+/**
+ * "स्क्रीन keys": a screen access key as the panel lists it (GET /api/superadmin/screen-keys).
+ * Nov 2026: the keys moved here from the DM's page, with every other screen control.
+ */
+export type ScreenKeyStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+export interface ScreenKey {
+  id: number;
+  label: string;
+  /** XXXX-XXXX-XXXX, only while ACTIVE (never stored in the browser). */
+  key: string | null;
+  status: ScreenKeyStatus;
+  createdAt: string;
+  createdByName: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  /** Screens of this key seen in the last 5 minutes. */
+  activeScreens: number;
+}
+
+export const SCREEN_KEY_STATUS_HINDI: Record<ScreenKeyStatus, string> = {
+  ACTIVE: 'सक्रिय',
+  REVOKED: 'रद्द',
+  EXPIRED: 'समाप्त',
+};
+
 /** A key-popup lockout in effect: that screen cannot be unlocked until `until`. */
 export interface ScreenLockout {
   screen: string;

@@ -37,7 +37,6 @@ import { observerRouter } from './modules/observer/observer.routes.js';
 import { SseHub } from './modules/public/sse.js';
 import { ScreenAccess } from './modules/screen-access/screen-access.js';
 import { screenAuthRouter } from './modules/screen-access/screen-auth.routes.js';
-import { screenKeysRouter } from './modules/screen-access/screen-keys.routes.js';
 import { consoleMailer } from './services/mailer.js';
 import type { Mailer } from './services/mailer.js';
 import { PublicSnapshotService } from './services/public-snapshot.js';
@@ -77,7 +76,7 @@ export function createApp({
     });
   app.locals.publicSnapshot = snapshots;
   app.locals.sseHub = hub;
-  // The DM's screen keys: the gate of /api/public and of its live stream.
+  // The screen keys (Super Admin): the gate of /api/public and of its live stream.
   const screenAccess = new ScreenAccess(pool, config, hub);
 
   // 1. No framework fingerprint; trust proxy only as configured (never "true").
@@ -109,7 +108,8 @@ export function createApp({
 
   // 3b. Public media-room screens: read-only, own rate limit, ends here (never reaches sessions,
   //     so no dashboard cookie is read or set and an expired login cannot break a TV screen). Every
-  //     request needs a screen session (screen key typed into the popup, or a DM preview).
+  //     request needs a live screen session FOR THE SCREEN IT ASKS ABOUT (the key typed into that
+  //     screen's popup, or a Super Admin preview of it).
   app.use('/api/public', publicRouter(snapshots, hub, config.publicApi, screenAccess.guard));
   // 3b'. The screen key popup (POST /unlock only): own Origin check and own per-IP limiters, ends
   //     here (never touches sessions, the /api limiter or the login limiter).
@@ -169,7 +169,6 @@ export function createApp({
   app.use('/api/sarni', sarniRouter(pool));
   app.use('/api/st-format', stFormatRouter(pool));
   app.use('/api/ward-forms', wardFormsRouter(pool));
-  app.use('/api/admin/screen-keys', screenKeysRouter(screenAccess));
   app.use('/api/admin', adminRouter(pool, config, limitCounters));
   app.use('/api/candidates', candidatesRouter(pool, config));
   app.use('/api/superadmin', superAdminRouter(pool, config, screenAccess));

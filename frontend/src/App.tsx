@@ -25,7 +25,6 @@ import { CandidatesHomePage } from './pages/admin/CandidatesHomePage';
 import { PartiesPage } from './pages/admin/PartiesPage';
 import { ProfilePage } from './pages/admin/ProfilePage';
 import { RoBulkAddPage } from './pages/admin/RoBulkAddPage';
-import { ScreenKeysPage } from './pages/admin/ScreenKeysPage';
 import { UserSeatPage } from './pages/admin/UserSeatPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { WardCategoryPage } from './pages/admin/WardCategoryPage';
@@ -119,8 +118,6 @@ export const router = createBrowserRouter([
           { path: '/admin/booths', element: <BoothsPage /> },
           { path: '/admin/booths/:psId/:boothId', element: <BoothEditPage /> },
           { path: '/admin/wards/:psId', element: <WardCategoryPage /> },
-          // "स्क्रीन सुरक्षा": the screen access keys of the public TV screens.
-          { path: '/admin/screens', element: <ScreenKeysPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

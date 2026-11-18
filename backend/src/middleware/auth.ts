@@ -52,9 +52,8 @@ const DM_ADMIN_WRITE = new RegExp(
       `booths/${ID}`,
       `booths/${ID}/move`,
       'settings/election-date',
-      // Screen access keys ("स्क्रीन सुरक्षा"): create, revoke, renew, and the DM's own preview.
-      'screen-keys/(?:create|preview)',
-      `screen-keys/${ID}/(?:revoke|renew)`,
+      // No screen path of any kind: since Nov 2026 every screen control (keys, preview, on/off)
+      // belongs to the Super Admin panel, so a DM write here has nothing to allow.
     ].join('|') +
     ')$',
 );

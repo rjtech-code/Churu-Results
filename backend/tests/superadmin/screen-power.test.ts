@@ -1,10 +1,12 @@
 // The Super Admin panel's control of the three public screens: who may switch one, what the audit
-// log keeps, that the three are independent, and that the DM only ever SEES the state.
+// log keeps, that the three are independent, that switching one ends ONLY that screen's sessions,
+// and that the DM has nothing screen-related left at all (Nov 2026).
 import type { Express } from 'express';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readScreensOff } from '../../src/services/setup/screen-power.js';
 import { createUser } from '../auth/helpers.js';
+import { createKeyDirect, unlock } from '../screen-access/helpers.js';
 import { apiClient, buildAdminWorld } from '../admin/helpers.js';
 import type { ApiClient } from '../admin/helpers.js';
 import { PASSWORD, countingApp } from '../counting/helpers.js';
@@ -129,25 +131,97 @@ describe('who may switch it', () => {
   });
 });
 
-describe('the DM page', () => {
-  it('shows the state read-only beside the keys, and has no way to change it', async () => {
+/**
+ * Condition of the Nov 2026 change: the DM has NO screen route, page, link or permission left. The
+ * keys, the preview and the ON / OFF switch are all the Super Admin's.
+ */
+describe('the DM has nothing screen-related left', () => {
+  it('every screen route is refused for the DM, and nothing changes', async () => {
     await sa.post('/api/superadmin/screens/3', { on: false });
     const dm = await apiClient(app, 'dm_x4', PASSWORD);
-    const res = await dm.get('/api/admin/screen-keys');
-    expect(res.status).toBe(200);
-    const body = res.body as { screens: ScreenRow[] };
-    expect(body.screens.map((s) => [s.screen, s.on])).toEqual([
-      ['1', true],
-      ['2', true],
-      ['3', false],
-    ]);
-    // No DM route writes it (the admin router refuses a path it does not have), and the Super
-    // Admin's own route is 403 for the DM. The state is unchanged either way.
-    expect([403, 404]).toContain(
-      (await dm.post('/api/admin/screen-keys/screens/3', { on: true })).status,
-    );
-    expect((await dm.post('/api/superadmin/screens/3', { on: true })).status).toBe(403);
+
+    // The old DM pages are gone from the server (no route at all).
+    expect((await dm.get('/api/admin/screen-keys')).status).toBe(404);
+    for (const path of [
+      '/api/admin/screen-keys/create',
+      '/api/admin/screen-keys/preview',
+      '/api/admin/screen-keys/1/revoke',
+      '/api/admin/screen-keys/1/renew',
+    ])
+      expect([403, 404], path).toContain((await dm.post(path, { label: 'x' })).status);
+
+    // And the new Super Admin routes are 403 for the DM — reads and writes alike.
+    expect((await dm.get('/api/superadmin/screen-keys')).status).toBe(403);
+    for (const path of [
+      '/api/superadmin/screen-keys/create',
+      '/api/superadmin/screen-keys/preview/1',
+      '/api/superadmin/screen-keys/1/revoke',
+      '/api/superadmin/screen-keys/1/renew',
+      '/api/superadmin/screens/3',
+      '/api/superadmin/screens/clear-lockout',
+    ]) {
+      const res = await dm.post(path, { label: 'x', expiresAt: null, on: true });
+      expect(res.status, path).toBe(403);
+      expect(res.headers['set-cookie'] ?? [], path).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/^churu\.screen/)]),
+      );
+    }
+    const [keys] = await pool.execute<RowDataPacket[]>('SELECT id FROM screen_key');
+    expect(keys).toHaveLength(0);
     expect(await readScreensOff(pool)).toEqual(['3']);
+  });
+
+  it('an RO is refused the same way', async () => {
+    const ro = await apiClient(app, 'ro_ps1_x1', PASSWORD);
+    expect((await ro.get('/api/superadmin/screen-keys')).status).toBe(403);
+    expect((await ro.post('/api/superadmin/screen-keys/create', { label: 'x' })).status).toBe(403);
+  });
+});
+
+/**
+ * The switch is what ends a screen's access: off (the access is withdrawn) and on again (so a key
+ * typed in between cannot carry over). The other screens' TVs keep running.
+ */
+describe("switching a screen ends that screen's sessions only", () => {
+  const sessions = async () => {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT screen FROM screen_session ORDER BY screen',
+    );
+    return rows.map((r) => String(r.screen));
+  };
+
+  it('off ends them, on ends them again, and 2 and 3 are never touched', async () => {
+    const saId = Number(
+      (
+        await pool.execute<RowDataPacket[]>(
+          "SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND is_active = 1",
+        )
+      )[0][0]?.id,
+    );
+    const key = await createKeyDirect(pool, saId, { label: 'हॉल' });
+    for (const screen of ['1', '2', '3'] as const)
+      expect((await unlock(app, key.key, screen)).status).toBe(200);
+    expect(await sessions()).toEqual(['1', '2', '3']);
+
+    const off = await sa.post('/api/superadmin/screens/1', { on: false });
+    expect(off.status).toBe(200);
+    expect((off.body as { sessionsEnded: number }).sessionsEnded).toBe(1);
+    expect(await sessions()).toEqual(['2', '3']);
+
+    // A key typed while it is off, then switched on: that session goes too.
+    expect((await unlock(app, key.key, '1')).status).toBe(200);
+    const on = await sa.post('/api/superadmin/screens/1', { on: true });
+    expect([on.status, (on.body as { sessionsEnded: number }).sessionsEnded]).toEqual([200, 1]);
+    expect(await sessions()).toEqual(['2', '3']);
+  });
+
+  it('the audit row says how many sessions the switch ended', async () => {
+    const rows = await audits();
+    expect(rows).toHaveLength(0);
+    await sa.post('/api/superadmin/screens/2', { on: false });
+    const after = await audits();
+    expect(after).toHaveLength(1);
+    expect(after[0]?.new_value).toMatchObject({ screen: '2', sessionsEnded: 0 });
   });
 });
 

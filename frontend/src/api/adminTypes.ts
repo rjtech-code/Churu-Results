@@ -385,22 +385,6 @@ export interface NameCorrected {
   changedAt: string;
 }
 
-/** "स्क्रीन सुरक्षा": a screen access key as the DM list shows it (GET /api/admin/screen-keys). */
-export type ScreenKeyStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
-export interface ScreenKey {
-  id: number;
-  label: string;
-  /** XXXX-XXXX-XXXX, only while ACTIVE (never stored in the browser). */
-  key: string | null;
-  status: ScreenKeyStatus;
-  createdAt: string;
-  createdByName: string;
-  expiresAt: string | null;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-  /** Screens of this key seen in the last 5 minutes. */
-  activeScreens: number;
-}
 /** A counting login that is locked right now (or still carries failed attempts). */
 export interface LockedAccount {
   id: number;
@@ -414,16 +398,3 @@ export interface LockedAccount {
   lockedSince: string | null;
   lockedUntil: string | null;
 }
-
-/** One public screen's ON/OFF state, as the DM's page shows it (read-only there). */
-export interface ScreenPowerRow {
-  screen: '1' | '2' | '3';
-  on: boolean;
-  lastChange: { at: string; byName: string } | null;
-}
-
-export const SCREEN_KEY_STATUS_HINDI: Record<ScreenKeyStatus, string> = {
-  ACTIVE: 'सक्रिय',
-  REVOKED: 'रद्द',
-  EXPIRED: 'समाप्त',
-};

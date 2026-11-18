@@ -1,6 +1,9 @@
 // /api/superadmin — the Super Admin setup panel (SUPER_ADMIN only; the global superAdminGuard keeps
 // that role out of everything else). Tasks: test-data reset, master-data replace, booths, DM account,
-// counting lock, sample files. Password rules: see superadmin.service.ts (confirmDanger).
+// counting lock, sample files, and EVERYTHING about the three public screens: their on/off switch,
+// their access keys (/screen-keys, Nov 2026 — they used to be the DM's) and the key-popup lockout.
+// The DM has no screen route, page or permission left at all.
+// Password rules: see superadmin.service.ts (confirmDanger).
 import express, { Router } from 'express';
 import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
@@ -19,6 +22,7 @@ import {
 import { SAMPLE_NAMES, sampleFile } from '../../services/setup/samples.js';
 import { isScreenNumber } from '../../services/setup/screen-power.js';
 import type { ScreenAccess } from '../screen-access/screen-access.js';
+import { screenKeysRouter } from '../screen-access/screen-keys.routes.js';
 import type { SampleName } from '../../services/setup/samples.js';
 import { actor, busyAsConflict, idParam, noStore, parse, password } from '../admin/http.js';
 import { parseBoothNo } from '../../services/booth-no.js';
@@ -229,11 +233,16 @@ export function superAdminRouter(
     const screenNo = req.params.screenNo;
     if (!isScreenNumber(screenNo)) throw new ApiError(404, 'NOT_FOUND');
     const body = parse(screenPowerBody, req.body);
-    const screensOff = await busyAsConflict(() =>
-      setScreenPower(pool, actor(req), screenNo, body.on),
-    );
-    res.json({ ok: true, screensOff });
+    const out = await busyAsConflict(() => setScreenPower(pool, actor(req), screenNo, body.on));
+    // The sessions are gone (same transaction): close that screen's live streams too, so the TV
+    // learns within the same second instead of waiting for the periodic re-check. Switched off it is
+    // told "off" (the calm card); switched on it is told it is locked (the key box).
+    screenAccess.endScreen(screenNo, body.on ? 'on' : 'off');
+    res.json({ ok: true, screensOff: out.screensOff, sessionsEnded: out.sessionsEnded });
   });
+
+  // ---- the screens' access keys ("स्क्रीन सुरक्षा"): create, revoke, renew, preview
+  router.use('/screen-keys', screenKeysRouter(screenAccess));
 
   // ---- sample files
   router.get('/samples/:name', async (req, res) => {

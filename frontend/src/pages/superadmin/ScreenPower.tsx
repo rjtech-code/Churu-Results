@@ -7,7 +7,7 @@ import { api } from '../../api/api';
 import type { ScreenLockout, ScreenPowerRow } from '../../api/superadminTypes';
 import { ConfirmDialog } from './parts';
 
-/** The names the officers use, the same as on the DM's "स्क्रीन सुरक्षा" page. */
+/** The names the officers use, the same as on the keys below and on the TVs. */
 const SCREEN_NAMES: Readonly<Record<string, string>> = {
   '1': 'स्क्रीन 1 — पंचायत समिति',
   '2': 'स्क्रीन 2 — पंचायत समिति',
@@ -29,7 +29,8 @@ function when(iso: string): string {
 }
 
 /** The name of a locked-out counter ("none" = the popup was used without saying which screen). */
-const lockoutName = (screen: string): string => SCREEN_NAMES[screen] ?? 'स्क्रीन (कौन-सी, यह TV ने नहीं बताया)';
+const lockoutName = (screen: string): string =>
+  SCREEN_NAMES[screen] ?? 'स्क्रीन (कौन-सी, यह TV ने नहीं बताया)';
 
 /**
  * The key-popup lockout: after repeated wrong keys that screen cannot be unlocked for a while. It
@@ -59,8 +60,8 @@ function Lockouts({ lockouts, onChanged }: { lockouts: readonly ScreenLockout[];
           ))}
         </ul>
         <p className="sa-lockout-note">
-          इतनी देर उस स्क्रीन पर सही key भी नहीं चलेगी। नीचे का बटन सिर्फ़ यह लॉक हटाता है — key वही रहती है, और चल रही
-          स्क्रीनों पर कोई असर नहीं पड़ता।
+          इतनी देर उस स्क्रीन पर सही key भी नहीं चलेगी। नीचे का बटन सिर्फ़ यह लॉक हटाता है — key वही रहती है,
+          और चल रही स्क्रीनों पर कोई असर नहीं पड़ता।
         </p>
       </div>
       <button
@@ -77,8 +78,8 @@ function Lockouts({ lockouts, onChanged }: { lockouts: readonly ScreenLockout[];
           title="key लॉक हटाएँ"
           summary={
             <p>
-              गलत key की गिनती मिट जाएगी, जिससे स्क्रीन पर तुरंत सही key डाली जा सकेगी। key नहीं बदलेगी, रद्द नहीं होगी,
-              और किसी चलती स्क्रीन पर कुछ नहीं बदलेगा।
+              गलत key की गिनती मिट जाएगी, जिससे स्क्रीन पर तुरंत सही key डाली जा सकेगी। key नहीं बदलेगी, रद्द
+              नहीं होगी, और किसी चलती स्क्रीन पर कुछ नहीं बदलेगा।
             </p>
           }
           confirmLabel="लॉक हटाएँ"
@@ -113,7 +114,9 @@ export function ScreenPower({
       <div className="sa-screens-head">
         <h3 className="sa-count-group-title sa-screens-title">सार्वजनिक स्क्रीन</h3>
         <p className="sa-screens-note">
-          बंद स्क्रीन पर कोई परिणाम नहीं जाता। चालू करते ही TV अपने आप फिर दिखाने लगता है — key दोबारा नहीं डालनी पड़ती।
+          बंद स्क्रीन पर कोई परिणाम नहीं जाता।{' '}
+          <strong>बंद करके फिर चालू करने पर उस TV पर key दोबारा डालनी होती है</strong> — key का box अपने आप आ
+          जाता है, TV पर कुछ नहीं करना पड़ता। (सिर्फ़ page reload या app restart से key नहीं माँगी जाती।)
         </p>
       </div>
       <ul className="sa-screen-list">
@@ -152,15 +155,21 @@ export function ScreenPower({
           title={`${SCREEN_NAMES[ask.screen] ?? ask.screen}: ${ask.on ? 'बंद करें' : 'चालू करें'}`}
           summary={
             ask.on ? (
-              <p>
-                यह स्क्रीन कुछ ही सेकंड में परिणाम दिखाना बंद कर देगी और उस पर “यह स्क्रीन अस्थायी रूप से बंद है” लिखा दिखेगा।
-                बाकी दोनों स्क्रीन चलती रहेंगी।
-              </p>
+              <>
+                <p>
+                  यह स्क्रीन कुछ ही सेकंड में परिणाम दिखाना बंद कर देगी और उस पर “यह स्क्रीन अस्थायी रूप से
+                  बंद है” लिखा दिखेगा। बाकी दोनों स्क्रीन चलती रहेंगी।
+                </p>
+                <p>फिर चालू करने पर इस TV पर key दोबारा डालनी होगी।</p>
+              </>
             ) : (
-              <p>
-                यह स्क्रीन कुछ ही सेकंड में फिर से परिणाम दिखाने लगेगी। TV पर कुछ नहीं करना पड़ेगा, key भी दोबारा नहीं डालनी
-                पड़ेगी।
-              </p>
+              <>
+                <p>
+                  यह स्क्रीन कुछ ही सेकंड में <strong>key माँगेगी</strong> — box अपने आप आ जाएगा, TV पर कुछ
+                  नहीं करना पड़ेगा। key डालते ही परिणाम दिखने लगेंगे।
+                </p>
+                <p>key नीचे “स्क्रीन keys” में है। बाकी दोनों स्क्रीन पर कोई असर नहीं पड़ेगा।</p>
+              </>
             )
           }
           confirmLabel={ask.on ? 'बंद करें' : 'चालू करें'}
@@ -172,7 +181,7 @@ export function ScreenPower({
               title: ask.on
                 ? `${SCREEN_NAMES[ask.screen] ?? ask.screen} बंद कर दी गई`
                 : `${SCREEN_NAMES[ask.screen] ?? ask.screen} चालू कर दी गई`,
-              lines: [],
+              lines: ask.on ? [] : ['उस TV पर key का box आ गया होगा — key डाल दें।'],
             };
           }}
           onClose={(changed) => {
