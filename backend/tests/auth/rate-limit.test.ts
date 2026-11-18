@@ -68,6 +68,28 @@ describe('login: counted per username', () => {
     expect((await attempt(express, 'ro_other', 'Correct-Pass-1')).status).toBe(200);
   });
 
+  it('a login that WORKS costs nothing: only failures are counted', async () => {
+    const express = buildApp(app, {
+      loginRateLimit: {
+        perUser: { limit: 2, windowMs: 60_000 },
+        perIp: { limit: 1000, windowMs: 60_000 },
+      },
+    });
+    // Signing in again and again (an idle session expired, the browser was closed, another device)
+    // never fills the counter.
+    for (let i = 0; i < 6; i++) {
+      expect(
+        (await attempt(express, 'ro_churu', 'Correct-Pass-1')).status,
+        `try ${String(i)}`,
+      ).toBe(200);
+    }
+    // The two failures that follow are still counted, and the third is refused.
+    for (let i = 0; i < 2; i++) {
+      expect((await attempt(express, 'ro_churu', `wrong-${String(i)}`)).status).toBe(401);
+    }
+    expect((await attempt(express, 'ro_churu', 'wrong-again')).status).toBe(429);
+  });
+
   it('a malformed body counts too (it cannot be used to probe for free)', async () => {
     const express = buildApp(app, {
       loginRateLimit: {

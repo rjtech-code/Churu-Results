@@ -26,7 +26,7 @@ function limiter(
   name: string,
   config: RateLimitConfig,
   keyOf: (req: Request) => string,
-  skip?: (req: Request) => boolean,
+  options: { skip?: (req: Request) => boolean; failuresOnly?: boolean } = {},
 ): RequestHandler {
   return rateLimit({
     windowMs: config.windowMs,
@@ -34,19 +34,17 @@ function limiter(
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     keyGenerator: keyOf,
-    ...(skip ? { skip } : {}),
+    ...(options.skip ? { skip: options.skip } : {}),
+    ...(options.failuresOnly === true ? { skipSuccessfulRequests: true } : {}),
     handler: refuse(name, keyOf),
   });
 }
 
 /** The venue's flood ceiling for all /api traffic together. Runs before sessions and before JSON. */
 export function apiIpRateLimit(config: RateLimitConfig): RequestHandler {
-  return limiter(
-    'api-per-ip',
-    config,
-    ipKey,
-    (req) => req.path === '/health' || req.path.startsWith('/health/'),
-  );
+  return limiter('api-per-ip', config, ipKey, {
+    skip: (req) => req.path === '/health' || req.path.startsWith('/health/'),
+  });
 }
 
 /**
@@ -71,11 +69,14 @@ export function loginKeyOf(req: Request): string {
 }
 
 /**
- * Login attempts of ONE officer. The per-account lockout (5 wrong passwords = 15 minutes, in the
- * database) is still the real brute-force defence; this only stops one username being hammered.
+ * FAILED login attempts of ONE officer. A login that works does not count: on counting day an
+ * officer may sign in several times for honest reasons (an idle session expired, the browser was
+ * closed, they moved to another device), and none of that should spend their allowance. The
+ * per-account lockout (5 wrong passwords = 15 minutes, in the database) is still the real
+ * brute-force defence; this only stops one username being hammered after it is already locked.
  */
 export function loginUserRateLimit(config: RateLimitConfig): RequestHandler {
-  return limiter('login-per-user', config, loginKeyOf);
+  return limiter('login-per-user', config, loginKeyOf, { failuresOnly: true });
 }
 
 /** Login attempts from one address, for everyone on it together: a flood ceiling. */
