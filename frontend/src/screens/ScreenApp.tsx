@@ -144,8 +144,9 @@ function LiveScreen({ screen, onLocked }: { screen: ScreenNo; onLocked: () => vo
   const names = bundle === null ? [] : shortNamesOf(bundle);
 
   // Switched off from the Super Admin panel: the hall sees one calm line and nothing else — no
-  // header, no ticker, no old numbers. It comes back on its own when the screen is switched on.
-  if (bundle?.off === true) return <ScreenOff />;
+  // header, no ticker, no old numbers. It comes back on its own when the screen is switched on: with
+  // the key box if the switch ended this screen's session (it does), with the results if not.
+  if (feed.off) return <ScreenOff />;
 
   return (
     <PartyNames.Provider value={names}>

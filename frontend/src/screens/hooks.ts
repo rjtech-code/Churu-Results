@@ -11,6 +11,7 @@ const EMPTY: FeedState = {
   failed: false,
   changed: new Set(),
   locked: false,
+  off: false,
 };
 
 /** Live data of one screen (fetch + SSE, see liveFeed.ts). */
@@ -21,7 +22,7 @@ export function useLiveFeed(screen: ScreenNo): FeedState {
       screen,
       {
         fetchJson: fetchPublic,
-        openStream: () => new EventSource('/api/public/stream'),
+        openStream: () => new EventSource(`/api/public/stream?screen=${String(screen)}`),
         now: () => Date.now(),
       },
       setState,

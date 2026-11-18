@@ -110,7 +110,7 @@ afterEach(() => {
 describe('LiveFeed', () => {
   it('first load fetches meta, the screen and /recent (no winners on screen 2), with no If-None-Match', () => {
     expect(server.calls.map((c) => c.path)).toEqual([
-      '/api/public/meta',
+      '/api/public/meta?screen=2',
       '/api/public/screens/2',
       '/api/public/recent?limit=10&screen=2',
     ]);

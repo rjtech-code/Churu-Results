@@ -20,7 +20,7 @@ import {
   writeScreenPower,
 } from '../../services/setup/screen-power.js';
 import type { ScreenNumber } from '../../services/setup/screen-power.js';
-import { readUnlockLockouts } from '../screen-access/screen-keys.service.js';
+import { endScreenSessions, readUnlockLockouts } from '../screen-access/screen-keys.service.js';
 import type { ScreenAccess } from '../screen-access/screen-access.js';
 
 /** One public screen in the panel's header strip. */
@@ -546,16 +546,26 @@ export async function clearScreenUnlockLockout(
   );
 }
 
+/**
+ * Turns ONE public screen on or off.
+ *
+ * Switching it EITHER WAY also ends that screen's screen sessions, in the same transaction as the
+ * setting and the audit row — and only that screen's (the other two TVs keep running untouched).
+ * Off is the moment the screen's access is withdrawn; on is checked again because a key typed during
+ * the off window must not survive into the next showing. So after an off-and-on the TV asks for its
+ * key again by itself, while a plain reload of a screen that stayed on never does.
+ */
 export async function setScreenPower(
   pool: Pool,
   who: Actor,
   screen: ScreenNumber,
   on: boolean,
-): Promise<ScreenNumber[]> {
+): Promise<{ screensOff: ScreenNumber[]; sessionsEnded: number }> {
   return withMasterDataWrite(pool, async (conn) => {
     const before = await readScreensOff(conn);
     if (before.includes(screen) === !on) throw new ApiError(409, 'NO_CHANGE');
     const after = await writeScreenPower(conn, screen, on);
+    const sessionsEnded = await endScreenSessions(conn, screen);
     await writeAudit(
       conn,
       {
@@ -563,11 +573,11 @@ export async function setScreenPower(
         entity: 'app_settings',
         entityId: null,
         oldValue: { screen, screens_off: before },
-        newValue: { screen, screens_off: after },
+        newValue: { screen, screens_off: after, sessionsEnded },
       },
       auditActor(who),
     );
-    return after;
+    return { screensOff: after, sessionsEnded };
   });
 }
 

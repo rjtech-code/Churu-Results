@@ -1,11 +1,15 @@
-// Fetches for the TV screens, conditional on the version. They send the screen cookie (churu.screen,
-// HttpOnly, set by the key popup or the DM preview): without it the server answers 401
-// SCREEN_LOCKED. Same origin only; the dashboard login is never needed or used.
+// Fetches for the TV screens, conditional on the version. They send this screen's cookie
+// (churu.screen1 / churu.screen2 / churu.screen3, HttpOnly, set by the key popup or a Super Admin
+// preview): without it the server answers 401 SCREEN_LOCKED. Every call names its own screen, so the
+// server can refuse a screen this TV has no key for — and so a 401 can say whether that screen is
+// merely switched off. Same origin only; the dashboard login is never needed or used.
 
 export class PublicHttpError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    /** 401 only: this screen is switched off (not a key problem — show the "off" card). */
+    readonly off = false,
   ) {
     super(code);
   }
@@ -31,13 +35,15 @@ export async function fetchPublic(path: string, etag: string | null): Promise<Fe
   if (res.status === 304) return { status: 304 };
   if (!res.ok) {
     let code = `HTTP_${res.status}`;
+    let off = false;
     try {
-      const body = (await res.json()) as { error?: unknown };
+      const body = (await res.json()) as { error?: unknown; off?: unknown };
       if (typeof body.error === 'string') code = body.error;
+      off = body.off === true;
     } catch {
       // not JSON (e.g. a proxy page): keep the HTTP code
     }
-    throw new PublicHttpError(res.status, code);
+    throw new PublicHttpError(res.status, code, off);
   }
   return { status: 200, body: (await res.json()) as unknown };
 }

@@ -43,6 +43,12 @@ export interface FeedState {
   changed: ReadonlySet<number>;
   /** No (more) screen access: the key was never typed, or was revoked / expired. Feed stopped. */
   locked: boolean;
+  /**
+   * This screen is switched off from the Super Admin panel. It is NOT a key problem: the TV shows the
+   * calm "off" card and keeps asking, so it comes back by itself — with the key box if the switch
+   * ended this screen's session, with the results if it still has one.
+   */
+  off: boolean;
 }
 
 /** The part of EventSource the feed uses. */
@@ -50,7 +56,7 @@ export interface StreamLike {
   readyState: number;
   onopen: ((ev: Event) => void) | null;
   onerror: ((ev: Event) => void) | null;
-  addEventListener(type: 'snapshot' | 'locked', listener: (ev: MessageEvent<string>) => void): void;
+  addEventListener(type: 'snapshot' | 'locked' | 'off', listener: (ev: MessageEvent<string>) => void): void;
   close(): void;
 }
 
@@ -95,6 +101,7 @@ export class LiveFeed {
   private highlightUntil = new Map<number, number>();
   private lastEmitted = '';
   private locked = false;
+  private switchedOff = false;
 
   constructor(
     private readonly screen: ScreenNo,
@@ -124,14 +131,31 @@ export class LiveFeed {
   private lock(): void {
     if (this.locked) return;
     this.locked = true;
+    this.switchedOff = false; // the key box, not the "off" card
     this.bundle = null; // never keep showing results to a screen whose access ended
     this.stop();
     this.emit();
   }
 
+  /**
+   * Refused because this screen is switched OFF: not a key problem. Keep the feed running (the
+   * normal retry) so the TV comes back on its own the moment the screen is switched on again — and
+   * drop the results, because a screen that is off must never sit on frozen numbers.
+   */
+  private markOff(): void {
+    this.switchedOff = true;
+    this.bundle = null;
+    this.unavailable = false;
+    this.failed = false;
+    this.staleConnection = false;
+    this.staleNoNew = false;
+    this.emit();
+  }
+
+  /** Every endpoint names this screen, so the server serves (and refuses) it per screen. */
   private paths(): string[] {
     const paths = [
-      '/api/public/meta',
+      `/api/public/meta?screen=${this.screen}`,
       `/api/public/screens/${this.screen}`,
       `/api/public/recent?limit=10&screen=${this.screen}`,
     ];
@@ -155,8 +179,14 @@ export class LiveFeed {
       }
     };
     s.addEventListener('locked', (ev) => {
-      // Only the real event (the server ends a revoked / expired session with it).
+      // Only the real event (the server ends a revoked / expired session with it, and ends this
+      // screen's sessions with it when the screen is switched back ON).
       if (ev.type === 'locked') this.lock();
+    });
+    s.addEventListener('off', (ev) => {
+      // This screen was switched off: its session ended too, but the hall sees the calm card, not a
+      // key box. The results are dropped either way.
+      if (ev.type === 'off') this.markOff();
     });
     s.addEventListener('snapshot', (ev) => {
       this.streamDownSince = null;
@@ -210,9 +240,13 @@ export class LiveFeed {
       await this.load(this.bundle === null ? null : `"${this.bundle.version}"`, 0);
       this.unavailable = false;
       this.failed = false;
+      this.switchedOff = false;
     } catch (err) {
       if (err instanceof PublicHttpError && err.status === 401) {
-        this.lock();
+        // A screen that is only switched off keeps its feed (and its calm card); a screen whose
+        // access ended asks for the key.
+        if (err.off) this.markOff();
+        else this.lock();
         return;
       }
       if (this.bundle === null) {
@@ -283,6 +317,7 @@ export class LiveFeed {
       failed: this.failed,
       changed: new Set(this.highlightUntil.keys()),
       locked: this.locked,
+      off: this.switchedOff || this.bundle?.off === true,
     };
     const key = JSON.stringify([
       state.bundle?.version,
@@ -291,6 +326,7 @@ export class LiveFeed {
       state.unavailable,
       state.failed,
       state.locked,
+      state.off,
       [...state.changed],
     ]);
     if (key === this.lastEmitted) return;
