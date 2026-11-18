@@ -63,6 +63,13 @@ export const appEnvSchema = z.object({
   PUBLIC_MIN_SNAPSHOT_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(2000),
   /** Public screens: GET requests per minute per IP (the TVs may share one IP). */
   PUBLIC_RATE_LIMIT_PER_MIN: z.coerce.number().int().min(1).max(100_000).default(3000),
+  /**
+   * Public screens: how long an unlocked TV stays unlocked, in hours (default 24). The TV is not
+   * asked again while the screen stays ON — not on a reload, a browser restart or an app restart.
+   * It IS asked again after this many hours, and whenever the Super Admin switches that screen off
+   * or on. Unlock each TV on counting-day morning, not days before.
+   */
+  SCREEN_SESSION_HOURS: z.coerce.number().int().min(1).max(168).default(24),
   // Rate limits (counting day: the whole venue is behind ONE public IP, so the limits that protect
   // an officer are counted per OFFICER; the per-IP ones are flood ceilings, not work limits).
   /** Login attempts per USERNAME per window. The account lockout (5 wrong = 15 min) is unchanged. */

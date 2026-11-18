@@ -47,7 +47,10 @@ export interface ScreenAccessConfig {
   unlockFailureLimit: RateLimitConfig;
   /** ALL key attempts per IP per window (also correct ones), so a key holder cannot flood sessions. */
   unlockTotalLimit: RateLimitConfig;
-  /** Lifetime of an unlocked TV (it also ends at once when its key is revoked or expires). */
+  /**
+   * Lifetime of an unlocked TV (env SCREEN_SESSION_HOURS). It also ends at once when its key is
+   * revoked or expires, and when that screen is switched off or on.
+   */
   sessionMaxAgeMs: number;
   /** Lifetime of a DM preview opened from the dashboard (no key typed). */
   previewMaxAgeMs: number;
@@ -58,7 +61,9 @@ export interface ScreenAccessConfig {
 export const SCREEN_ACCESS_DEFAULTS: ScreenAccessConfig = {
   unlockFailureLimit: { limit: 10, windowMs: 15 * 60_000 },
   unlockTotalLimit: { limit: 100, windowMs: 15 * 60_000 },
-  sessionMaxAgeMs: 7 * 24 * 3_600_000,
+  // 24 hours (env SCREEN_SESSION_HOURS). Long enough that counting day never asks a TV twice,
+  // short enough that a key typed days earlier does not keep a screen open by itself.
+  sessionMaxAgeMs: 24 * 3_600_000,
   previewMaxAgeMs: 8 * 3_600_000,
   streamRecheckMs: 30_000,
 };
@@ -141,6 +146,7 @@ export function appConfigFromEnv(env: AppEnv): AppConfig {
       perUser: { limit: env.API_LIMIT_PER_USER_PER_MIN, windowMs: 60_000 },
       perIp: { limit: env.API_LIMIT_PER_IP_PER_MIN, windowMs: 60_000 },
     },
+    screenAccess: { sessionMaxAgeMs: env.SCREEN_SESSION_HOURS * 3_600_000 },
     publicApi: defaultPublicApiConfig({
       rateLimit: { limit: env.PUBLIC_RATE_LIMIT_PER_MIN, windowMs: 60_000 },
       sseMaxConnections: env.SSE_MAX_CONNECTIONS,

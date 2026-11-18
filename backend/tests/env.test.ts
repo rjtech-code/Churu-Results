@@ -24,6 +24,22 @@ describe('parseEnv', () => {
     expect(result).toMatchObject({ ok: true, env: { PORT: 3000, DB_PORT: 3307 } });
   });
 
+  it('SCREEN_SESSION_HOURS: 24 by default, 1-168 whole hours, bad values fail fast', () => {
+    const hours = (env: Record<string, string>) => {
+      const out = parseEnv(appEnvSchema, { ...VALID, ...env });
+      return out.ok ? out.env.SCREEN_SESSION_HOURS : out.problems;
+    };
+    expect(hours({})).toBe(24);
+    expect(hours({ SCREEN_SESSION_HOURS: '1' })).toBe(1);
+    expect(hours({ SCREEN_SESSION_HOURS: '48' })).toBe(48);
+    expect(hours({ SCREEN_SESSION_HOURS: '168' })).toBe(168);
+    for (const bad of ['0', '-1', '169', '1.5', 'x', ' ']) {
+      const problems = hours({ SCREEN_SESSION_HOURS: bad });
+      expect(Array.isArray(problems), bad).toBe(true);
+      expect(String((problems as string[])[0]), bad).toMatch(/^SCREEN_SESSION_HOURS is invalid/);
+    }
+  });
+
   it('names missing variables', () => {
     const { DB_APP_PASSWORD: _omit, ...rest } = VALID;
     expect(parseEnv(appEnvSchema, rest)).toEqual({
