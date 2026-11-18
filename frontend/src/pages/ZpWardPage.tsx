@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { idParam, loadPsZpWard } from '../api/loaders';
 import type { PsZpWardState } from '../api/types';
 import { BoothFormButton } from '../components/BoothFormButton';
+import { CheckMemoButton } from '../components/CheckMemoButton';
 import { ErrorBox, SuccessBox } from '../components/ErrorBox';
 import { formatDateTime } from '../components/format';
 import { useApiData } from '../components/useApiData';
@@ -44,6 +45,8 @@ export function ZpWardPage() {
       <SuccessBox text={state.flash} />
       {!open && <p className="msg msg-warn">! {CLOSED_TEXT[ward.state as Exclude<PsZpWardState, 'OPEN'>]}</p>}
       {progress !== null && <ZpProgressTable progress={progress} />}
+      <p className="muted small">चेक मीमो में केवल आपकी पंचायत समिति के बूथ आएँगे।</p>
+      <CheckMemoButton wardId={ward.id} />
       <h2>आपकी पंचायत समिति के बूथ</h2>
       <table className="list">
         <thead>

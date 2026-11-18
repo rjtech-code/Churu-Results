@@ -57,6 +57,18 @@ export interface CheckMemoData {
   booths: readonly CheckMemoBooth[];
   /** A ZP ward whose booths come from more than one Panchayat Samiti. */
   multiPs: boolean;
+  /**
+   * Set only for a PS_RO's memo of a ZP ward: the sheet then holds that Panchayat Samiti's booths
+   * ALONE, carries the notice rows and leaves the postal (PB) row out. null = the whole ward's
+   * sheet, exactly as the DM and the ZP_RO get it.
+   */
+  partial: {
+    psName: string;
+    /** Booths printed here. */
+    boothsIncluded: number;
+    /** Booths the whole ZP ward has, so the notice can say "50 में से 12". */
+    boothsInWard: number;
+  } | null;
   postal: {
     entered: boolean;
     votes: readonly number[];
@@ -84,6 +96,31 @@ const ELECTION = { ZP: 'जिला परिषद् आम चुनाव, 
 const SUM_HEADER = 'विधिमान्य एवं ख़ारिज मतपत्रों का योग (G+H)';
 const PB_ROW = 'PB VOTES';
 const TOTAL_ROW = 'कुल योग';
+
+/**
+ * The words of a PS_RO's ZP ward memo. The sheet must never be mistaken for the ward's final
+ * result, so it says so twice: above the table and under the कुल योग. Two wordings — some of the
+ * ward's booths, or all of them — but the SHAPE of the document is the same either way.
+ */
+const PARTIAL_NOTICE = {
+  some: (psName: string, included: number, inWard: number): [string, string] => [
+    'ध्यान दें — यह आंशिक मीमो है। यह वार्ड का अंतिम परिणाम नहीं है।',
+    `इसमें केवल पंचायत समिति ${psName} के बूथ हैं — वार्ड के कुल ${String(inWard)} बूथ में से ${String(included)}। अन्य पंचायत समिति के बूथ और डाक मतपत्र इसमें शामिल नहीं हैं।`,
+  ],
+  all: (psName: string, included: number): [string, string] => [
+    'ध्यान दें — यह वार्ड का अंतिम परिणाम नहीं है।',
+    `इसमें पंचायत समिति ${psName} के सभी ${String(included)} बूथ हैं, परन्तु डाक मतपत्र शामिल नहीं हैं। वार्ड का पूरा योग और अंतिम परिणाम जिला परिषद रिटर्निंग अधिकारी के पास है।`,
+  ],
+} as const;
+
+const PARTIAL_TOTAL_ROW = {
+  some: (psName: string, included: number) =>
+    `कुल योग — केवल पंचायत समिति ${psName} के ${String(included)} बूथ`,
+  all: () => 'कुल योग — केवल बूथ (डाक मतपत्र शामिल नहीं)',
+} as const;
+
+const PARTIAL_UNDER_TOTAL =
+  'यह योग केवल बूथ का है। वार्ड का पूरा योग और अंतिम परिणाम जिला परिषद रिटर्निंग अधिकारी के पास है।';
 
 interface Columns {
   /** 1-based column numbers. */
@@ -134,6 +171,27 @@ function headingLine(ws: ExcelJS.Worksheet, row: number, last: number, text: str
   cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 }
 
+/**
+ * A full-width warning band: merged across every column, boxed and bold, so it is still there on a
+ * photocopy. Merged rows do not auto-fit in Excel, so the height is given.
+ */
+function noticeRow(
+  ws: ExcelJS.Worksheet,
+  row: number,
+  last: number,
+  text: string,
+  size: number,
+  height: number,
+) {
+  ws.mergeCells(row, 1, row, last);
+  const cell = ws.getCell(row, 1);
+  cell.value = text;
+  cell.font = { name: FONT, size, bold: true };
+  cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+  for (let c = 1; c <= last; c++) ws.getCell(row, c).border = BORDER;
+  ws.getRow(row).height = height;
+}
+
 /** The check memo of one ward as .xlsx bytes. */
 export async function renderCheckMemoXlsx(data: CheckMemoData): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -154,6 +212,30 @@ export async function renderCheckMemoXlsx(data: CheckMemoData): Promise<Buffer> 
     headingLine(ws, row++, last, `पंचायत समिति — ${data.psName}`, 12);
   }
   headingLine(ws, row++, last, TITLE, 13);
+
+  // ---- the PS_RO's notice (a ZP ward memo of ONE Panchayat Samiti): above the table and, below,
+  // under the कुल योग. Two wordings, one document shape; never present on a whole-ward sheet.
+  const partial = data.partial;
+  const words =
+    partial === null
+      ? null
+      : partial.boothsIncluded >= partial.boothsInWard
+        ? {
+            notice: PARTIAL_NOTICE.all(partial.psName, partial.boothsIncluded),
+            total: PARTIAL_TOTAL_ROW.all(),
+          }
+        : {
+            notice: PARTIAL_NOTICE.some(
+              partial.psName,
+              partial.boothsIncluded,
+              partial.boothsInWard,
+            ),
+            total: PARTIAL_TOTAL_ROW.some(partial.psName, partial.boothsIncluded),
+          };
+  if (words !== null) {
+    noticeRow(ws, row++, last, words.notice[0], 12, 22);
+    noticeRow(ws, row++, last, words.notice[1], 11, 34);
+  }
 
   // ---- header row, then the column-letter row
   const headerRow = row++;
@@ -223,29 +305,46 @@ export async function renderCheckMemoXlsx(data: CheckMemoData): Promise<Buffer> 
     row++;
   }
 
-  // ---- the ward's postal entry
-  const pbRow = row++;
-  ws.getCell(pbRow, col.booth).value = PB_ROW;
-  if (data.postal.entered) {
-    data.postal.votes.forEach((v, i) => {
-      ws.getCell(pbRow, col.firstCandidate + i).value = v;
-    });
-    if (data.postal.total !== null) ws.getCell(pbRow, col.total).value = data.postal.total;
-    if (data.postal.rejected !== null) ws.getCell(pbRow, col.rejected).value = data.postal.rejected;
-    ws.getCell(pbRow, col.sum).value = sumFormula(pbRow);
+  // ---- the ward's postal entry. A PS_RO's sheet never carries it: the postal ballots of a ZP ward
+  // are ONE ward-level sheet, so printing it beside a part of the booths would turn कुल योग into
+  // "my booths + the whole ward's postal". The notice says so in words.
+  if (words === null) {
+    const pbRow = row++;
+    ws.getCell(pbRow, col.booth).value = PB_ROW;
+    if (data.postal.entered) {
+      data.postal.votes.forEach((v, i) => {
+        ws.getCell(pbRow, col.firstCandidate + i).value = v;
+      });
+      if (data.postal.total !== null) ws.getCell(pbRow, col.total).value = data.postal.total;
+      if (data.postal.rejected !== null) {
+        ws.getCell(pbRow, col.rejected).value = data.postal.rejected;
+      }
+      ws.getCell(pbRow, col.sum).value = sumFormula(pbRow);
+    }
+    boxRow(ws, pbRow, last, true);
+    dataRows.push(pbRow);
   }
-  boxRow(ws, pbRow, last, true);
-  dataRows.push(pbRow);
 
   // ---- कुल योग: every booth plus the postal row, so the memo can verify the final result
-  const totalRow = row;
-  ws.getCell(totalRow, col.booth).value = TOTAL_ROW;
+  const totalRow = row++;
+  if (words !== null) ws.mergeCells(totalRow, col.ward, totalRow, col.booth);
+  ws.getCell(totalRow, words === null ? col.booth : col.ward).value = words?.total ?? TOTAL_ROW;
   const cells = (c: number) => dataRows.map((r) => `${columnLetter(c)}${String(r)}`).join(',');
-  for (let c = col.firstCandidate; c <= col.rejected; c++) {
-    ws.getCell(totalRow, c).value = { formula: `SUM(${cells(c)})` };
+  // Nothing to add up (no booth row and no PB row): the row stays empty rather than holding SUM().
+  if (dataRows.length > 0) {
+    for (let c = col.firstCandidate; c <= col.rejected; c++) {
+      ws.getCell(totalRow, c).value = { formula: `SUM(${cells(c)})` };
+    }
+    ws.getCell(totalRow, col.sum).value = sumFormula(totalRow);
   }
-  ws.getCell(totalRow, col.sum).value = sumFormula(totalRow);
   boxRow(ws, totalRow, last, true);
+  if (words !== null) {
+    const label = ws.getCell(totalRow, col.ward);
+    label.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+    ws.getRow(totalRow).height = 30;
+    noticeRow(ws, row++, last, PARTIAL_UNDER_TOTAL, 11, 30);
+  }
+  const lastRow = row - 1;
 
   // ---- widths: the numbers stay narrow, names wrap instead of being cut off
   ws.getColumn(col.ward).width = 12;
@@ -255,7 +354,7 @@ export async function renderCheckMemoXlsx(data: CheckMemoData): Promise<Buffer> 
   ws.getColumn(col.total).width = 12;
   ws.getColumn(col.rejected).width = 14;
   ws.getColumn(col.sum).width = 20;
-  ws.pageSetup.printArea = `A1:${columnLetter(last)}${String(totalRow)}`;
+  ws.pageSetup.printArea = `A1:${columnLetter(last)}${String(lastRow)}`;
 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

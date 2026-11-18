@@ -8,7 +8,8 @@ import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import { requireRole } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/errors.js';
-import { canReadWard } from '../../services/access.js';
+import { canReadWard, checkMemoScope } from '../../services/access.js';
+import type { MemoScope } from '../../services/access.js';
 import { writeAudit } from '../../services/audit.js';
 import { FormDoesNotFitError } from '../../services/pdf/fit.js';
 import { REFUSAL_STATUS, formRefusal } from '../../services/ward-forms/eligibility.js';
@@ -34,6 +35,7 @@ import type { WardFormName } from '../../services/ward-forms/templates/registry.
 import type { AuthUser } from '../../types/auth.js';
 import { idParam, parse } from '../admin/http.js';
 import { readCheckMemo } from './check-memo.data.js';
+import { readPsNames } from './st-format.data.js';
 import {
   readBoothBlank,
   readBoothScope,
@@ -312,17 +314,34 @@ function boothBlankDownload(pool: Pool, format: BoothFormFormat): RequestHandler
  * GET /:wardId/check-memo.xlsx — "अंतिम परिणाम हेतु चेक मीमो" of one ward.
  *
  * Unlike Part-II and Prarup-7 this one is NOT limited to declared wards: its whole purpose is to
- * check the counting as it stands (a partly counted ward prints with empty booth rows). Same
- * permissions as every other ward form (DM any ward, the ward's own RO), same audit row.
+ * check the counting as it stands (a partly counted ward prints with empty booth rows).
+ *
+ * It reaches further than the other ward forms, so it has its own rule (access.ts checkMemoScope)
+ * instead of allowedWard(): the DM and the ZP_RO get the whole ward, and a PS_RO gets — besides
+ * their own PS wards — the booths of THEIR Panchayat Samiti in any ZP ward, with no postal row and
+ * with the notice on the sheet itself. Same audit row as every other download.
  */
 function checkMemoDownload(pool: Pool): RequestHandler {
   return async (req, res) => {
-    const wardId = await allowedWard(pool, req);
-    const data = await readCheckMemo(pool, wardId);
+    parse(noQuery, req.query);
+    const wardId = parse(idParam, req.params.wardId);
+    const user = req.user;
+    if (!user) throw new ApiError(401, 'UNAUTHENTICATED');
+    const ward = await readFormWard(pool, wardId);
+    if (ward === null) throw new ApiError(404, 'NOT_FOUND');
+    // The scope comes from the SESSION only. There is no ?ps on this route (noQuery refuses any
+    // query string), so changing the ward id can move an officer between wards, never between
+    // Panchayat Samitis.
+    const scope = checkMemoScope(user, {
+      wardType: ward.kind,
+      panchayatSamitiId: ward.psId,
+    });
+    if (scope === null) throw new ApiError(403, 'FORBIDDEN');
+    const data = await readCheckMemo(pool, wardId, scope);
     await sendExport(pool, req, res, {
       body: await renderCheckMemoXlsx(data),
       contentType: XLSX,
-      fileName: `CheckMemo_${data.kind}_${String(data.wardNo)}.xlsx`,
+      fileName: `CheckMemo_${data.kind}_${String(data.wardNo)}${await psFileTag(pool, scope)}.xlsx`,
       wardId,
       details: {
         section: 'check-memo',
@@ -332,9 +351,23 @@ function checkMemoDownload(pool: Pool): RequestHandler {
         ward_no: data.wardNo,
         booths: data.booths.length,
         candidates: data.candidates.length,
+        // Which Panchayat Samiti's booths this copy held, and whether it was the partial sheet.
+        ps_id: scope.kind === 'PS' ? scope.psId : null,
+        partial: scope.kind === 'PS',
       },
     });
   };
+}
+
+/**
+ * `_PS-Rajgarh` for a Panchayat Samiti's own copy, '' for the whole ward's sheet. The English name,
+ * stripped to A-Z0-9: a Content-Disposition file name must stay ASCII (same rule as सारणी-"ख").
+ */
+async function psFileTag(pool: Pool, scope: MemoScope): Promise<string> {
+  if (scope.kind === 'FULL') return '';
+  const name = (await readPsNames(pool)).find((p) => p.id === scope.psId)?.nameEnglish ?? '';
+  const safe = name.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return `_PS-${safe === '' ? String(scope.psId) : safe}`;
 }
 
 export function wardFormsRouter(pool: Pool): Router {

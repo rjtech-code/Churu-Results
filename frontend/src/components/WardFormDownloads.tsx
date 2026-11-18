@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, downloadFile } from '../api/api';
 import type { WardFormName, WardFormsInfo } from '../api/reportTypes';
+import { CHECK_MEMO_BUSY, CHECK_MEMO_FILE, CHECK_MEMO_LABEL, checkMemoUrl } from './CheckMemoButton';
 import { ErrorBox } from './ErrorBox';
 import { useApiData } from './useApiData';
 
@@ -37,7 +38,7 @@ export function WardFormDownloads({ wardId }: { wardId: number }) {
     setBusy('check-memo');
     setError(null);
     try {
-      await downloadFile(`/api/ward-forms/${String(wardId)}/check-memo.xlsx`, 'CheckMemo.xlsx');
+      await downloadFile(checkMemoUrl(wardId), CHECK_MEMO_FILE);
     } catch (err) {
       setError(err);
     } finally {
@@ -91,7 +92,7 @@ export function WardFormDownloads({ wardId }: { wardId: number }) {
             void downloadMemo();
           }}
         >
-          {busy === 'check-memo' ? 'बन रहा है…' : 'चेक मीमो (Excel)'}
+          {busy === 'check-memo' ? CHECK_MEMO_BUSY : CHECK_MEMO_LABEL}
         </button>
       </div>
       <ErrorBox error={error} />

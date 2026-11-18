@@ -35,7 +35,10 @@ interface World {
   ps1: number;
   ps2: number;
   ps: Ward;
+  /** ZP ward 7: booths in BOTH Panchayat Samitis (8 real ZP wards are like this). */
   zp: Ward;
+  /** ZP ward 8: every booth in ps1 alone (31 real ZP wards are like this). */
+  zpOwn: Ward;
   many: Ward;
   empty: Ward;
 }
@@ -95,7 +98,7 @@ async function download(user: string, wardId: number): Promise<Buffer> {
   return res.body as Buffer;
 }
 
-async function statusFor(user: string, wardId: number): Promise<number> {
+async function statusForPath(user: string, path: string): Promise<number> {
   const agent = request.agent(app);
   const csrf = await agent.get('/api/auth/csrf');
   const token = (csrf.body as { csrfToken: string }).csrfToken;
@@ -103,7 +106,11 @@ async function statusFor(user: string, wardId: number): Promise<number> {
     .post('/api/auth/login')
     .set('X-CSRF-Token', token)
     .send({ username: user, password: PASSWORD });
-  return (await agent.get(url(wardId))).status;
+  return (await agent.get(path)).status;
+}
+
+async function statusFor(user: string, wardId: number): Promise<number> {
+  return statusForPath(user, url(wardId));
 }
 
 async function build(db: Pool): Promise<World> {
@@ -138,13 +145,13 @@ async function build(db: Pool): Promise<World> {
   const psId = await ward('PS', ps1, 5);
   const manyId = await ward('PS', ps1, 6);
   const emptyId = await ward('PS', ps2, 9);
-  const zpOther = await ward('ZP', null, 8); // the ZP ward of the other wards' booths
+  const zpOtherId = await ward('ZP', null, 8); // the ZP ward of the other wards' booths
 
   // PS ward 5: booths 12, 12A, 13 (the suffix booth must print as "12A").
   const psBooths = [
-    await booth(ps1, 12, '', psId, zpOther),
-    await booth(ps1, 12, 'A', psId, zpOther),
-    await booth(ps1, 13, '', psId, zpOther),
+    await booth(ps1, 12, '', psId, zpOtherId),
+    await booth(ps1, 12, 'A', psId, zpOtherId),
+    await booth(ps1, 13, '', psId, zpOtherId),
   ];
   // ZP ward 7: booth 4 of CHURU and booth 4 of RAJGARH — the same number in two Panchayat Samitis.
   const zpPsWard1 = await ward('PS', ps1, 20);
@@ -153,7 +160,7 @@ async function build(db: Pool): Promise<World> {
     await booth(ps1, 4, '', zpPsWard1, zpId),
     await booth(ps2, 4, '', zpPsWard2, zpId),
   ];
-  const manyBooths = [await booth(ps1, 30, '', manyId, zpOther)];
+  const manyBooths = [await booth(ps1, 30, '', manyId, zpOtherId)];
 
   const mk = async (id: number, no: number, names: string[], booths: number[]): Promise<Ward> => {
     const candidates: number[] = [];
@@ -170,6 +177,9 @@ async function build(db: Pool): Promise<World> {
     Array.from({ length: 12 }, (_, i) => `उम्मीदवार संख्या ${String(i + 1)} लंबा नाम`),
     manyBooths,
   );
+  // ZP ward 8 holds the PS wards' booths, and all of them are ps1's: the case where a PS RO's own
+  // Panchayat Samiti happens to cover the whole ZP ward.
+  const zpOwn = await mk(zpOtherId, 8, ['क देवी', 'ख लाल'], [...psBooths, ...manyBooths]);
   const empty: Ward = { id: emptyId, no: 9, candidates: [], nota: 0, booths: [] };
   // Official order: the postal sheet of a ZP ward is entered by ONE assigned Panchayat Samiti's RO.
   await db.execute('INSERT INTO zp_ward_postal_assignment (zp_ward_id, ps_id) VALUES (?, ?)', [
@@ -186,7 +196,7 @@ async function build(db: Pool): Promise<World> {
   await createUser(db, { username: USERS.zp, role: 'ZP_RO', password: PASSWORD });
   await createUser(db, { username: USERS.dm, role: 'DM', password: PASSWORD });
   await createUser(db, { username: USERS.sa, role: 'SUPER_ADMIN', password: PASSWORD });
-  return { ps1, ps2, ps, zp, many, empty };
+  return { ps1, ps2, ps, zp, zpOwn, many, empty };
 }
 
 /** Enters one booth sheet through the real counting API (so the numbers are real). */
@@ -260,6 +270,9 @@ beforeAll(async () => {
   await enter(ro1, w.zp, w.zp.booths[0] ?? 0, [200, 150], 10, 'ZP');
   await enter(ro2, w.zp, w.zp.booths[1] ?? 0, [100, 180], 4, 'ZP');
   await postal(ro1, w.zp, [5, 6], 0);
+  // ZP ward 8 (all booths ps1's): two of its four booths entered, no postal sheet.
+  await enter(ro1, w.zpOwn, w.zpOwn.booths[0] ?? 0, [11, 22], 3, 'ZP');
+  await enter(ro1, w.zpOwn, w.zpOwn.booths[1] ?? 0, [33, 44], 1, 'ZP');
   // The many-candidate ward: one booth entered.
   await enter(
     ro1,
@@ -459,3 +472,193 @@ async function auditCount(): Promise<number> {
   );
   return Number(rows[0]?.n ?? 0);
 }
+
+// --------------------------------------------------------------------------------------------
+// A PS RO's जिला परिषद ward memo: their OWN booths, never the postal row, always with the notice.
+// --------------------------------------------------------------------------------------------
+
+/** Every cell of the sheet as text, so a test can prove a word is nowhere in it. */
+function allText(ws: ExcelJS.Worksheet): string[] {
+  const out: string[] = [];
+  for (let r = 1; r <= ws.rowCount; r++) {
+    for (let c = 1; c <= ws.columnCount; c++) out.push(text(ws, r, c));
+  }
+  return out;
+}
+
+/** Every number the sheet holds, so a test can prove another PS's figures are not among them. */
+function allNumbers(ws: ExcelJS.Worksheet): number[] {
+  const out: number[] = [];
+  for (let r = 1; r <= ws.rowCount; r++) {
+    for (let c = 1; c <= ws.columnCount; c++) {
+      const v = num(ws, r, c);
+      if (v !== null) out.push(v);
+    }
+  }
+  return out;
+}
+
+/** The notice rows are merged into column A. */
+function rowWithA(ws: ExcelJS.Worksheet, label: string): number {
+  for (let r = 1; r <= ws.rowCount; r++) if (text(ws, r, 1) === label) return r;
+  return 0;
+}
+
+/** The booth rows: column B holds a booth number (not PB VOTES, कुल योग or a heading). */
+function boothRowCount(ws: ExcelJS.Worksheet): number {
+  let n = 0;
+  for (let r = 1; r <= ws.rowCount; r++) if (/^\d+[A-Z]?$/.test(text(ws, r, 2))) n++;
+  return n;
+}
+
+async function psNameOf(psId: number): Promise<string> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    'SELECT name_hindi FROM panchayat_samiti WHERE id = ?',
+    [psId],
+  );
+  return String(rows[0]?.name_hindi ?? '');
+}
+
+const NOTICE_SOME_1 = 'ध्यान दें — यह आंशिक मीमो है। यह वार्ड का अंतिम परिणाम नहीं है।';
+const NOTICE_ALL_1 = 'ध्यान दें — यह वार्ड का अंतिम परिणाम नहीं है।';
+const UNDER_TOTAL =
+  'यह योग केवल बूथ का है। वार्ड का पूरा योग और अंतिम परिणाम जिला परिषद रिटर्निंग अधिकारी के पास है।';
+
+describe("a PS RO's जिला परिषद ward memo", () => {
+  it("holds their own booths only — the other PS's row and figures are nowhere in the sheet", async () => {
+    const ws = await sheetOf(await download(USERS.ro1, w.zp.id));
+    // ZP ward 7 has two booths, both numbered 4: one in ps1, one in ps2. Only ps1's prints.
+    expect(boothRowCount(ws)).toBe(1);
+    const row = rowWith(ws, '4');
+    expect(row).toBeGreaterThan(0);
+    expect(num(ws, row, 3)).toBe(200); // ps1's own booth, as ro1 entered it
+    expect(num(ws, row, 4)).toBe(150);
+    // ps2's booth sheet was [100, 180] + 4 NOTA = 284. None of it may appear anywhere.
+    const numbers = allNumbers(ws);
+    for (const forbidden of [100, 180, 284]) expect(numbers).not.toContain(forbidden);
+    // Nor its Panchayat Samiti, in any heading.
+    expect(allText(ws)).not.toContain(`पंचायत समिति — ${await psNameOf(w.ps2)}`);
+  });
+
+  it('says so above the table: आंशिक मीमो, the Panchayat Samiti and how many booths of how many', async () => {
+    const ws = await sheetOf(await download(USERS.ro1, w.zp.id));
+    const first = rowWithA(ws, NOTICE_SOME_1);
+    expect(first).toBeGreaterThan(0);
+    expect(text(ws, first + 1, 1)).toBe(
+      `इसमें केवल पंचायत समिति ${await psNameOf(w.ps1)} के बूथ हैं — वार्ड के कुल 2 बूथ में से 1। अन्य पंचायत समिति के बूथ और डाक मतपत्र इसमें शामिल नहीं हैं।`,
+    );
+    // Above the table: before the header row and the column-letter row.
+    expect(first).toBeLessThan(rowWithA(ws, 'zp ward no.'));
+  });
+
+  it('has no PB row, and कुल योग is its own booths only, with the notice under it', async () => {
+    const ws = await sheetOf(await download(USERS.ro1, w.zp.id));
+    expect(rowWith(ws, 'PB VOTES')).toBe(0);
+    expect(rowWith(ws, 'कुल योग')).toBe(0); // the bare label would read like the ward's result
+    const total = rowWithA(ws, `कुल योग — केवल पंचायत समिति ${await psNameOf(w.ps1)} के 1 बूथ`);
+    expect(total).toBeGreaterThan(0);
+    // The sum adds up the printed booth row alone — the ward's postal row is not in the formula.
+    const boothRow = rowWith(ws, '4');
+    expect(text(ws, total, 3)).toBe(`=SUM(C${String(boothRow)})`);
+    expect(text(ws, total + 1, 1)).toBe(UNDER_TOTAL);
+  });
+
+  it('a ZP ward whose booths are all theirs: same shape, the सभी wording, still no PB row', async () => {
+    const ws = await sheetOf(await download(USERS.ro1, w.zpOwn.id));
+    const first = rowWithA(ws, NOTICE_ALL_1);
+    expect(first).toBeGreaterThan(0);
+    expect(text(ws, first + 1, 1)).toBe(
+      `इसमें पंचायत समिति ${await psNameOf(w.ps1)} के सभी 4 बूथ हैं, परन्तु डाक मतपत्र शामिल नहीं हैं। वार्ड का पूरा योग और अंतिम परिणाम जिला परिषद रिटर्निंग अधिकारी के पास है।`,
+    );
+    expect(boothRowCount(ws)).toBe(4);
+    expect(rowWith(ws, 'PB VOTES')).toBe(0);
+    const total = rowWithA(ws, 'कुल योग — केवल बूथ (डाक मतपत्र शामिल नहीं)');
+    expect(total).toBeGreaterThan(0);
+    expect(text(ws, total + 1, 1)).toBe(UNDER_TOTAL);
+    // No "x में से y" count when every booth of the ward is there.
+    expect(allText(ws).join('\n')).not.toContain('में से');
+  });
+
+  it('changing the ward id cannot move an officer to another Panchayat Samiti', async () => {
+    // ro2 (ps2) asks for the very ward ro1 just downloaded: it gets ITS OWN booth, not ps1's.
+    const ws = await sheetOf(await download(USERS.ro2, w.zp.id));
+    expect(boothRowCount(ws)).toBe(1);
+    const row = rowWith(ws, '4');
+    expect(num(ws, row, 3)).toBe(100); // ps2's own figures
+    expect(num(ws, row, 4)).toBe(180);
+    for (const forbidden of [200, 150, 360]) expect(allNumbers(ws)).not.toContain(forbidden);
+    expect(allText(ws)).toContain(
+      `इसमें केवल पंचायत समिति ${await psNameOf(w.ps2)} के बूथ हैं — वार्ड के कुल 2 बूथ में से 1। अन्य पंचायत समिति के बूथ और डाक मतपत्र इसमें शामिल नहीं हैं।`,
+    );
+    // A ZP ward with none of its booths: nothing at all.
+    expect(await statusFor(USERS.ro2, w.zpOwn.id)).toBe(403);
+    // And there is no way to name a Panchayat Samiti in the request.
+    expect(await statusForPath(USERS.ro2, `${url(w.zp.id)}?ps=${String(w.ps1)}`)).toBe(400);
+  });
+
+  it('is audited with the Panchayat Samiti it held and that it was the partial sheet', async () => {
+    await download(USERS.ro1, w.zp.id);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT new_value FROM audit_log WHERE action = 'REPORT_EXPORTED' ORDER BY id DESC LIMIT 1`,
+    );
+    const value = rows[0]?.new_value as {
+      section?: string;
+      ps_id?: number;
+      partial?: boolean;
+      booths?: number;
+    } | null;
+    expect(value?.section).toBe('check-memo');
+    expect(value?.ps_id).toBe(w.ps1);
+    expect(value?.partial).toBe(true);
+    expect(value?.booths).toBe(1);
+  });
+});
+
+describe('the whole-ward sheet is unchanged', () => {
+  it('the DM and the ZP RO still get every booth, the PB row and no notice', async () => {
+    for (const user of [USERS.dm, USERS.zp]) {
+      const ws = await sheetOf(await download(user, w.zp.id));
+      expect(boothRowCount(ws), user).toBe(2); // both Panchayat Samitis
+      expect(rowWith(ws, 'PB VOTES'), user).toBeGreaterThan(0);
+      expect(rowWith(ws, 'कुल योग'), user).toBeGreaterThan(0);
+      const sheet = allText(ws).join('\n');
+      for (const word of ['आंशिक मीमो', 'केवल बूथ', 'शामिल नहीं', NOTICE_ALL_1]) {
+        expect(sheet, `${user} / ${word}`).not.toContain(word);
+      }
+    }
+  });
+
+  it('the DM download is audited as the whole ward', async () => {
+    await download(USERS.dm, w.zp.id);
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT new_value FROM audit_log WHERE action = 'REPORT_EXPORTED' ORDER BY id DESC LIMIT 1`,
+    );
+    const value = rows[0]?.new_value as { ps_id?: number | null; partial?: boolean } | null;
+    expect(value?.ps_id).toBeNull();
+    expect(value?.partial).toBe(false);
+  });
+});
+
+describe('downloading a memo never changes the counting', () => {
+  it('every entry, vote, postal sheet and declaration is byte-identical afterwards', async () => {
+    const snapshot = async (): Promise<string> => {
+      const q = async (sql: string): Promise<string> =>
+        JSON.stringify((await pool.execute<RowDataPacket[]>(sql))[0]);
+      return [
+        await q('SELECT * FROM booth_entry ORDER BY id'),
+        await q('SELECT * FROM booth_entry_vote ORDER BY id'),
+        await q('SELECT * FROM postal_entry ORDER BY id'),
+        await q('SELECT * FROM postal_entry_vote ORDER BY id'),
+        await q('SELECT * FROM ward_declarations ORDER BY ward_id, version'),
+        await q('SELECT id, is_locked, is_unopposed FROM ward ORDER BY id'),
+      ].join('|');
+    };
+    const before = await snapshot();
+    await download(USERS.ro1, w.zp.id);
+    await download(USERS.ro1, w.zpOwn.id);
+    await download(USERS.ro2, w.zp.id);
+    await download(USERS.dm, w.zp.id);
+    await download(USERS.zp, w.zp.id);
+    expect(await snapshot()).toBe(before);
+  });
+});

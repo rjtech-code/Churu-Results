@@ -145,3 +145,41 @@ export async function canWritePostal(db: Db, user: AccessUser, wardId: number): 
   const assigned = scope.wardType === 'ZP' ? await assignedPostalPs(db, wardId) : null;
   return postalWriteAllowed(user, scope, assigned);
 }
+
+// ---------------------------------------------------------------- check memo
+
+/**
+ * Whose booths a check memo may contain.
+ *   FULL — every booth of the ward, plus its postal (PB) row: the whole ward's sheet.
+ *   PS   — only the booths of ONE Panchayat Samiti, never the PB row.
+ */
+export type MemoScope = { kind: 'FULL' } | { kind: 'PS'; psId: number };
+
+/**
+ * The check memo of one ward, as this user may have it; null = not allowed at all.
+ *
+ * A PS_RO gets a ZP ward memo too (the ZP parchis are theirs: one parchi carries both ballots), but
+ * only ever their OWN booths of it, and never its postal entry or its total — those belong to the
+ * ZP_RO. That holds for all 39 ZP wards alike: whether their Panchayat Samiti happens to hold every
+ * booth of the ward or only some of them does not change what the officer is entitled to see, and
+ * the officer should not have to remember which case a ward is (DEO, Nov 2026).
+ *
+ * Everyone else keeps exactly the reach wardReadAllowed() gives them.
+ */
+export function checkMemoScope(user: AccessUser, ward: WardScope): MemoScope | null {
+  switch (user.role) {
+    case 'DM':
+      return { kind: 'FULL' };
+    case 'ZP_RO':
+      return ward.wardType === 'ZP' ? { kind: 'FULL' } : null;
+    case 'PS_RO': {
+      const own = user.panchayatSamitiId;
+      if (own === null) return null;
+      if (ward.wardType === 'ZP') return { kind: 'PS', psId: own };
+      return ward.panchayatSamitiId === own ? { kind: 'FULL' } : null;
+    }
+    case 'SUPER_ADMIN':
+    case 'OBSERVER':
+      return null;
+  }
+}
