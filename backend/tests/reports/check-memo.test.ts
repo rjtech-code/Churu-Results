@@ -577,9 +577,9 @@ describe("a PS RO's जिला परिषद ward memo", () => {
     expect(rowWith(ws, 'PB VOTES')).toBe(0);
     const total = rowWithA(ws, 'कुल योग — केवल बूथ (डाक मतपत्र शामिल नहीं)');
     expect(total).toBeGreaterThan(0);
-    // 3 candidates here: C D E = candidates, F = NOTA, G = TOTAL, H = REJECTED PB.
-    expect(text(ws, total, 7)).toContain('=SUM(');
-    expect(text(ws, total, 8)).toBe('');
+    // 2 candidates: C D = candidates, E = NOTA, F = TOTAL, G = REJECTED PB.
+    expect(text(ws, total, 6)).toContain('=SUM(');
+    expect(text(ws, total, 7)).toBe('');
     expect(text(ws, total + 1, 1)).toBe(UNDER_TOTAL);
     // No "x में से y" count when every booth of the ward is there.
     expect(allText(ws).join('\n')).not.toContain('में से');
