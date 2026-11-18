@@ -18,6 +18,7 @@ import {
 } from '../../services/master-data/accounts.js';
 import type { Role } from '../../services/master-data/accounts.js';
 import { LOCK_MINUTES } from '../auth/auth.service.js';
+import type { UserLimitCounters } from '../../middleware/rate-limit.js';
 import { hashPassword, generatePassword } from '../../services/master-data/passwords.js';
 import { decryptPassword, encryptPassword } from '../../services/master-data/password-vault.js';
 import { psHi } from '../../services/master-data/issues-hi.js';
@@ -593,11 +594,20 @@ export async function lockedAccounts(pool: Pool) {
   });
 }
 
+/**
+ * Opens a login the five-wrong-password lockout closed. It clears BOTH things that can refuse the
+ * officer: the database lock (locked_until, failed_login_count) and that officer's own rate-limit
+ * counters — their failed logins and their dashboard requests. Without the second one the button
+ * would look like it worked while the officer kept getting 429.
+ *
+ * The venue-wide (per-IP) ceilings are not touched: they are not this officer's to clear.
+ */
 export async function unlockAccount(
   pool: Pool,
   who: Actor,
   userId: number,
   body: { password: string },
+  limitCounters: UserLimitCounters,
 ): Promise<void> {
   await inUserWrite(pool, who, body.password, async (conn) => {
     // The counting logins: the RO seats and the DM's own account (a locked DM cannot clear itself,
@@ -610,6 +620,7 @@ export async function unlockAccount(
     const lockedUntil = rows[0]?.locked_until instanceof Date ? rows[0].locked_until : null;
     if (lockedUntil === null && account.failedLogins === 0) throw new ApiError(409, 'NO_CHANGE');
     await clearLoginLock(conn, account.id);
+    limitCounters.clearForUser(account.username, account.id);
     await writeAudit(conn, {
       userId: who.user.id,
       action: 'USER_UNLOCKED',
@@ -625,6 +636,7 @@ export async function unlockAccount(
         unlocked_by_name: who.user.fullName ?? who.user.username,
         failed_login_count: 0,
         locked_until: null,
+        cleared_rate_limits: true,
       },
       ip: who.ip,
     });

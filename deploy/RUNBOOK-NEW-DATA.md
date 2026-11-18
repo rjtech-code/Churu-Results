@@ -233,6 +233,33 @@ Har password screen par **sirf ek baar** aata hai. Use turant kisi safe jagah no
 - **Ginti ki tareekh 20 Nov 2026:** ye setting nahi hai. Code me fixed hai (`backend/src/config/election.ts`, `COUNTING_DATE`). Report me "Counting date: 20 Nov 2026" dikhna chahiye.
 - **SUPPORT_CONTACT:** ye `frontend/src/pages/superadmin/guideContent.ts` me hai. Naam aur phone milne par code badalna hoga, commit karna hoga, aur step 4 dobara chalana hoga.
 
+## 12a. Adhikari ko 429 / login nahi ho raha
+
+1. **Adhikari ki screen par kya likha hai, wahi poochhein:**
+   - "इस यूज़रनेम से बहुत गलत कोशिशें — DM से लॉगिन खुलवाएँ" → **step 3** (DM khud theek kar sakta hai)
+   - "खाता अस्थायी रूप से बंद है…" → **step 3**
+   - "यहाँ से बहुत लॉगिन कोशिशें…" ya "यहाँ से बहुत अधिक अनुरोध…" → **step 4** (restart chahiye)
+2. **Pakka karna ho to server log dekhein** (password kabhi log nahi hota):
+   ```bash
+   cd /opt/churu-results && $DC logs --tail=200 app | grep '\[rate-limit\]'
+   # login-per-user / api-per-user  -> step 3
+   # login-per-ip   / api-per-ip    -> step 4
+   ```
+3. **DM panel se kholें** (terminal ki zaroorat nahi):
+   DM login → **RO सूची** → upar **"RO लॉगिन खोलें"** card → us adhikari ki row → **लॉगिन खोलें** → DM apna password daale.
+   Isse ek saath hat jaata hai: account ka lock, galat koshishon ki ginti, **aur usi adhikari ke rate-limit counters**. Adhikari **wahi purana password** turant daal kar login kar sakta hai.
+   Card khaali dikhe ("अभी कोई लॉगिन लॉक नहीं है") aur phir bhi 429 aaye → step 4.
+4. **Poore venue wali limit lagi ho (per-IP) → app restart:**
+   ```bash
+   cd /opt/churu-results
+   $DC restart app
+   $DC logs --tail=30 app      # "listening" dikhna chahiye
+   ```
+   Restart **5-10 second** leta hai.
+   - **Khatam ho jaata hai:** saare rate-limit counters (ye in-memory hain).
+   - **Nahi badalta:** matgananā ka data, adhikariyon ke login sessions (DB mein hain — dobara login nahi karna padta), TV screens ki key sessions (TV par key dobara nahi daalni padti, screen apne aap wapas aa jaati hai), aur screens ka chalu/band state.
+5. **Baar-baar ho raha ho** to limit badha dein — **step 12b** mein variable ke naam aur commands hain.
+
 ## 12b. Rate limits (counting day par badalne ho to)
 
 Poora venue ek hi public IP ke peeche hota hai, isliye **jo limit ek adhikari ko bachati hai wo

@@ -39,7 +39,10 @@ beforeEach(async () => {
   });
 });
 
-const TOO_MANY = { error: 'TOO_MANY_REQUESTS' };
+const TOO_MANY = { error: 'TOO_MANY_REQUESTS', limiter: 'api-per-user' };
+const TOO_MANY_IP = { error: 'TOO_MANY_REQUESTS_HERE', limiter: 'api-per-ip' };
+const TOO_MANY_LOGIN = { error: 'TOO_MANY_LOGIN_ATTEMPTS', limiter: 'login-per-user' };
+const TOO_MANY_LOGIN_IP = { error: 'TOO_MANY_LOGIN_ATTEMPTS_HERE', limiter: 'login-per-ip' };
 /** One login attempt with its own agent, so every request is a fresh "browser" on the same IP. */
 async function attempt(express: ReturnType<typeof buildApp>, username: string, password: string) {
   const agent = request.agent(express);
@@ -62,7 +65,8 @@ describe('login: counted per username', () => {
       );
     }
     const blocked = await attempt(express, 'ro_churu', 'Correct-Pass-1');
-    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY]);
+    // The answer names the limiter, so the DM knows their unlock button clears this one.
+    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY_LOGIN]);
 
     // The other officer, same IP, same moment: unaffected, and the right password works.
     expect((await attempt(express, 'ro_other', 'Correct-Pass-1')).status).toBe(200);
@@ -87,7 +91,8 @@ describe('login: counted per username', () => {
     for (let i = 0; i < 2; i++) {
       expect((await attempt(express, 'ro_churu', `wrong-${String(i)}`)).status).toBe(401);
     }
-    expect((await attempt(express, 'ro_churu', 'wrong-again')).status).toBe(429);
+    const refused = await attempt(express, 'ro_churu', 'wrong-again');
+    expect([refused.status, refused.body]).toEqual([429, TOO_MANY_LOGIN]);
   });
 
   it('a malformed body counts too (it cannot be used to probe for free)', async () => {
@@ -106,7 +111,8 @@ describe('login: counted per username', () => {
         .send({ username: 'ro_churu' });
       expect(bad.status).toBe(400);
     }
-    expect((await attempt(express, 'ro_churu', 'Correct-Pass-1')).status).toBe(429);
+    const refused = await attempt(express, 'ro_churu', 'Correct-Pass-1');
+    expect([refused.status, refused.body]).toEqual([429, TOO_MANY_LOGIN]);
   });
 
   it('the per-IP ceiling still stops a flood, whatever usernames it claims', async () => {
@@ -120,7 +126,8 @@ describe('login: counted per username', () => {
       await attempt(express, `made_up_${String(i)}`, 'whatever');
     }
     const blocked = await attempt(express, 'ro_churu', 'Correct-Pass-1');
-    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY]);
+    // A venue-wide ceiling: its own code, because no unlock button can clear it.
+    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY_LOGIN_IP]);
   });
 
   it('the account lockout is unchanged: 5 wrong passwords close the account itself', async () => {
@@ -183,7 +190,7 @@ describe('the dashboard: counted per logged-in user', () => {
     for (let i = 0; i < 5; i++)
       expect((await request(express).get('/api/auth/me')).status).toBe(401);
     const blocked = await request(express).get('/api/auth/me');
-    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY]);
+    expect([blocked.status, blocked.body]).toEqual([429, TOO_MANY_IP]);
     expect((await request(express).get('/api/nope')).status).toBe(429);
     for (let i = 0; i < 10; i++)
       expect((await request(express).get('/api/health')).status).toBe(200);

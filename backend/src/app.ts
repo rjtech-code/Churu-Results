@@ -8,7 +8,12 @@ import { csrfCheck } from './middleware/csrf.js';
 import { currentUser } from './middleware/current-user.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { originCheck } from './middleware/origin.js';
-import { apiIpRateLimit, apiUserRateLimit } from './middleware/rate-limit.js';
+import {
+  apiIpRateLimit,
+  apiUserRateLimit,
+  loginUserRateLimit,
+  userLimitCounters,
+} from './middleware/rate-limit.js';
 import { createSessionStore, sessionMiddleware } from './middleware/session.js';
 import type { SessionStore } from './middleware/session.js';
 import { UPLOAD_PATHS, adminRouter } from './modules/admin/admin.routes.js';
@@ -135,8 +140,12 @@ export function createApp({
   app.use(currentUser(pool, config));
 
   // 7b. Each officer's own request budget. After the user is known, so one busy RO can never spend
-  //     another officer's allowance — at the venue they all share one IP.
-  app.use('/api', apiUserRateLimit(config.apiRateLimit.perUser));
+  //     another officer's allowance — at the venue they all share one IP. The two per-officer
+  //     counters are kept, so the DM's "RO लॉगिन खोलें" can clear them with the account lock.
+  const apiPerUser = apiUserRateLimit(config.apiRateLimit.perUser);
+  const loginPerUser = loginUserRateLimit(config.loginRateLimit.perUser);
+  const limitCounters = userLimitCounters(loginPerUser, apiPerUser);
+  app.use('/api', apiPerUser);
 
   // 8. Origin check on state-changing requests.
   app.use(originCheck(config.appOrigin));
@@ -153,7 +162,7 @@ export function createApp({
   app.use(observerGuard);
 
   // 11. Routes. The login route has its own login rate limiter before validation.
-  app.use('/api/auth', authRouter(pool, config));
+  app.use('/api/auth', authRouter(pool, config, loginPerUser));
   app.use('/api/counting', countingRouter(pool));
   app.use('/api/declare', declareRouter(pool));
   app.use('/api/reports', reportsRouter(pool));
@@ -161,7 +170,7 @@ export function createApp({
   app.use('/api/st-format', stFormatRouter(pool));
   app.use('/api/ward-forms', wardFormsRouter(pool));
   app.use('/api/admin/screen-keys', screenKeysRouter(screenAccess));
-  app.use('/api/admin', adminRouter(pool, config));
+  app.use('/api/admin', adminRouter(pool, config, limitCounters));
   app.use('/api/candidates', candidatesRouter(pool, config));
   app.use('/api/superadmin', superAdminRouter(pool, config, screenAccess));
   app.use('/api/observer', observerRouter(pool));

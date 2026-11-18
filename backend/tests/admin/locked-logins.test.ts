@@ -181,3 +181,73 @@ describe('who may use it', () => {
     expect((await userRow('ro_ps2_x2')).locked).toBe(true);
   });
 });
+
+/**
+ * The button must clear BOTH things that refuse an officer: the database lock, and that officer's
+ * own rate-limit counters. Without the second one it would look like it worked and the officer
+ * would keep getting 429 until the window ran out.
+ */
+describe('it clears the rate-limit counters too', () => {
+  it('an officer at 429 can log in again the moment the DM unlocks them', async () => {
+    // Its own app, so the per-username counter is small enough to reach in a test. Six failures:
+    // the account locks at five, and the counter is full at six.
+    const strict = countingApp(pool, {
+      loginRateLimit: {
+        perUser: { limit: 6, windowMs: 15 * 60_000 },
+        perIp: { limit: 10_000, windowMs: 60_000 },
+      },
+    });
+    const strictDm = await apiClient(strict, 'dm_x4', PASSWORD);
+    for (let i = 0; i < 6; i++) {
+      await login(request.agent(strict), 'ro_ps1_x1', `Wrong-Password-${String(i)}`);
+    }
+    const row = await userRow('ro_ps1_x1');
+    expect(row.locked).toBe(true);
+
+    // Now BOTH refuse: the counter answers first, and says which limiter it was.
+    const refused = await login(request.agent(strict), 'ro_ps1_x1', PASSWORD);
+    expect([refused.status, refused.body]).toEqual([
+      429,
+      { error: 'TOO_MANY_LOGIN_ATTEMPTS', limiter: 'login-per-user' },
+    ]);
+
+    expect(
+      (await strictDm.post(`/api/admin/users/${String(row.id)}/unlock`, { password: PASSWORD }))
+        .status,
+    ).toBe(200);
+
+    // Not 429 any more, and not 423 either: the officer is in, with the same password.
+    expect((await login(request.agent(strict), 'ro_ps1_x1', PASSWORD)).status).toBe(200);
+    // The audit row says the counters were cleared with the lock.
+    const [audits] = await pool.execute<RowDataPacket[]>(
+      "SELECT new_value FROM audit_log WHERE action = 'USER_UNLOCKED' ORDER BY id DESC LIMIT 1",
+    );
+    expect(audits[0]?.new_value).toMatchObject({ cleared_rate_limits: true });
+  });
+
+  it("another officer's counters are left alone", async () => {
+    const strict = countingApp(pool, {
+      loginRateLimit: {
+        perUser: { limit: 2, windowMs: 15 * 60_000 },
+        perIp: { limit: 10_000, windowMs: 60_000 },
+      },
+    });
+    const strictDm = await apiClient(strict, 'dm_x4', PASSWORD);
+    // Fill the second officer's counter.
+    for (let i = 0; i < 2; i++) {
+      await login(request.agent(strict), 'ro_ps2_x2', `Wrong-Password-${String(i)}`);
+    }
+    expect((await login(request.agent(strict), 'ro_ps2_x2', PASSWORD)).status).toBe(429);
+
+    // Unlock the FIRST officer (give them something to clear first).
+    await lockOut('ro_ps1_x1');
+    const first = await userRow('ro_ps1_x1');
+    expect(
+      (await strictDm.post(`/api/admin/users/${String(first.id)}/unlock`, { password: PASSWORD }))
+        .status,
+    ).toBe(200);
+
+    // The second officer is still refused: their counter was not touched.
+    expect((await login(request.agent(strict), 'ro_ps2_x2', PASSWORD)).status).toBe(429);
+  });
+});

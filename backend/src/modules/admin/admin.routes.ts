@@ -7,6 +7,7 @@ import type { Pool } from 'mysql2/promise';
 import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireRole } from '../../middleware/auth.js';
+import type { UserLimitCounters } from '../../middleware/rate-limit.js';
 import { ApiError } from '../../middleware/errors.js';
 import {
   MAX_FULL_NAME_LENGTH,
@@ -228,7 +229,11 @@ function sendXlsx(res: Response, data: Buffer, name: string): void {
   res.send(data);
 }
 
-export function adminRouter(pool: Pool, config: AppConfig): Router {
+export function adminRouter(
+  pool: Pool,
+  config: AppConfig,
+  limitCounters: UserLimitCounters,
+): Router {
   const router = Router();
   router.use(requireRole('DM'));
   // Only after the role check: a large upload body is read only for a logged-in DM.
@@ -418,7 +423,13 @@ export function adminRouter(pool: Pool, config: AppConfig): Router {
     res.json({ accounts: await lockedAccounts(pool) });
   });
   router.post('/users/:userId/unlock', async (req, res) => {
-    await unlockAccount(pool, actor(req), id(req, 'userId'), parse(passwordOnly, req.body));
+    await unlockAccount(
+      pool,
+      actor(req),
+      id(req, 'userId'),
+      parse(passwordOnly, req.body),
+      limitCounters,
+    );
     res.json({ ok: true });
   });
 

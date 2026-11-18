@@ -11,7 +11,12 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   INVALID_CREDENTIALS: 'गलत यूज़रनेम या पासवर्ड',
   ACCOUNT_LOCKED: (d) =>
     `खाता अस्थायी रूप से बंद है, ${typeof d.retryAfterSeconds === 'number' ? String(Math.ceil(d.retryAfterSeconds / 60)) : 'कुछ'} मिनट बाद प्रयास करें`,
+  // The four rate limits answer with their own code, so the DM can tell in seconds whether their
+  // "RO लॉगिन खोलें" button will help (the two per-officer ones) or not (the two venue-wide ones).
+  TOO_MANY_LOGIN_ATTEMPTS: 'इस यूज़रनेम से बहुत गलत कोशिशें — DM से लॉगिन खुलवाएँ',
+  TOO_MANY_LOGIN_ATTEMPTS_HERE: 'यहाँ से बहुत लॉगिन कोशिशें — थोड़ी देर बाद फिर प्रयास करें',
   TOO_MANY_REQUESTS: 'बहुत अधिक प्रयास, थोड़ी देर बाद फिर प्रयास करें',
+  TOO_MANY_REQUESTS_HERE: 'यहाँ से बहुत अधिक अनुरोध — थोड़ी देर बाद फिर प्रयास करें',
   SESSION_EXPIRED: 'सत्र समाप्त, दोबारा लॉगिन करें',
   UNAUTHENTICATED: 'कृपया दोबारा लॉगिन करें',
   CSRF_FAILED: 'सुरक्षा जाँच विफल, पेज दोबारा खोलें',
@@ -77,8 +82,7 @@ export const ERROR_MESSAGES: Readonly<Record<string, Message>> = {
   LOCK_PLAN_CHANGED: 'इस बीच वार्डों की स्थिति बदल गई — पेज दोबारा खोलकर फिर से लॉक करें',
   LOCK_REFUSED: 'कुछ वार्डों में उम्मीदवार नहीं हैं, इसलिए लॉक नहीं हुआ',
   NOTHING_TO_LOCK: 'लॉक करने के लिए कोई वार्ड नहीं बचा',
-  UNLOCK_COUNTING_STARTED:
-    'इस सूची में मतगणना शुरू हो चुकी है, इसलिए अनलॉक नहीं हो सकती। पहले उस सूची की एंट्री रद्द करें।',
+  UNLOCK_COUNTING_STARTED: 'इस सूची में मतगणना शुरू हो चुकी है, इसलिए अनलॉक नहीं हो सकती। पहले उस सूची की एंट्री रद्द करें।',
   NOTHING_TO_UNLOCK: 'इस सूची में कोई वार्ड लॉक नहीं है',
   SEAT_TAKEN: 'इस पद पर पहले से खाता है — "RO बदलें" का उपयोग करें',
   PREVIEW_STALE: 'जाँच के बाद RO सूची बदल गई है — फ़ाइल की दोबारा जाँच करें',

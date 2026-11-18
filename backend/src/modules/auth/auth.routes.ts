@@ -4,7 +4,8 @@ import { z } from 'zod';
 import type { AppConfig } from '../../config/app-config.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { ensureCsrfToken, rotateCsrfToken } from '../../middleware/csrf.js';
-import { loginIpRateLimit, loginUserRateLimit } from '../../middleware/rate-limit.js';
+import { loginIpRateLimit } from '../../middleware/rate-limit.js';
+import type { RateLimitRequestHandler } from 'express-rate-limit';
 import {
   clearSessionCookie,
   destroySession,
@@ -22,7 +23,15 @@ const loginBody = z
   })
   .strict();
 
-export function authRouter(pool: Pool, config: AppConfig): Router {
+/**
+ * `loginPerUser` is created in app.ts and shared with the DM's unlock, so pressing "RO लॉगिन खोलें"
+ * clears the very counter this route fills.
+ */
+export function authRouter(
+  pool: Pool,
+  config: AppConfig,
+  loginPerUser: RateLimitRequestHandler,
+): Router {
   const router = Router();
 
   /** A CSRF token for this session (creates the session if needed). Call again after login/logout. */
@@ -34,7 +43,7 @@ export function authRouter(pool: Pool, config: AppConfig): Router {
   router.post(
     '/login',
     loginIpRateLimit(config.loginRateLimit.perIp),
-    loginUserRateLimit(config.loginRateLimit.perUser),
+    loginPerUser,
     async (req, res) => {
       const parsed = loginBody.safeParse(req.body);
       if (!parsed.success) {

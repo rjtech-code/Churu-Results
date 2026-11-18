@@ -8,26 +8,53 @@
 // only: high enough that normal work never reaches them, low enough to stop a runaway loop.
 import type { Request, RequestHandler, Response } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import type { RateLimitRequestHandler } from 'express-rate-limit';
 import type { RateLimitConfig } from '../config/app-config.js';
 
+/**
+ * The four limiters, each with the error code it answers with. WHICH one fired decides what to do
+ * about it on counting day, so it is in the log line AND in the response:
+ *   login-per-user  one officer's failed logins  -> the DM's "RO लॉगिन खोलें" clears it
+ *   login-per-ip    the venue's login ceiling    -> an app restart (or a higher limit) clears it
+ *   api-per-user    one officer's own requests   -> the DM's "RO लॉगिन खोलें" clears it
+ *   api-per-ip      the venue's request ceiling  -> an app restart (or a higher limit) clears it
+ */
+export const LIMITER_CODES = {
+  'login-per-user': 'TOO_MANY_LOGIN_ATTEMPTS',
+  'login-per-ip': 'TOO_MANY_LOGIN_ATTEMPTS_HERE',
+  'api-per-user': 'TOO_MANY_REQUESTS',
+  'api-per-ip': 'TOO_MANY_REQUESTS_HERE',
+} as const;
+export type LimiterName = keyof typeof LIMITER_CODES;
+
 /** What a refusal logs and answers with. The key is a username or a user id — never a password. */
-function refuse(name: string, keyOf: (req: Request) => string) {
+function refuse(name: LimiterName, keyOf: (req: Request) => string) {
   return (req: Request, res: Response): void => {
     console.warn(
       `[rate-limit] ${name} limit reached for ${keyOf(req)} on ${req.method} ${req.path}`,
     );
-    res.status(429).set('Cache-Control', 'no-store').json({ error: 'TOO_MANY_REQUESTS' });
+    res
+      .status(429)
+      .set('Cache-Control', 'no-store')
+      .json({ error: LIMITER_CODES[name], limiter: name });
   };
 }
 
 const ipKey = (req: Request): string => `ip:${ipKeyGenerator(req.ip ?? 'unknown')}`;
 
+/** The counter key of one officer's dashboard requests (api-per-user). */
+export const apiKeyFor = (userId: number): string => `user:${String(userId)}`;
+
+/** The counter key of one officer's failed logins (login-per-user). */
+export const loginKeyFor = (username: string): string =>
+  `login:${username.trim().toLowerCase().slice(0, 60)}`;
+
 function limiter(
-  name: string,
+  name: LimiterName,
   config: RateLimitConfig,
   keyOf: (req: Request) => string,
   options: { skip?: (req: Request) => boolean; failuresOnly?: boolean } = {},
-): RequestHandler {
+): RateLimitRequestHandler {
   return rateLimit({
     windowMs: config.windowMs,
     limit: config.limit,
@@ -51,9 +78,9 @@ export function apiIpRateLimit(config: RateLimitConfig): RequestHandler {
  * One logged-in officer's own budget for the dashboard. Runs AFTER the session is loaded, so it can
  * count per user id; a request with no user yet (login page, /api/auth/me) counts per IP.
  */
-export function apiUserRateLimit(config: RateLimitConfig): RequestHandler {
+export function apiUserRateLimit(config: RateLimitConfig): RateLimitRequestHandler {
   return limiter('api-per-user', config, (req) =>
-    req.user === undefined ? ipKey(req) : `user:${String(req.user.id)}`,
+    req.user === undefined ? ipKey(req) : apiKeyFor(req.user.id),
   );
 }
 
@@ -64,8 +91,9 @@ export function loginKeyOf(req: Request): string {
     typeof body === 'object' && body !== null && 'username' in body
       ? (body as { username?: unknown }).username
       : null;
-  const name = typeof username === 'string' ? username.trim().toLowerCase().slice(0, 60) : '';
-  return name === '' ? ipKey(req) : `login:${name}`;
+  return typeof username === 'string' && username.trim() !== ''
+    ? loginKeyFor(username)
+    : ipKey(req);
 }
 
 /**
@@ -75,11 +103,35 @@ export function loginKeyOf(req: Request): string {
  * per-account lockout (5 wrong passwords = 15 minutes, in the database) is still the real
  * brute-force defence; this only stops one username being hammered after it is already locked.
  */
-export function loginUserRateLimit(config: RateLimitConfig): RequestHandler {
+export function loginUserRateLimit(config: RateLimitConfig): RateLimitRequestHandler {
   return limiter('login-per-user', config, loginKeyOf, { failuresOnly: true });
 }
 
 /** Login attempts from one address, for everyone on it together: a flood ceiling. */
 export function loginIpRateLimit(config: RateLimitConfig): RequestHandler {
   return limiter('login-per-ip', config, ipKey);
+}
+
+/**
+ * The two counters that belong to ONE officer, so the DM's "RO लॉगिन खोलें" can clear them with the
+ * database lock it already clears. Without this the button would look like it worked and the
+ * officer would keep getting 429 until the window ran out.
+ *
+ * The per-IP ceilings are deliberately NOT here: they belong to the whole venue, not to a person,
+ * and clearing them from one officer's unlock would hide a flood.
+ */
+export interface UserLimitCounters {
+  clearForUser: (username: string, userId: number) => void;
+}
+
+export function userLimitCounters(
+  loginPerUser: RateLimitRequestHandler,
+  apiPerUser: RateLimitRequestHandler,
+): UserLimitCounters {
+  return {
+    clearForUser: (username, userId) => {
+      loginPerUser.resetKey(loginKeyFor(username));
+      apiPerUser.resetKey(apiKeyFor(userId));
+    },
+  };
 }
