@@ -90,6 +90,52 @@ export async function insert(
  * Used before rolling migrations back: down migrations are written for an empty schema (e.g. the
  * Part 2 lock check cannot be restored while wards are locked by name).
  */
+/**
+ * Knex takes a row-lock flag (knex_migrations_lock.is_locked) while it migrates and clears it when
+ * it is done. A run that is KILLED mid-migration — Ctrl+C, a crashed worker — leaves that flag set,
+ * and then every later run of the suite fails at setup with "Migration table is already locked",
+ * which looks like hundreds of broken tests instead of one stale flag.
+ *
+ * This waits for the flag to clear by itself first: a run that is genuinely migrating finishes in a
+ * few seconds, so anything still locked after `waitMs` was left behind. Only then is it released,
+ * loudly, and only ever on a *_test database.
+ */
+export async function releaseStaleMigrationLock(
+  migrationPool: Pool,
+  waitMs = 20_000,
+  stepMs = 1000,
+): Promise<void> {
+  const [db] = await migrationPool.query<RowDataPacket[]>('SELECT DATABASE() AS db');
+  const name: unknown = db[0]?.db;
+  if (typeof name !== 'string' || !name.endsWith('_test')) {
+    throw new Error('releaseStaleMigrationLock refused: not connected to a *_test database');
+  }
+  const locked = async (): Promise<boolean> => {
+    const [rows] = await migrationPool.query<RowDataPacket[]>(
+      'SELECT is_locked FROM knex_migrations_lock WHERE is_locked <> 0',
+    );
+    return rows.length > 0;
+  };
+  // No lock table yet (a brand-new database), or nothing is locked: nothing to do.
+  try {
+    if (!(await locked())) return;
+  } catch {
+    return;
+  }
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+    if (!(await locked())) return; // a real migration finished: never touched.
+  }
+  console.warn(
+    `[test-setup] knex_migrations_lock on "${name}" was still held after ${String(
+      Math.round(waitMs / 1000),
+    )}s. Treating it as left behind by a killed run and releasing it. If a migration really is ` +
+      'running somewhere, stop it and run the suite again.',
+  );
+  await migrationPool.query('UPDATE knex_migrations_lock SET is_locked = 0');
+}
+
 export async function wipeAllData(migrationPool: Pool): Promise<void> {
   const [db] = await migrationPool.query<RowDataPacket[]>('SELECT DATABASE() AS db');
   const name: unknown = db[0]?.db;
