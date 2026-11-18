@@ -10,11 +10,11 @@ Is runbook se purana counting/candidate data mitaya jaata hai aur naya data load
 
 Laptop par, repo ke gitignored folder `new data/` me (ye folder kabhi commit nahi hota):
 
-| File | Kaise bani |
-|---|---|
-| `Geography_FULL_1371.xlsx` | 1359 numeric booths + 12 "A" booths (15A…). Ab `npm --prefix backend run convert:geography -- --file "new data/<raw>.xlsx" --out-dir "new data"` bhi saare 1371 booths `Geography_CLEAN_import-format.xlsx` me deta hai (A booths bhi). A booths ke liye migration `20261022000001_booth_suffix` (step 4) zaroori hai. |
-| `Candidates_CLEAN_import-format.xlsx` | Data team ki saaf ki hui candidate file |
-| `Parties_CPI-M.xlsx` | Party CPI(M) ki ek row |
+| File                                  | Kaise bani                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Geography_FULL_1371.xlsx`            | 1359 numeric booths + 12 "A" booths (15A…). Ab `npm --prefix backend run convert:geography -- --file "new data/<raw>.xlsx" --out-dir "new data"` bhi saare 1371 booths `Geography_CLEAN_import-format.xlsx` me deta hai (A booths bhi). A booths ke liye migration `20261022000001_booth_suffix` (step 4) zaroori hai. |
+| `Candidates_CLEAN_import-format.xlsx` | Data team ki saaf ki hui candidate file                                                                                                                                                                                                                                                                                |
+| `Parties_CPI-M.xlsx`                  | Party CPI(M) ki ek row                                                                                                                                                                                                                                                                                                 |
 
 - **Counting lock OFF hona chahiye.** Super Admin panel me "गिनती लॉक" dekhein. Lock ON hone par wipe aur import mana ho jaate hain.
 - **Counting day (20 Nov 2026) par ye runbook mat chalaayein.**
@@ -31,9 +31,11 @@ mkdir -p /root/churu-backups && chmod 700 /root/churu-backups
 ```
 
 **Verify:**
+
 ```bash
 $DC ps
 ```
+
 `mysql` aur `app` dono "Up (healthy)" dikhne chahiye.
 
 ## 2. Files laptop se VPS par bhejein
@@ -47,9 +49,11 @@ scp "new data/Geography_FULL_1371.xlsx" \
     "new data/Parties_CPI-M.xlsx" \
     root@<vps>:/opt/churu-results/new-data/
 ```
+
 (`new-data/` VPS ke repo me bhi gitignored hai.)
 
 **Verify** (dono taraf sha256 same hona chahiye):
+
 ```bash
 # laptop par:
 sha256sum "new data/"*_CLEAN_* "new data/Parties_CPI-M.xlsx"
@@ -67,6 +71,7 @@ docker tag "$($DC images -q app)" churu-app:prev      # chalta hua app image, ro
 ```
 
 **Verify:**
+
 ```bash
 gunzip -t /root/churu-backups/before-new-data-$STAMP.sql.gz && echo BACKUP-OK
 ls -lh /root/churu-backups/before-new-data-$STAMP.sql.gz      # size 0 nahi hona chahiye
@@ -84,10 +89,12 @@ $DC restart app
 ```
 
 **Verify:**
+
 ```bash
 $DC ps
 SQL "SHOW TABLES LIKE 'zp_ward_postal_assignment'"
 ```
+
 `SHOW TABLES` me 1 row aani chahiye. Phir browser me site kholkar login page dekhein.
 
 ## 5. Wipe (DESTRUCTIVE)
@@ -104,6 +111,7 @@ Step 3 ka backup is wipe se pehle ka backup hai. Agar step 3 aur is step ke beec
 > "मास्टर डेटा बदलें" (full reset) me voter Excel zaroori hai. Nayi file me voters nahi hain, isliye yahan wo rasta use nahi hoga.
 
 **Verify** (sab 0 aane chahiye):
+
 ```bash
 SQL "SELECT (SELECT COUNT(*) FROM candidate) cand,(SELECT COUNT(*) FROM booth_entry) booth_e,(SELECT COUNT(*) FROM postal_entry) postal_e,(SELECT COUNT(*) FROM ward_declarations) decl"
 ```
@@ -117,12 +125,15 @@ $DC cp new-data/Geography_FULL_1371.xlsx app:/tmp/geo.xlsx
 $DC exec app npm run import:geography -- --file /tmp/geo.xlsx --ps-names ../docs/ps-names.json --replace            # dry run
 $DC exec app npm run import:geography -- --file /tmp/geo.xlsx --ps-names ../docs/ps-names.json --replace --commit
 ```
+
 Dry run me `RESULT: DRY RUN OK` aur counts 13 / 231 / 39 / 1371 hone chahiye. Tabhi `--commit` chalayein.
 
 **Verify:**
+
 ```bash
 SQL "SELECT ward_type, COUNT(*) FROM ward GROUP BY ward_type; SELECT COUNT(*) booths FROM booth; SELECT COUNT(*) ps FROM panchayat_samiti"
 ```
+
 PS 231, ZP 39, booths 1371 aur ps 13 aane chahiye. A booths: `SELECT COUNT(*) FROM booth WHERE booth_suffix <> ''` = 12.
 
 ## 7. PS ke Hindi naam
@@ -133,9 +144,11 @@ $DC exec app npm run ps:set-hindi-names -- --file ../docs/ps-names.json --commit
 ```
 
 **Verify:**
+
 ```bash
 SQL "SELECT name_english, name_hindi FROM panchayat_samiti ORDER BY name_english"
 ```
+
 13 rows aani chahiye. TARANAGAR WEST = "तारानगर पश्चिम (भालेरी)" aur TARANAGAR EAST = "तारानगर" hona chahiye.
 
 ## 8. Party CPI(M)
@@ -145,6 +158,7 @@ $DC cp new-data/Parties_CPI-M.xlsx app:/tmp/parties.xlsx
 $DC exec app npm run import:parties -- --file /tmp/parties.xlsx            # dry run
 $DC exec app npm run import:parties -- --file /tmp/parties.xlsx --commit
 ```
+
 Doosra rasta: DM ke admin page par "Parties" upload, isi file se.
 
 - Party ki file me columns hain: `name_hindi`, `name_english`, `short_name`, `symbol`.
@@ -152,9 +166,11 @@ Doosra rasta: DM ke admin page par "Parties" upload, isi file se.
 - Independent (IND) ke liye koi party nahi banti: candidate file me party ka cell khaali = निर्दलीय.
 
 **Verify:**
+
 ```bash
 SQL "SELECT short_name, name_english FROM party ORDER BY short_name"
 ```
+
 Isme BJP, BSP, CPI(M), INC aur RLP dikhne chahiye.
 
 ## 9. Candidates
@@ -167,9 +183,11 @@ $DC exec app npm run ballot:report
 ```
 
 **Verify:**
+
 ```bash
 SQL "SELECT COUNT(*) candidates FROM candidate WHERE is_nota=0; SELECT COUNT(DISTINCT ward_id) wards FROM candidate"
 ```
+
 candidates 893 aur wards 270 aane chahiye.
 
 ## 10. Screens aur ZP postal assignment
@@ -185,17 +203,60 @@ $DC exec app npm run zp-postal:set-default                 # dobara: "nothing to
 ```
 
 **Verify:**
+
 ```bash
 SQL "SELECT COUNT(*) FROM zp_ward_postal_assignment"
 ```
+
 39 aana chahiye.
+
+## 10a. TV screens: key aur chalu/band (sab Super Admin panel me)
+
+Screens ka **sab kuch** Super Admin panel me hai: key banana / dikhana / rad karna, "Preview", aur
+teen screens ka chalu/band switch. **DM panel me screen ka koi page, link ya permission nahi hai.**
+
+Har screen ki apni session hoti hai: **screen 1 ki key sirf screen 1 kholti hai** (screen 2 aur 3
+apni-apni key maangti hain). Isliye teen TV par teen baar key daalni hoti hai — ek hi key teeno par
+chal jaati hai, par daalni har TV par padti hai.
+
+**Key dobara kab poochhi jaati hai:**
+
+| Kya hua                                              | Key dobara?                                               |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| Page reload (F5), TV ka browser restart, app restart | **Nahi**                                                  |
+| Super Admin ne screen **band** ki                    | Nahi — TV par "यह स्क्रीन अस्थायी रूप से बंद है" card dikhta hai |
+| Band karke phir **chalu** ki                         | **Haan** — 2 second me TV khud key ka box dikha deta hai  |
+| `SCREEN_SESSION_HOURS` (default 24 ghante) poore     | **Haan**                                                  |
+| Key rad (revoke) ki                                  | **Haan**, turant                                          |
+
+**Isliye:** har TV ko **matgananā wali subah** unlock karein, ek-do din pehle nahi.
+
+**Is deploy ke baad ek baar:** teeno TV apni key maangenge (cookie ka naam badla hai aur purani
+sessions ab kisi bhi screen ke liye valid nahi hain). Yeh ek baar ka kaam hai — counting day se pehle
+kar lein.
+
+Key kitni der chalti hai, ye badalna ho to:
+
+```bash
+cd /opt/churu-results
+cp backend/.env.production backend/.env.production.bak
+nano backend/.env.production        # SCREEN_SESSION_HOURS=24  (1-168 ghante)
+$DC restart app
+```
+
+Galat key baar-baar daalne par wo screen 15 minute ke liye lock ho jaati hai (**10 galat koshish**).
+Ginti **per TV + per IP** hai, isliye ek TV ki galti se baaki do lock nahi hoti. Panel me
+"key लॉक हटाएँ" butan se lock turant hat jaata hai (key nahi badalti, chalti screens par kuch asar
+nahi).
 
 ## 11. RO accounts
 
 Logins wipe me nahi mit-te. Pehle dekhein kaun se accounts maujood hain:
+
 ```bash
 $DC exec app npm run users:list
 ```
+
 Jo account nahi hai, sirf wahi banayein. Mobile number abhi nahi hain, isliye naam placeholder rakhein; DM baad me apne admin page se badal sakta hai.
 
 ```bash
@@ -219,6 +280,7 @@ ro_taranagar_west|TARANAGAR WEST(BHALERI) HQ TARANAGAR
 LIST
 $DC exec app npm run users:create -- --role ZP_RO --username zp_ro_churu --full-name "ZP RO - CHURU" --commit
 ```
+
 Har password screen par **sirf ek baar** aata hai. Use turant kisi safe jagah note karein.
 
 **Verify:** `users:list` me 13 PS_RO (har PS ka ek), 1 ZP_RO, 1 DM aur 1 SUPER_ADMIN dikhne chahiye.
@@ -257,7 +319,8 @@ Har password screen par **sirf ek baar** aata hai. Use turant kisi safe jagah no
    ```
    Restart **5-10 second** leta hai.
    - **Khatam ho jaata hai:** saare rate-limit counters (ye in-memory hain).
-   - **Nahi badalta:** matgananā ka data, adhikariyon ke login sessions (DB mein hain — dobara login nahi karna padta), TV screens ki key sessions (TV par key dobara nahi daalni padti, screen apne aap wapas aa jaati hai), aur screens ka chalu/band state.
+   - **Nahi badalta:** matgananā ka data, adhikariyon ke login sessions (DB mein hain — dobara login nahi karna padta), TV screens ki key sessions (**app restart, page reload ya TV ka browser restart** — kisi me bhi key dobara nahi daalni padti), aur screens ka chalu/band state.
+   - **Dhyan dein:** key sirf do haalaton me dobara poochhi jaati hai — jab Super Admin us screen ko **band karke phir chalu** kare, aur jab `SCREEN_SESSION_HOURS` (default **24 ghante**) poore ho jaayein. Dono me TV khud hi key ka box dikha deta hai; TV par kuch karna nahi padta. Dekhein **step 10a**.
 5. **Baar-baar ho raha ho** to limit badha dein — **step 12b** mein variable ke naam aur commands hain.
 
 ## 12b. Rate limits (counting day par badalne ho to)
@@ -266,14 +329,15 @@ Poora venue ek hi public IP ke peeche hota hai, isliye **jo limit ek adhikari ko
 adhikari ke hisaab se ginti hai** (login par username, uske baad user id). Per-IP wali limits sirf
 flood ceiling hain — normal kaam unke paas bhi nahi pahunchta.
 
-| Variable | Default | Kya ginta hai |
-|---|---|---|
-| `LOGIN_LIMIT_PER_USER` | `10` | Ek **username** ki login koshishein, per window |
-| `LOGIN_LIMIT_PER_IP` | `200` | Ek **IP** se sab logins, per window (ceiling) |
-| `LOGIN_WINDOW_MINUTES` | `15` | Dono login limits ka window |
-| `API_LIMIT_PER_USER_PER_MIN` | `300` | Ek **logged-in adhikari** ki dashboard requests/minute |
-| `API_LIMIT_PER_IP_PER_MIN` | `3000` | Ek **IP** se sab dashboard requests/minute (ceiling) |
-| `PUBLIC_RATE_LIMIT_PER_MIN` | `3000` | TV screens (`/api/public`) per IP |
+| Variable                     | Default | Kya ginta hai                                              |
+| ---------------------------- | ------- | ---------------------------------------------------------- |
+| `LOGIN_LIMIT_PER_USER`       | `10`    | Ek **username** ki login koshishein, per window            |
+| `LOGIN_LIMIT_PER_IP`         | `200`   | Ek **IP** se sab logins, per window (ceiling)              |
+| `LOGIN_WINDOW_MINUTES`       | `15`    | Dono login limits ka window                                |
+| `API_LIMIT_PER_USER_PER_MIN` | `300`   | Ek **logged-in adhikari** ki dashboard requests/minute     |
+| `API_LIMIT_PER_IP_PER_MIN`   | `3000`  | Ek **IP** se sab dashboard requests/minute (ceiling)       |
+| `PUBLIC_RATE_LIMIT_PER_MIN`  | `3000`  | TV screens (`/api/public`) per IP                          |
+| `SCREEN_SESSION_HOURS`       | `24`    | Ek TV ki screen key kitne **ghante** chalti hai (step 10a) |
 
 Account lockout (**5 galat password = 15 minute**) in limits se alag hai aur nahi badla. Wo DM ke
 "RO सूची" page par "RO लॉगिन खोलें" card se hatta hai — terminal ki zaroorat nahi.
@@ -309,6 +373,7 @@ Adhikari ki screen par Hindi me dikhta hai: "बहुत अधिक प्र
 - Public screen par 3 screens khulni chahiye aur "last updated" dikhna chahiye.
 
 Kaam khatam hone par temporary files hata dein:
+
 ```bash
 $DC exec app sh -c 'rm -f /tmp/*.xlsx'
 rm -rf /opt/churu-results/new-data
@@ -317,25 +382,31 @@ rm -rf /opt/churu-results/new-data
 ## Rollback
 
 **Data galat ho gaya** (step 5–11 me kahin bhi):
+
 ```bash
 $DC stop app
 gunzip -c /root/churu-backups/before-new-data-$STAMP.sql.gz \
   | $DC exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$DB_NAME"'
 $DC start app
 ```
+
 Verify ki counts wapas purane jaise hain:
+
 ```bash
 SQL "SELECT COUNT(*) FROM booth; SELECT COUNT(*) FROM candidate WHERE is_nota=0"
 ```
 
 **Naya code galat ho gaya** (step 4 ke baad app nahi chal raha):
+
 ```bash
 docker tag churu-app:prev churu-app:latest
 $DC up -d --no-build app
 ```
+
 Agar naye code ne migration chala di thi, to upar wala data restore bhi karein. Purana dump purani tables wapas bana deta hai. Uske baad naye code ki migration dobara na chalayein.
 
 **Teen baatein yaad rakhein:**
+
 - Import scripts ek hi transaction me chalte hain. Agar wo fail hon to kuch save nahi hota, aur rollback ki zaroorat nahi.
 - `--commit` se pehle har baar dry run zaroor padhein.
 - Super Admin panel apne automatic backups `churu_backups` volume me rakhta hai. Wahan se file nikalne ke liye: `$DC cp app:/app/backend/backups/<file>.sql.gz /root/churu-backups/`.
