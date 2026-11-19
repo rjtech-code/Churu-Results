@@ -201,23 +201,37 @@ html.hide-cursor * {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 12px; /* SCOPE_CHIP_GAP_PX */
   flex: none;
 }
-/* One lap moves the track by exactly one copy plus one gap, so copy 2 ends where copy 1 began:
-   restarting the animation is invisible — no jump, no blank gap. The pace is set by the width
-   (--tv-scope-lap = run / 70 px per second), so long names read at the same speed as short ones. */
+/* The gap AFTER a copy belongs to that copy, not to the track, so the track is exactly two equal
+   copies wide and half of it is exactly one copy plus one gap. That is what makes the lap below
+   exact without measuring anything. --tv-scope-gap comes from SCOPE_CHIP_GAP_PX (ScopeSlider). */
+.tv-scope-track {
+  gap: 0;
+}
+.tv-scope-copy {
+  gap: var(--tv-scope-gap, 12px);
+  padding-right: var(--tv-scope-gap, 12px);
+}
+/* One lap is HALF the track — one copy plus one gap — so copy 2 stands exactly where copy 1 began
+   when the animation comes round: no jump and no blank gap, at any window size. It is a percentage
+   of the track's own box on purpose, never a measured pixel distance: the stage is scaled by a CSS
+   transform, so a distance measured from getBoundingClientRect() would fall short by that scale and
+   snap the row backwards once a lap (the Nov 2026 bug). Holding no var(), the animated value also
+   stays on the compositor, so the 2-second poll cannot stutter it. Only the PACE is measured
+   (--tv-scope-lap = one lap / 70 px per second), so long names read as fast as short ones. */
 @keyframes tv-scope-slide {
   from {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translateX(calc(-1 * var(--tv-scope-run, 0px)));
+    transform: translate3d(-50%, 0, 0);
   }
 }
 .tv-scope-track-sliding {
   animation: tv-scope-slide var(--tv-scope-lap, 30s) linear infinite;
   will-change: transform;
+  backface-visibility: hidden;
 }
 .tv-scope-chip {
   flex: none;
@@ -237,8 +251,12 @@ button.tv-scope-chip {
   color: inherit;
   cursor: pointer;
 }
-/* Not scoped to button: the sliding row's decorative copy marks the same chip the same way. */
-.tv-scope-chip-on {
+/* The Panchayat Samiti on show: a white pill with the header's own blue, readable from the hall.
+   BOTH classes on purpose, and not scoped to button: the selector has to outweigh the `color:
+   inherit` of `button.tv-scope-chip` above — on its own, `.tv-scope-chip-on` lost to it and the
+   active chip came out white on white, an empty pill (the Nov 2026 bug) — while still styling the
+   sliding row's decorative copy, which is spans, the very same way. */
+.tv-scope-chip.tv-scope-chip-on {
   background: #fff;
   color: var(--tv-header);
   text-decoration: underline;

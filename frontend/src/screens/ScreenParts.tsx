@@ -35,27 +35,42 @@ export function ScopeStrip({ names }: { names: readonly string[] }) {
  */
 export const SCOPE_SLIDE_PX_PER_S = 70;
 
-/** The gap between two chips — and so between the last chip of one copy and the first of the next. */
-const SCOPE_CHIP_GAP_PX = 12;
+/**
+ * The gap between two chips — and so between the last chip of one copy and the first of the next.
+ * This constant is the only place it is set: the row publishes it to CSS as `--tv-scope-gap`, so the
+ * stylesheet cannot drift from the width this file measures.
+ */
+export const SCOPE_CHIP_GAP_PX = 12;
 
-/** The seconds a lap takes at the reading pace, for a run of `runPx` pixels. */
-export function scopeSlideSeconds(runPx: number): number {
-  return Math.max(1, runPx) / SCOPE_SLIDE_PX_PER_S;
+/** The seconds a lap takes at the reading pace, for a lap of `lapPx` pixels. */
+export function scopeSlideSeconds(lapPx: number): number {
+  return Math.max(1, lapPx) / SCOPE_SLIDE_PX_PER_S;
 }
 
 /**
  * One line of chips that slides leftwards without end — or stands still while the chips already fit
  * in the row, because a still row is easier to read and short names need no help.
  *
- * Seamless: the chips are rendered twice (the second copy is decoration — plain spans, aria-hidden,
- * never focusable, never counted) and one lap moves the track by exactly one copy plus one gap, so
- * the instant the animation restarts, copy 2 is standing where copy 1 began. Nothing jumps and no
- * blank gap passes the screen.
+ * Seamless, and seamless WITHOUT measuring anything: the chips are rendered twice (the second copy
+ * is decoration — plain spans, aria-hidden, never focusable, never counted), each copy carries the
+ * gap that follows it, and one lap is `translate3d(-50%, 0, 0)` of the track. Half of a track of two
+ * equal copies IS one copy plus one gap, whatever the chips turn out to be, so copy 2 stands exactly
+ * where copy 1 began when the animation comes round. Nothing can jump.
  *
- * CSS does all the animating: no JS timer, nothing that can fight the 2-second poll or the live
- * feed. The only thing measured is width, and it is measured again whenever the chips change (a
- * screen switching Panchayat Samitis, a name corrected) or the row is resized — which is also when
- * the fonts finish loading.
+ * That is deliberate, and it is what was wrong before: the lap used to be a measured pixel distance
+ * written into the keyframe. The screens are a 1920x1080 stage scaled to the window by a CSS
+ * transform (useStageScale), so `getBoundingClientRect()` reports SCALED pixels while the layout —
+ * and a translate inside the stage — is in UNSCALED ones. On any window that was not exactly
+ * 1920x1080 the lap fell short by the scale factor and the row snapped backwards once a lap, and the
+ * same mismatch made the "do the chips fit?" test depend on the window size, so one screen could
+ * slide while the other silently stopped sliding and was clipped instead. Everything measured here
+ * is therefore read in LAYOUT pixels (`offsetWidth`), which the stage's scale does not touch.
+ *
+ * What is measured is now only the PACE: a wrong duration can make the row read a little fast or
+ * slow, it can never make it jump. CSS does all the animating (no JS timer, nothing that can fight
+ * the 2-second poll or the live feed) and the animated value holds no custom property, so the
+ * browser can keep the whole slide on the compositor. The duration is written only when it really
+ * changes, so a re-measure that agrees with the last one does not touch the running animation.
  *
  * No prefers-reduced-motion fallback on purpose: with these names the only alternative is a line
  * the hall cannot read to the end.
@@ -69,7 +84,7 @@ function ScopeSlider({
   chips: ReactNode;
   /** The same chips as decoration, for the seam. */
   shadow: ReactNode;
-  /** Changes whenever the chips do, so the width is measured again. */
+  /** Changes whenever the list of names does, so the pace is measured again. */
   signature: string;
 }) {
   const windowRef = useRef<HTMLDivElement | null>(null);
@@ -83,14 +98,21 @@ function ScopeSlider({
     const copy = copyRef.current;
     if (row === null || track === null || copy === null) return;
     const measure = () => {
-      const chipsWidth = copy.getBoundingClientRect().width;
-      const run = chipsWidth + SCOPE_CHIP_GAP_PX;
-      // CSSOM, like useStageScale: the screens set their variables this way, never inline.
-      track.style.setProperty('--tv-scope-run', `${String(Math.round(run))}px`);
-      track.style.setProperty('--tv-scope-lap', `${scopeSlideSeconds(run).toFixed(2)}s`);
-      setSliding(chipsWidth > row.clientWidth + 1);
+      // Layout pixels, never getBoundingClientRect(): the stage is scaled by a CSS transform.
+      // The copy carries the gap that follows it, so its own width IS one lap.
+      const lapPx = copy.offsetWidth;
+      const chipsPx = lapPx - SCOPE_CHIP_GAP_PX;
+      // CSSOM, like useStageScale: the screens set their variables this way, never inline. Written
+      // only when it changed — re-setting animation-duration would re-time a running animation.
+      const lap = `${scopeSlideSeconds(lapPx).toFixed(2)}s`;
+      if (track.style.getPropertyValue('--tv-scope-lap') !== lap)
+        track.style.setProperty('--tv-scope-lap', lap);
+      setSliding(chipsPx > row.offsetWidth + 1);
     };
+    row.style.setProperty('--tv-scope-gap', `${String(SCOPE_CHIP_GAP_PX)}px`);
     measure();
+    // A real change of the chips (or of the row) re-measures; a poll that returns the same names
+    // changes no width, so nothing here runs and the slide is left alone.
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
     observer?.observe(row);
     observer?.observe(copy);
@@ -131,7 +153,11 @@ function ScopeSlider({
  *
  * The row is ONE line that slides when it is too long for the header (ScopeSlider). The Nov 2026
  * names are long enough that it no longer fitted — it wrapped onto a second line and the header cut
- * that line off. Screen 3's single chip (ScopeStrip) still stands still, as the DEO asked.
+ * that line off.
+ *
+ * Screens 1 and 2 are BOTH this one component (ScreenApp gives it to every screen but 3), so there
+ * is nothing to keep in step between them: same slide, same pace, same marked chip, same edge fade.
+ * Screen 3's single chip (ScopeStrip) still stands still, as the DEO asked.
  */
 export function PsStrip({
   groups,
@@ -149,7 +175,9 @@ export function PsStrip({
     <nav className="tv-scope" data-testid="ps-strip" aria-label="इस स्क्रीन पर">
       <span className="tv-scope-label">इस स्क्रीन पर</span>
       <ScopeSlider
-        signature={groups.map((g) => g.name).join('|') + (current ?? '')}
+        /* The NAMES only: which chip is marked moves the marker from one chip to another and so
+           leaves the row exactly as wide, and a page turn must not disturb the slide. */
+        signature={groups.map((g) => g.name).join('|')}
         chips={groups.map((g) => {
           const on = g.key === current;
           return (
