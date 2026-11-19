@@ -3,7 +3,8 @@ import type { Page } from '@playwright/test';
 /**
  * Checks the TV layout in the page and returns every problem found (empty = clean):
  *  - no element inside a card, the header, ticker, page header, panels or footer overflows its box
- *    (names clamped on purpose to 2 lines, data-clamp, are the only exception; never the winner's)
+ *    (two exceptions, both on purpose: a name clamped to 2 lines, data-clamp — never the winner's —
+ *    and the sliding Panchayat Samiti row, data-slides, which is wider than its window by design)
  *  - siblings inside a candidate row, a card head and the header groups do not overlap
  *  - all vote numbers in a card (and in one grid column) share the same right edge
  *  - no page scrollbars
@@ -24,7 +25,7 @@ export async function layoutProblems(page: Page): Promise<string[]> {
         if (!(el instanceof HTMLElement)) continue; // SVG drawing
         const display = getComputedStyle(el).display;
         if (display === 'inline' || display === 'contents' || display === 'none') continue;
-        if (el.matches('[data-clamp]')) continue;
+        if (el.matches('[data-clamp], [data-slides]')) continue;
         if (el.scrollWidth > el.clientWidth + 1)
           problems.push(`overflows width: ${name(el)} (${el.scrollWidth} > ${el.clientWidth})`);
         if (el.scrollHeight > el.clientHeight + 1)

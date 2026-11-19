@@ -29,9 +29,109 @@ export function ScopeStrip({ names }: { names: readonly string[] }) {
 }
 
 /**
- * "इस स्क्रीन पर" on the PS screens: the same chips as ScopeStrip, but static buttons. A click jumps
- * to the first page of that PS; the PS on show is marked (▸, underline, light chip). The row never
- * scrolls: names that do not fit on one line wrap onto the next.
+ * How fast the Panchayat Samiti row slides, in pixels per second. The pace is what matters, not the
+ * duration: these are TVs read from across a hall, so a longer row takes longer rather than moving
+ * faster. At 70 px/s a name needs about 13 seconds to cross the row.
+ */
+export const SCOPE_SLIDE_PX_PER_S = 70;
+
+/** The gap between two chips — and so between the last chip of one copy and the first of the next. */
+const SCOPE_CHIP_GAP_PX = 12;
+
+/** The seconds a lap takes at the reading pace, for a run of `runPx` pixels. */
+export function scopeSlideSeconds(runPx: number): number {
+  return Math.max(1, runPx) / SCOPE_SLIDE_PX_PER_S;
+}
+
+/**
+ * One line of chips that slides leftwards without end — or stands still while the chips already fit
+ * in the row, because a still row is easier to read and short names need no help.
+ *
+ * Seamless: the chips are rendered twice (the second copy is decoration — plain spans, aria-hidden,
+ * never focusable, never counted) and one lap moves the track by exactly one copy plus one gap, so
+ * the instant the animation restarts, copy 2 is standing where copy 1 began. Nothing jumps and no
+ * blank gap passes the screen.
+ *
+ * CSS does all the animating: no JS timer, nothing that can fight the 2-second poll or the live
+ * feed. The only thing measured is width, and it is measured again whenever the chips change (a
+ * screen switching Panchayat Samitis, a name corrected) or the row is resized — which is also when
+ * the fonts finish loading.
+ *
+ * No prefers-reduced-motion fallback on purpose: with these names the only alternative is a line
+ * the hall cannot read to the end.
+ */
+function ScopeSlider({
+  chips,
+  shadow,
+  signature,
+}: {
+  /** The real chips (buttons). */
+  chips: ReactNode;
+  /** The same chips as decoration, for the seam. */
+  shadow: ReactNode;
+  /** Changes whenever the chips do, so the width is measured again. */
+  signature: string;
+}) {
+  const windowRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const copyRef = useRef<HTMLDivElement | null>(null);
+  const [sliding, setSliding] = useState(false);
+
+  useLayoutEffect(() => {
+    const row = windowRef.current;
+    const track = trackRef.current;
+    const copy = copyRef.current;
+    if (row === null || track === null || copy === null) return;
+    const measure = () => {
+      const chipsWidth = copy.getBoundingClientRect().width;
+      const run = chipsWidth + SCOPE_CHIP_GAP_PX;
+      // CSSOM, like useStageScale: the screens set their variables this way, never inline.
+      track.style.setProperty('--tv-scope-run', `${String(Math.round(run))}px`);
+      track.style.setProperty('--tv-scope-lap', `${scopeSlideSeconds(run).toFixed(2)}s`);
+      setSliding(chipsWidth > row.clientWidth + 1);
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    observer?.observe(row);
+    observer?.observe(copy);
+    return () => {
+      observer?.disconnect();
+    };
+  }, [signature]);
+
+  return (
+    <div
+      className={`tv-scope-window tv-scope-window-line${sliding ? ' tv-scope-window-sliding' : ''}`}
+      /* The row is wider than its window ON PURPOSE while it slides: the layout check skips it,
+         the way it skips a name clamped to two lines. A row that does NOT slide is still checked. */
+      data-slides={sliding ? 'true' : undefined}
+      ref={windowRef}
+    >
+      <div
+        className={`tv-scope-track${sliding ? ' tv-scope-track-sliding' : ''}`}
+        data-testid="ps-strip-track"
+        ref={trackRef}
+      >
+        <div className="tv-scope-copy" ref={copyRef}>
+          {chips}
+        </div>
+        {sliding && (
+          <div className="tv-scope-copy" aria-hidden="true" data-testid="ps-strip-shadow">
+            {shadow}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "इस स्क्रीन पर" on the PS screens: one chip per Panchayat Samiti of this screen, as buttons. A
+ * click jumps to the first page of that PS; the PS on show is marked (▸, underline, light chip).
+ *
+ * The row is ONE line that slides when it is too long for the header (ScopeSlider). The Nov 2026
+ * names are long enough that it no longer fitted — it wrapped onto a second line and the header cut
+ * that line off. Screen 3's single chip (ScopeStrip) still stands still, as the DEO asked.
  */
 export function PsStrip({
   groups,
@@ -43,28 +143,37 @@ export function PsStrip({
   onPick: (page: number) => void;
 }) {
   if (groups.length === 0) return <div className="tv-scope" aria-hidden="true" />;
+  const chipClass = (on: boolean) => (on ? 'tv-scope-chip tv-scope-chip-on' : 'tv-scope-chip');
+  const marker = (on: boolean) => (on ? <span aria-hidden="true">▸ </span> : null);
   return (
     <nav className="tv-scope" data-testid="ps-strip" aria-label="इस स्क्रीन पर">
       <span className="tv-scope-label">इस स्क्रीन पर</span>
-      <div className="tv-scope-window tv-scope-static">
-        {groups.map((g) => {
+      <ScopeSlider
+        signature={groups.map((g) => g.name).join('|') + (current ?? '')}
+        chips={groups.map((g) => {
           const on = g.key === current;
           return (
             <button
               key={g.key}
               type="button"
-              className={on ? 'tv-scope-chip tv-scope-chip-on' : 'tv-scope-chip'}
+              className={chipClass(on)}
               aria-current={on ? 'true' : undefined}
               onClick={() => {
                 onPick(g.first);
               }}
             >
-              {on && <span aria-hidden="true">▸ </span>}
+              {marker(on)}
               {g.name}
             </button>
           );
         })}
-      </div>
+        shadow={groups.map((g) => (
+          <span key={g.key} className={chipClass(g.key === current)}>
+            {marker(g.key === current)}
+            {g.name}
+          </span>
+        ))}
+      />
     </nav>
   );
 }

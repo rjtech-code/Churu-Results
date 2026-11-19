@@ -163,7 +163,7 @@ html.hide-cursor * {
   display: flex;
   align-items: center;
   gap: 16px;
-  /* Never clipped: the chips stand still and wrap, so no name is cut off. */
+  /* Never clipped vertically: screen 3's chip wraps, and the PS row slides on one line instead. */
   overflow: visible;
 }
 .tv-scope-label {
@@ -173,7 +173,7 @@ html.hide-cursor * {
   opacity: 0.85;
   white-space: nowrap;
 }
-/* A still row that wraps onto a second line when the names do not fit (DEO, Nov 2026). */
+/* Screen 3: a still row that wraps onto a second line if its name does not fit (DEO, Nov 2026). */
 .tv-scope-window {
   flex: 1 1 0;
   min-width: 0;
@@ -181,6 +181,43 @@ html.hide-cursor * {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+/* ---- Screens 1 and 2 only: the Panchayat Samiti row is ONE line that slides.
+   The Nov 2026 names (चांदगोठी मुख्यालय राजगढ़, तारानगर पश्चिम (भालेरी) मुख्यालय तारानगर) no longer fit on
+   one line, so the row wrapped and the 80px header cut the second line off. It now slides instead:
+   nothing wraps, nothing is clipped, and no scrollbar appears. See ScopeSlider for the seam and for
+   where --tv-scope-run / --tv-scope-lap come from. */
+.tv-scope-window-line {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+/* Only while it slides: the names fade out at both edges instead of being sliced by a hard line, so
+   from across a hall a name looks like it is moving past rather than being cut. */
+.tv-scope-window-sliding {
+  mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+}
+.tv-scope-track,
+.tv-scope-copy {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px; /* SCOPE_CHIP_GAP_PX */
+  flex: none;
+}
+/* One lap moves the track by exactly one copy plus one gap, so copy 2 ends where copy 1 began:
+   restarting the animation is invisible — no jump, no blank gap. The pace is set by the width
+   (--tv-scope-lap = run / 70 px per second), so long names read at the same speed as short ones. */
+@keyframes tv-scope-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--tv-scope-run, 0px)));
+  }
+}
+.tv-scope-track-sliding {
+  animation: tv-scope-slide var(--tv-scope-lap, 30s) linear infinite;
+  will-change: transform;
 }
 .tv-scope-chip {
   flex: none;
@@ -193,14 +230,15 @@ html.hide-cursor * {
   border: 1px solid rgba(255, 255, 255, 0.28);
   white-space: nowrap;
 }
-/* PS screens: the same chips, clickable (buttons). Also still, also wrapping. */
+/* PS screens: the same chips, clickable (buttons). The sliding copy uses plain spans. */
 button.tv-scope-chip {
   margin: 0;
   font-family: inherit;
   color: inherit;
   cursor: pointer;
 }
-button.tv-scope-chip-on {
+/* Not scoped to button: the sliding row's decorative copy marks the same chip the same way. */
+.tv-scope-chip-on {
   background: #fff;
   color: var(--tv-header);
   text-decoration: underline;
