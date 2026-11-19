@@ -197,11 +197,21 @@ export function backendTool(file: string, args: string[]): string {
   });
 }
 
-/** Unlocks the TV screens in this browser context with `key` (as the key popup does). */
-export async function unlockScreens(ctx: APIRequestContext, key = world().screenKey): Promise<void> {
-  const res = await ctx.post('/api/screen-auth/unlock', {
-    headers: { Origin: 'http://localhost:3199' },
-    data: { key },
-  });
-  if (res.status() !== 200) throw new Error(`screen unlock failed: ${res.status()}`);
+/**
+ * Unlocks the TV screens in this browser context with `key` (as the key popup does). A screen
+ * session is for ONE screen (Nov 2026), so the key is typed into each screen's popup in turn —
+ * exactly what an officer does at the three TVs.
+ */
+export async function unlockScreens(
+  ctx: APIRequestContext,
+  key = world().screenKey,
+  screens: readonly ('1' | '2' | '3')[] = ['1', '2', '3'],
+): Promise<void> {
+  for (const screen of screens) {
+    const res = await ctx.post('/api/screen-auth/unlock', {
+      headers: { Origin: 'http://localhost:3199' },
+      data: { key, screen },
+    });
+    if (res.status() !== 200) throw new Error(`screen ${screen} unlock failed: ${String(res.status())}`);
+  }
 }

@@ -37,11 +37,14 @@ test('/screen/1 works with no login (only the screen-key cookie), never calls /a
   await expect(page).toHaveURL(/\/screen\/1$/); // never redirected to /login
   await page.waitForTimeout(1500);
   expect(auth).toEqual([]);
-  // Since the DEO's screen keys: the ONLY cookie is the screen session (HttpOnly, SameSite=Strict,
-  // /api only); never a dashboard login session.
+  // Since the DEO's screen keys: the ONLY cookies are the screen sessions (HttpOnly,
+  // SameSite=Strict, /api only); never a dashboard login session. One per screen (Nov 2026): this
+  // context typed the key into all three popups.
   const cookies = await context.cookies();
-  expect(cookies.map((c) => [c.name, c.httpOnly, c.sameSite, c.path])).toEqual([
-    ['churu.screen', true, 'Strict', '/api'],
+  expect(cookies.map((c) => [c.name, c.httpOnly, c.sameSite, c.path]).sort()).toEqual([
+    ['churu.screen1', true, 'Strict', '/api'],
+    ['churu.screen2', true, 'Strict', '/api'],
+    ['churu.screen3', true, 'Strict', '/api'],
   ]);
 });
 
