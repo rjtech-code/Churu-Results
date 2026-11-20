@@ -14,6 +14,7 @@ import { DmCard } from './DmCard';
 import { MasterDataCard } from './MasterDataCard';
 import { StatusBar } from './StatusBar';
 import { TestDataCard } from './TestDataCard';
+import { UndeclareCard } from './UndeclareCard';
 import { TaskCard } from './parts';
 
 /** When the newest backup was written, beside the panel's name (who is logged in: shell header). */
@@ -128,6 +129,7 @@ export function SuperAdminPage() {
               <TestDataCard ov={ov} onChanged={data.reload} />
             </div>
             <div className="sa-grid-cards">
+              <UndeclareCard ov={ov} onChanged={data.reload} />
               <BoothDeleteCard ov={ov} onChanged={data.reload} />
             </div>
             <MasterDataCard ov={ov} onChanged={data.reload} />

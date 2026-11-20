@@ -30,8 +30,10 @@ import {
   MAX_JSON_UPLOAD_CHARS,
   backupNow,
   checkMasterData,
+  checkUndeclare,
   confirmDanger,
   exportCountingData,
+  listDeclaredZpWards,
   overview,
   replaceMasterData,
   resetCountingData,
@@ -41,6 +43,7 @@ import {
   setCountingLock,
   setScreenPower,
   setDmEmail,
+  undeclareZpWard,
   unlockDm,
 } from './superadmin.service.js';
 
@@ -107,6 +110,14 @@ const lockBody = z.discriminatedUnion('on', [
     .object({ on: z.literal(false), password: optionalPassword, confirmText: z.literal('UNLOCK') })
     .strict(),
 ]);
+/** Undeclare a declared ZP ward: the typed word, a reason, and the Super Admin's own password. */
+const undeclareBody = z
+  .object({
+    password: optionalPassword,
+    reason: z.string().trim().min(10).max(500),
+    confirmText: z.literal('UNDECLARE'),
+  })
+  .strict();
 const psQuery = z.object({ psId: idParam }).strict();
 const noQuery = z.object({}).strict();
 
@@ -210,6 +221,26 @@ export function superAdminRouter(
       deleteBooth(pool, { userId: who.user.id, ip: who.ip }, boothId, body.confirmText),
     );
     res.json({ ok: true, backupFile });
+  });
+
+  // ---- घोषित ZP ward वापस खोलें (undeclare): every version is archived, never deleted
+  router.get('/declared-zp-wards', async (req, res) => {
+    parse(noQuery, req.query);
+    noStore(res);
+    res.json({ wards: await listDeclaredZpWards(pool) });
+  });
+
+  router.post('/wards/:wardId/undeclare', async (req, res) => {
+    const wardId = parse(idParam, req.params.wardId);
+    const body = parse(undeclareBody, req.body);
+    const who = actor(req);
+    // Same order as every dangerous action: check, then password, then backup, then the change.
+    await checkUndeclare(pool, wardId);
+    await confirmDanger(pool, req, who, body.password);
+    const backupFile = await backupNow(config, pool, 'undeclare-ward');
+    const out = await busyAsConflict(() => undeclareZpWard(pool, who, wardId, body.reason));
+    noStore(res);
+    res.json({ ...out, backupFile });
   });
 
   // ---- counting lock (ON: a plain confirm; OFF: password + "UNLOCK")

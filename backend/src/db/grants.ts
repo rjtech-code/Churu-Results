@@ -4,6 +4,7 @@ type Privilege = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
 
 const READ_WRITE: readonly Privilege[] = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 const APPEND_ONLY: readonly Privilege[] = ['SELECT', 'INSERT'];
+const DECLARATIONS: readonly Privilege[] = ['SELECT', 'INSERT', 'DELETE'];
 
 /**
  * Exact table privileges for the APP database user. Every table in the schema MUST be listed:
@@ -23,12 +24,17 @@ export const APP_TABLE_PRIVILEGES: Readonly<Record<string, readonly Privilege[]>
   booth_entry_vote: READ_WRITE,
   postal_entry: READ_WRITE,
   postal_entry_vote: READ_WRITE,
-  ward_declarations: APPEND_ONLY,
+  // Declarations are never EDITED (a trigger still blocks UPDATE). Since Nov 2026 the Super Admin
+  // may UNDECLARE a ZP ward, which removes the rows — but only after copying every version into
+  // undeclared_ward in the same transaction, so nothing is ever lost.
+  ward_declarations: DECLARATIONS,
   audit_log: APPEND_ONLY,
   // Voided entries are archived forever: insert and read only.
   voided_entry: APPEND_ONLY,
   // Candidate name corrections after the ballot lock: kept forever, insert and read only.
   candidate_name_change: APPEND_ONLY,
+  // Declarations removed by a Super Admin "undeclare": kept forever, insert and read only.
+  undeclared_ward: APPEND_ONLY,
   app_settings: READ_WRITE,
   // Login sessions: the session store inserts, reads, refreshes and deletes expired rows.
   sessions: READ_WRITE,

@@ -10,6 +10,7 @@ import type { AppConfig, SetupConfig } from '../../config/app-config.js';
 import type { DbConnectionConfig } from '../../config/db.js';
 import { ApiError } from '../../middleware/errors.js';
 import { writeAudit as writeExportAudit } from '../../services/audit.js';
+import { emitWardChanged } from '../../services/events.js';
 import { maskEmail } from '../../services/mailer.js';
 import { withMasterDataWrite } from '../../services/master-data/lock.js';
 import { decodeXlsxUpload } from '../../services/master-data/upload.js';
@@ -597,4 +598,165 @@ export async function setCountingLock(pool: Pool, who: Actor, on: boolean): Prom
       auditActor(who),
     );
   });
+}
+
+// ---------------------------------------------------------------- undeclare a ZP ward
+
+/**
+ * "घोषित ZP ward वापस खोलें" (DEO, Nov 2026). A Zila Parishad ward declared by mistake can be put
+ * back to "गिनती चल रही है" so the ZP RO can declare it again.
+ *
+ * NOTHING IS LOST. Every declaration version of the ward is copied into `undeclared_ward` —
+ * append-only, kept for ever, with who undeclared it, when and why — in the SAME transaction that
+ * removes it from `ward_declarations`. The ward row is locked first, exactly as a declare or a
+ * correction does, so an undeclare can never interleave with either of them.
+ *
+ * It is deliberately NOT blocked by the Counting Lock: its whole purpose is counting day.
+ */
+export interface DeclaredZpWard {
+  wardId: number;
+  wardNo: number;
+  versions: number;
+  status: string;
+  winnerName: string;
+  margin: number;
+  declaredAt: string;
+}
+
+/** Every declared Zila Parishad ward, newest declaration first (the panel's undeclare list). */
+export async function listDeclaredZpWards(pool: Pool): Promise<DeclaredZpWard[]> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT w.id, w.ward_no, d.version, d.status, d.margin, d.declared_at,
+            c.name_hindi AS winner_name,
+            (SELECT COUNT(*) FROM ward_declarations x WHERE x.ward_id = w.id) AS versions
+       FROM ward w
+       JOIN ward_declarations d ON d.ward_id = w.id
+       LEFT JOIN candidate c ON c.id = d.winner_candidate_id
+      WHERE w.ward_type = 'ZP'
+        AND d.version = (SELECT MAX(y.version) FROM ward_declarations y WHERE y.ward_id = w.id)
+      ORDER BY d.declared_at DESC, w.ward_no`,
+  );
+  return rows.map((r) => ({
+    wardId: Number(r.id),
+    wardNo: Number(r.ward_no),
+    versions: Number(r.versions),
+    status: String(r.status),
+    winnerName: r.winner_name === null ? '' : String(r.winner_name),
+    margin: Number(r.margin),
+    declaredAt: (r.declared_at as Date).toISOString(),
+  }));
+}
+
+/** Every refusal of an undeclare, before the password is asked and before any backup is made. */
+export async function checkUndeclare(pool: Pool, wardId: number): Promise<{ wardNo: number }> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    'SELECT ward_no, ward_type FROM ward WHERE id = ?',
+    [wardId],
+  );
+  const ward = rows[0];
+  if (ward === undefined) throw new ApiError(404, 'NOT_FOUND');
+  // PS wards are the PS RO's; only Zila Parishad wards may be undeclared from this panel.
+  if (String(ward.ward_type) !== 'ZP') throw new ApiError(400, 'NOT_A_ZP_WARD');
+  const [declared] = await pool.execute<RowDataPacket[]>(
+    'SELECT 1 AS x FROM ward_declarations WHERE ward_id = ? LIMIT 1',
+    [wardId],
+  );
+  if (declared.length === 0) throw new ApiError(409, 'NOT_DECLARED');
+  return { wardNo: Number(ward.ward_no) };
+}
+
+export async function undeclareZpWard(
+  pool: Pool,
+  who: Actor,
+  wardId: number,
+  reason: string,
+): Promise<{ ok: true; wardId: number; wardNo: number; versionsArchived: number }> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    try {
+      // The ward lock, always first — the same lock declare and correction take.
+      const [wardRows] = await conn.execute<RowDataPacket[]>(
+        "SELECT id, ward_no FROM ward WHERE id = ? AND ward_type = 'ZP' FOR UPDATE",
+        [wardId],
+      );
+      const ward = wardRows[0];
+      if (ward === undefined) throw new ApiError(404, 'NOT_FOUND');
+      const [declarations] = await conn.execute<RowDataPacket[]>(
+        `SELECT d.version, d.status, d.winner_candidate_id, d.margin, d.snapshot, d.lottery_details,
+                d.nota_highest_ack, d.declared_by, d.declared_at, d.correction_reason,
+                c.name_hindi AS winner_name
+           FROM ward_declarations d
+           LEFT JOIN candidate c ON c.id = d.winner_candidate_id
+          WHERE d.ward_id = ? ORDER BY d.version`,
+        [wardId],
+      );
+      if (declarations.length === 0) throw new ApiError(409, 'NOT_DECLARED');
+      // Archive FIRST, delete after: if anything fails the whole transaction rolls back and the
+      // declaration is untouched.
+      for (const d of declarations) {
+        await conn.execute(
+          `INSERT INTO undeclared_ward (ward_id, version, status, winner_candidate_id, winner_name,
+             margin, snapshot, lottery_details, nota_highest_ack, declared_by, declared_at,
+             correction_reason, undeclared_by, undeclare_reason)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            wardId,
+            Number(d.version),
+            String(d.status),
+            Number(d.winner_candidate_id),
+            d.winner_name === null ? null : String(d.winner_name),
+            Number(d.margin),
+            JSON.stringify(d.snapshot ?? null),
+            d.lottery_details === null || d.lottery_details === undefined
+              ? null
+              : JSON.stringify(d.lottery_details),
+            Number(d.nota_highest_ack) === 1 ? 1 : 0,
+            Number(d.declared_by),
+            d.declared_at as Date,
+            d.correction_reason === null ? null : String(d.correction_reason),
+            who.user.id,
+            reason,
+          ],
+        );
+      }
+      await conn.execute('DELETE FROM ward_declarations WHERE ward_id = ?', [wardId]);
+      await writeAudit(
+        conn,
+        {
+          action: 'WARD_UNDECLARED',
+          entity: 'ward',
+          entityId: wardId,
+          oldValue: {
+            ward_no: Number(ward.ward_no),
+            versions: declarations.map((d) => ({
+              version: Number(d.version),
+              status: String(d.status),
+              winner_candidate_id: Number(d.winner_candidate_id),
+              margin: Number(d.margin),
+              declared_at: (d.declared_at as Date).toISOString(),
+            })),
+          },
+          newValue: { undeclared: true, versions_archived: declarations.length },
+          reason,
+        },
+        auditActor(who),
+      );
+      await conn.commit();
+      const outcome = {
+        ok: true as const,
+        wardId,
+        wardNo: Number(ward.ward_no),
+        versionsArchived: declarations.length,
+      };
+      // Only after a successful commit: the TV screens and every report pick the ward up again.
+      emitWardChanged(wardId);
+      return outcome;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    }
+  } finally {
+    conn.release();
+  }
 }

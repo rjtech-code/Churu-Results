@@ -92,6 +92,18 @@ export interface ScreenLockout {
   until: string;
 }
 
+/** A declared Zila Parishad ward, as the undeclare card lists it. */
+export interface DeclaredZpWard {
+  wardId: number;
+  wardNo: number;
+  /** How many declaration versions exist (1 = declared once, more = corrected). */
+  versions: number;
+  status: string;
+  winnerName: string;
+  margin: number;
+  declaredAt: string;
+}
+
 export interface Overview {
   countingLocked: boolean;
   /** The three public screens, on or off (Super Admin only control). */

@@ -30,6 +30,7 @@ import * as candidateDetailChange from './20261027000001_candidate_detail_change
 import * as candidateChangeExactCheck from './20261028000001_candidate_change_exact_check.js';
 import * as candidatePanchSarpanch from './20261029000001_candidate_panch_sarpanch.js';
 import * as screenSessionScreen from './20261030000001_screen_session_screen.js';
+import * as undeclareZpWard from './20261120000001_undeclare_zp_ward.js';
 
 // Explicit, ordered list of migrations. Statically imported so the same code works under tsx
 // and from the compiled dist/ build, without the knex CLI (which would need ts-node).
@@ -65,6 +66,7 @@ const MIGRATIONS: readonly (readonly [string, Knex.Migration])[] = [
   ['20261028000001_candidate_change_exact_check', candidateChangeExactCheck],
   ['20261029000001_candidate_panch_sarpanch', candidatePanchSarpanch],
   ['20261030000001_screen_session_screen', screenSessionScreen],
+  ['20261120000001_undeclare_zp_ward', undeclareZpWard],
 ];
 
 export const migrationSource: Knex.MigrationSource<string> = {
